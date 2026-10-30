@@ -1071,6 +1071,7 @@ class G7WatchActivity : Activity() {
                         updateGraphOnly()
                     }
                 }
+            graphView.onHeaderColorChanged = { graphPeriodPill.setTextColor(it) }
             addView(
                 graphPeriodPill,
                 FrameLayout.LayoutParams(72.dp, 34.dp, Gravity.TOP or Gravity.START).apply {

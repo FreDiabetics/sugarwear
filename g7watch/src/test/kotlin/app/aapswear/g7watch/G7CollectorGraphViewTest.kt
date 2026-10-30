@@ -154,6 +154,27 @@ class G7CollectorGraphViewTest {
         }
     }
 
+    @Test
+    fun `scale and age contrast follows rendered high area including transparency`() {
+        for ((area, expected) in listOf(Color.YELLOW to Color.BLACK, Color.DKGRAY to Color.WHITE, 0x10FFFF00 to Color.WHITE)) {
+            val palette =
+                G7AppearancePalette(
+                    G7AppearanceRole.entries.associateWith {
+                        when (it) {
+                            G7AppearanceRole.GRAPH_BACKGROUND -> Color.BLACK
+                            G7AppearanceRole.GRAPH_HIGH_AREA -> area
+                            else -> it.defaultArgb
+                        }
+                    },
+                )
+            var actual: Int? = null
+            render(listOf(reading("high", 210.0, now)), 3, now, palette) { actual = it }
+            assertEquals("High-area color $area", expected, actual)
+            render(listOf(reading("target", 110.0, now)), 3, now, palette) { actual = it }
+            assertEquals("Target reading must remove high-area contrast", Color.WHITE, actual)
+        }
+    }
+
     private fun render(readings: List<CgmReading>): Bitmap =
         render(
             readings = readings,
@@ -167,6 +188,7 @@ class G7CollectorGraphViewTest {
         graphHours: Int,
         nowEpochMs: Long,
         palette: G7AppearancePalette,
+        onHeaderColor: ((Int) -> Unit)? = null,
     ): Bitmap {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val directSettings = G7DirectToWatchSettingsStore(context)
@@ -198,6 +220,7 @@ class G7CollectorGraphViewTest {
             ),
         )
         val view = G7CollectorGraphView(context)
+        view.onHeaderColorChanged = onHeaderColor
         view.bind(
             readings = readings,
             palette = palette,
