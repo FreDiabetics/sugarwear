@@ -1,0 +1,3 @@
+[submodule "shared/sugarlicious"]
+	path = shared/sugarlicious
+	url = https://github.com/FreDiabetics/sugarlicious.git

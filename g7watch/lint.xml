@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Adaptive icon XML must remain in an API-qualified resource folder;
+         AAPT does not link this resource from mipmap-anydpi. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v33" />
+    </issue>
+    <!-- This is the approved sensor silhouette used by launcher, notification,
+         pairing and status UI. Rasterizing or simplifying it would break asset parity. -->
+    <issue id="VectorPath">
+        <ignore path="src/main/res/drawable/ic_sensor_outline.xml" />
+    </issue>
+    <!-- Full-tile vectors are picker previews rendered on demand, not runtime icons. -->
+    <issue id="VectorRaster">
+        <ignore path="src/main/res/drawable/tile_preview_g7.xml" />
+        <ignore path="src/main/res/drawable/tile_preview_graph.xml" />
+    </issue>
+</lint>

@@ -1,0 +1,23 @@
+.gradle/
+.kotlin/
+.idea/
+**/build/
+local.properties
+*.iml
+captures/
+dist/
+.worktrees/
+__pycache__/
+*.py[cod]
+
+# Local signing material and secrets
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
+secrets.properties
+.env
+.env.*
+!.env.example

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WatchFaceInfo>
+    <Preview value="@drawable/preview" />
+    <MultipleInstancesAllowed value="true" />
+    <FlavorsSupported value="false" />
+    <!-- The native editor exposes hand visibility; all data-provider slots remain fixed. -->
+    <Editable value="true" />
+</WatchFaceInfo>

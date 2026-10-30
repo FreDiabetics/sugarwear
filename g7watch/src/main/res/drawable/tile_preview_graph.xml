@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="400dp"
+    android:viewportWidth="400"
+    android:viewportHeight="400">
+    <path android:fillColor="#FF181818" android:pathData="M200,0A200,200 0,1 1,199.9,0Z" />
+    <path android:fillColor="#FF242424" android:strokeColor="#FF404040" android:strokeWidth="2"
+        android:pathData="M76,90Q76,66 100,66H300Q324,66 324,90V310Q324,334 300,334H100Q76,334 76,310Z" />
+    <!-- Gewebeglukose-Verlauf preview heading -->
+    <path android:fillColor="#FFF5F5F5" android:pathData="M98,94H278V104H98Z" />
+    <!-- Full-bleed target and range bands -->
+    <path android:fillColor="#263C7A56" android:pathData="M94,142H306V246H94Z" />
+    <path android:strokeColor="#FF6A8E78" android:strokeWidth="2" android:pathData="M94,142H306" />
+    <path android:strokeColor="#FF6A8E78" android:strokeWidth="2" android:pathData="M94,246H306" />
+    <!-- Time-accurate CGM series -->
+    <path android:strokeColor="#FF6DE892" android:strokeWidth="4" android:strokeLineCap="round"
+        android:fillColor="#00000000" android:pathData="M98,226L129,207L161,214L192,181L224,192L255,159L286,171" />
+    <path android:fillColor="#FF6DE892" android:pathData="M98,226A6,6 0,1 1,97.9,226ZM129,207A6,6 0,1 1,128.9,207ZM161,214A6,6 0,1 1,160.9,214ZM192,181A6,6 0,1 1,191.9,181ZM224,192A6,6 0,1 1,223.9,192ZM255,159A6,6 0,1 1,254.9,159ZM286,171A8,8 0,1 1,285.9,171Z" />
+    <path android:strokeColor="#FFB5B5B5" android:strokeWidth="2" android:pathData="M94,284H306" />
+</vector>

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Read by Wear OS from the custom static-preview XML plain/value attribute. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@string/complication_preview_delta" />

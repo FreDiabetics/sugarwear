@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-feature android:name="android.hardware.type.watch" />
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:hasCode="false"
+        android:icon="@drawable/preview"
+        android:label="Vigil"
+        android:usesCleartextTraffic="false">
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
+        <property android:name="com.google.wear.watchface.format.version" android:value="1" />
+        <property android:name="com.google.wear.watchface.format.publisher" android:value="SugarWear" />
+    </application>
+</manifest>

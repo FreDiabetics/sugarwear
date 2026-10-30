@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="hour_markers_visibility">Stundenmarker</string>
+    <string name="minute_markers_visibility">Minutenmarker</string>
+    <string name="digital_time_visibility">Digitale Uhrzeit</string>
+    <string name="hands_visibility">Zeiger</string>
+    <string name="seconds_color">Sekundenzeiger</string>
+    <string name="seconds_red">Rot</string>
+    <string name="seconds_gray">Mittelgrau</string>
+<string name="marker_set">Markerposition</string><string name="markers_close">Innen</string><string name="markers_wide">Außen</string><string name="minute_marker_color">Minutenmarkerfarbe</string><string name="hour_marker_color">Stundenmarkerfarbe</string><string name="marker_original">Original</string><string name="marker_gray_0">Weiß</string><string name="marker_gray_1">Grau 1</string><string name="marker_gray_2">Grau 2</string><string name="marker_gray_3">Grau 3</string><string name="marker_gray_4">Grau 4</string><string name="marker_gray_5">Grau 5</string><string name="marker_gray_6">Grau 6</string><string name="marker_gray_7">Grau 7</string><string name="marker_gray_8">Grau 8</string><string name="marker_gray_9">Grau 9</string><string name="marker_gray_10">Schwarz</string>    <string name="seconds_visibility">Sekundenzeiger</string>
+</resources>

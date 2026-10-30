@@ -1,0 +1,326 @@
+<?xml version='1.0' encoding='utf-8'?>
+<WatchFace width="450" height="450" clipShape="CIRCLE">
+    <Metadata key="CLOCK_TYPE" value="ANALOG" />
+    <Metadata key="PREVIEW_TIME" value="10:08:32" />
+    <UserConfigurations>
+        <BooleanConfiguration id="showHands" displayName="hands_visibility" defaultValue="FALSE" />
+        <BooleanConfiguration id="showDigitalTime" displayName="digital_time_visibility" defaultValue="TRUE" />
+        <BooleanConfiguration id="showSecondHand" displayName="seconds_visibility" defaultValue="TRUE" />
+        <ColorConfiguration id="secondColor" displayName="seconds_color" defaultValue="red">
+            <ColorOption id="red" displayName="seconds_red" colors="#FFFF3B30" />
+            <ColorOption id="gray" displayName="seconds_gray" colors="#FF9E9E9E" />
+        </ColorConfiguration>
+        <BooleanConfiguration id="showMinuteMarkers" displayName="minute_markers_visibility" defaultValue="TRUE" />
+        <BooleanConfiguration id="showHourMarkers" displayName="hour_markers_visibility" defaultValue="TRUE" />
+        <ListConfiguration id="markerSet" displayName="marker_set" defaultValue="close">
+            <ListOption id="close" displayName="markers_close" />
+            <ListOption id="wide" displayName="markers_wide" />
+        </ListConfiguration>
+        <ColorConfiguration id="minuteMarkerColor" displayName="minute_marker_color" defaultValue="original">
+            <ColorOption id="original" displayName="marker_original" colors="#FF2B2B2B" />
+            <ColorOption id="gray0" displayName="marker_gray_0" colors="#FFFFFFFF" />
+            <ColorOption id="gray1" displayName="marker_gray_1" colors="#FFE6E6E6" />
+            <ColorOption id="gray2" displayName="marker_gray_2" colors="#FFCCCCCC" />
+            <ColorOption id="gray3" displayName="marker_gray_3" colors="#FFB3B3B3" />
+            <ColorOption id="gray4" displayName="marker_gray_4" colors="#FF999999" />
+            <ColorOption id="gray5" displayName="marker_gray_5" colors="#FF808080" />
+            <ColorOption id="gray6" displayName="marker_gray_6" colors="#FF666666" />
+            <ColorOption id="gray7" displayName="marker_gray_7" colors="#FF4D4D4D" />
+            <ColorOption id="gray8" displayName="marker_gray_8" colors="#FF333333" />
+            <ColorOption id="gray9" displayName="marker_gray_9" colors="#FF1A1A1A" />
+            <ColorOption id="gray10" displayName="marker_gray_10" colors="#FF000000" />
+        </ColorConfiguration>
+        <ColorConfiguration id="hourMarkerColor" displayName="hour_marker_color" defaultValue="original">
+            <ColorOption id="original" displayName="marker_original" colors="#FF282828" />
+            <ColorOption id="gray0" displayName="marker_gray_0" colors="#FFFFFFFF" />
+            <ColorOption id="gray1" displayName="marker_gray_1" colors="#FFE6E6E6" />
+            <ColorOption id="gray2" displayName="marker_gray_2" colors="#FFCCCCCC" />
+            <ColorOption id="gray3" displayName="marker_gray_3" colors="#FFB3B3B3" />
+            <ColorOption id="gray4" displayName="marker_gray_4" colors="#FF999999" />
+            <ColorOption id="gray5" displayName="marker_gray_5" colors="#FF808080" />
+            <ColorOption id="gray6" displayName="marker_gray_6" colors="#FF666666" />
+            <ColorOption id="gray7" displayName="marker_gray_7" colors="#FF4D4D4D" />
+            <ColorOption id="gray8" displayName="marker_gray_8" colors="#FF333333" />
+            <ColorOption id="gray9" displayName="marker_gray_9" colors="#FF1A1A1A" />
+            <ColorOption id="gray10" displayName="marker_gray_10" colors="#FF000000" />
+        </ColorConfiguration>
+    </UserConfigurations>
+    <Scene backgroundColor="#FF000000">
+        <Group name="vigil-perimeter-markers" x="0" y="0" width="450" height="450">
+            <Condition>
+                <Expressions>
+                    <Expression name="handsVisible">[CONFIGURATION.showHands] == "TRUE"</Expression>
+                </Expressions>
+                <Compare expression="handsVisible">
+                    <Condition>
+                        <Expressions>
+                            <Expression name="minuteVisible">[CONFIGURATION.showMinuteMarkers] == "TRUE"</Expression>
+                        </Expressions>
+                        <Compare expression="minuteVisible">
+                            <Condition>
+                                <Expressions>
+                                    <Expression name="minuteclose">[CONFIGURATION.markerSet] == "close"</Expression>
+                                </Expressions>
+                                <Compare expression="minuteclose">
+                                    <PartImage x="0" y="0" width="450" height="450" tintColor="[CONFIGURATION.minuteMarkerColor.0]">
+                                        <Variant mode="AMBIENT" target="alpha" value="110" />
+                                        <Image resource="vigil_minutemarkers_close" />
+                                    </PartImage>
+                                </Compare>
+                            </Condition>
+                            <Condition>
+                                <Expressions>
+                                    <Expression name="minutewide">[CONFIGURATION.markerSet] == "wide"</Expression>
+                                </Expressions>
+                                <Compare expression="minutewide">
+                                    <PartImage x="0" y="0" width="450" height="450" tintColor="[CONFIGURATION.minuteMarkerColor.0]">
+                                        <Variant mode="AMBIENT" target="alpha" value="110" />
+                                        <Image resource="vigil_minutemarkers_wide" />
+                                    </PartImage>
+                                </Compare>
+                            </Condition>
+                        </Compare>
+                    </Condition>
+                    <Condition>
+                        <Expressions>
+                            <Expression name="hourVisible">[CONFIGURATION.showHourMarkers] == "TRUE"</Expression>
+                        </Expressions>
+                        <Compare expression="hourVisible">
+                            <Condition>
+                                <Expressions>
+                                    <Expression name="hourclose">[CONFIGURATION.markerSet] == "close"</Expression>
+                                </Expressions>
+                                <Compare expression="hourclose">
+                                    <PartImage x="0" y="0" width="450" height="450" tintColor="[CONFIGURATION.hourMarkerColor.0]">
+                                        <Variant mode="AMBIENT" target="alpha" value="110" />
+                                        <Image resource="vigil_hourmarkers_close" />
+                                    </PartImage>
+                                </Compare>
+                            </Condition>
+                            <Condition>
+                                <Expressions>
+                                    <Expression name="hourwide">[CONFIGURATION.markerSet] == "wide"</Expression>
+                                </Expressions>
+                                <Compare expression="hourwide">
+                                    <PartImage x="0" y="0" width="450" height="450" tintColor="[CONFIGURATION.hourMarkerColor.0]">
+                                        <Variant mode="AMBIENT" target="alpha" value="110" />
+                                        <Image resource="vigil_hourmarkers_wide" />
+                                    </PartImage>
+                                </Compare>
+                            </Condition>
+                        </Compare>
+                    </Condition>
+                </Compare>
+            </Condition>
+        </Group>
+        <ComplicationSlot slotId="0" displayName="Vigil glucose" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="90" y="28" width="340" height="108">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchHeaderComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="340" height="108" />
+            <Complication type="SMALL_IMAGE">
+                <Condition>
+                    <Expressions>
+                        <Expression name="digitalLayout">[CONFIGURATION.showHands] == "FALSE"</Expression>
+                    </Expressions>
+                    <Compare expression="digitalLayout">
+                        <PartImage x="0" y="0" width="340" height="108">
+                            <Variant mode="AMBIENT" target="alpha" value="0" />
+                            <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                        </PartImage>
+                        <PartImage x="0" y="0" width="340" height="108" alpha="0">
+                            <Variant mode="AMBIENT" target="alpha" value="255" />
+                            <Image resource="[COMPLICATION.SMALL_IMAGE_AMBIENT]" />
+                        </PartImage>
+                    </Compare>
+                </Condition>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="1" displayName="Vigil glucose graph" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="140" width="450" height="285">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchGraphComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="450" height="285" />
+            <Complication type="SMALL_IMAGE">
+                <PartImage x="0" y="0" width="450" height="285">
+                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                    <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                </PartImage>
+                <PartImage x="0" y="0" width="450" height="285" alpha="0">
+                    <Variant mode="AMBIENT" target="alpha" value="255" />
+                    <Image resource="[COMPLICATION.SMALL_IMAGE_AMBIENT]" />
+                </PartImage>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="2" displayName="Vigil scale and age" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="40" y="146" width="180" height="34">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchStatusComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="180" height="34" />
+            <Complication type="SMALL_IMAGE">
+                <PartImage x="0" y="0" width="180" height="34">
+                    <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                </PartImage>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="5" displayName="Vigil clock" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="90" y="347" width="270" height="78">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchClockComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="270" height="78" />
+            <Complication type="SMALL_IMAGE">
+                <Condition>
+                    <Expressions>
+                        <Expression name="digitalTimeVisible">[CONFIGURATION.showDigitalTime] == "TRUE" &amp;&amp; [CONFIGURATION.showHands] == "FALSE"</Expression>
+                    </Expressions>
+                    <Compare expression="digitalTimeVisible">
+                        <Group name="vigil-digital-time" x="0" y="0" width="270" height="78">
+                            <PartImage x="0" y="0" width="270" height="78">
+                                <Variant mode="AMBIENT" target="alpha" value="0" />
+                                <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                            </PartImage>
+                            <PartImage x="0" y="0" width="270" height="78" alpha="0">
+                                <Variant mode="AMBIENT" target="alpha" value="255" />
+                                <Image resource="[COMPLICATION.SMALL_IMAGE_AMBIENT]" />
+                            </PartImage>
+                        </Group>
+                    </Compare>
+                </Condition>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="9" displayName="Vigil analog glucose" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="0" width="450" height="450">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchAnalogHeaderComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="450" height="450" />
+            <Complication type="SMALL_IMAGE">
+                <Condition>
+                    <Expressions>
+                        <Expression name="analogLayout">[CONFIGURATION.showHands] == "TRUE"</Expression>
+                    </Expressions>
+                    <Compare expression="analogLayout">
+                        <Condition>
+                            <Expressions>
+                                <Expression name="analogclose">[CONFIGURATION.markerSet] == "close"</Expression>
+                            </Expressions>
+                            <Compare expression="analogclose">
+                                <PartImage x="0" y="0" width="450" height="450" alpha="255">
+                                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                                    <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                                </PartImage>
+                                <PartImage x="0" y="0" width="450" height="450" alpha="0">
+                                    <Variant mode="AMBIENT" target="alpha" value="255" />
+                                    <Image resource="[COMPLICATION.SMALL_IMAGE_AMBIENT]" />
+                                </PartImage>
+                            </Compare>
+                        </Condition>
+                        <Condition>
+                            <Expressions>
+                                <Expression name="analogwide">[CONFIGURATION.markerSet] == "wide"</Expression>
+                            </Expressions>
+                            <Compare expression="analogwide">
+                                <PartImage x="0" y="0" width="450" height="450" alpha="255">
+                                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                                    <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                                </PartImage>
+                                <PartImage x="0" y="0" width="450" height="450" alpha="0">
+                                    <Variant mode="AMBIENT" target="alpha" value="255" />
+                                    <Image resource="[COMPLICATION.SMALL_IMAGE_AMBIENT]" />
+                                </PartImage>
+                            </Compare>
+                        </Condition>
+                    </Compare>
+                </Condition>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="7" displayName="Vigil hands" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="0" width="450" height="450">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchHandsComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="450" height="450" />
+            <Complication type="SMALL_IMAGE">
+                <Group name="vigil-hands-visibility" x="0" y="0" width="450" height="450">
+                    <Condition>
+                        <Expressions>
+                            <Expression name="handsVisible">[CONFIGURATION.showHands] == "TRUE"</Expression>
+                        </Expressions>
+                        <Compare expression="handsVisible">
+                            <Group name="vigil-native-hands" x="0" y="0" width="450" height="450">
+                                <Variant mode="AMBIENT" target="alpha" value="160" />
+                                <PartImage renderMode="MASK" x="0" y="0" width="450" height="450">
+                                    <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                                </PartImage>
+                                <AnalogClock x="0" y="0" width="450" height="450">
+                                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                                    <HourHand resource="hour_hand_transparent" x="2" y="3" width="450" height="450" pivotX="0.5" pivotY="0.5" tintColor="#A0000000" />
+                                    <MinuteHand resource="minute_hand_transparent" x="2" y="3" width="450" height="450" pivotX="0.5" pivotY="0.5" tintColor="#A0000000" />
+                                </AnalogClock>
+                                <AnalogClock x="0" y="0" width="450" height="450">
+                                    <HourHand resource="hour_hand_transparent" x="0" y="0" width="450" height="450" pivotX="0.5" pivotY="0.5" />
+                                    <MinuteHand resource="minute_hand_transparent" x="0" y="0" width="450" height="450" pivotX="0.5" pivotY="0.5" />
+                                </AnalogClock>
+                                <PartDraw x="0" y="0" width="450" height="450">
+                                    <Ellipse x="217.529296875" y="217.529296875" width="14.94140625" height="14.94140625">
+                                        <Fill color="#FFFFFFFF" />
+                                    </Ellipse>
+                                    <Ellipse x="220.60546875" y="220.60546875" width="8.7890625" height="8.7890625">
+                                        <Fill color="#FF000000" />
+                                    </Ellipse>
+                                </PartDraw>
+                                <Condition>
+                                    <Expressions>
+                                        <Expression name="secondsVisible">[CONFIGURATION.showSecondHand] == "TRUE"</Expression>
+                                    </Expressions>
+                                    <Compare expression="secondsVisible">
+                                <AnalogClock x="0" y="0" width="450" height="450">
+                                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                                    <SecondHand resource="second_hand_transparent" x="2" y="3" width="450" height="450" pivotX="0.5" pivotY="0.5" tintColor="#A0000000">
+                                        <Sweep frequency="15" />
+                                    </SecondHand>
+                                </AnalogClock>
+                                <AnalogClock x="0" y="0" width="450" height="450">
+                                    <Variant mode="AMBIENT" target="alpha" value="0" />
+                                    <SecondHand resource="second_hand_transparent" x="0" y="0" width="450" height="450" pivotX="0.5" pivotY="0.5" tintColor="[CONFIGURATION.secondColor.0]">
+                                        <Sweep frequency="15" />
+                                    </SecondHand>
+                                </AnalogClock>
+                                    </Compare>
+                                </Condition>
+                            </Group>
+                        </Compare>
+                    </Condition>
+                </Group>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="10" displayName="Vigil graph action" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="140" width="450" height="205">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchGraphActionComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="450" height="205" />
+            <Complication type="SMALL_IMAGE">
+                <PartImage x="0" y="0" width="450" height="205" alpha="0">
+                    <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                </PartImage>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+        <Group name="vigil-open-sensor" x="105" y="358" width="240" height="56">
+            <Launch target="app.sugarwear/app.aapswear.g7watch.G7WatchActivity" />
+        </Group>
+        <Group name="vigil-open-sugarwear" x="75" y="28" width="300" height="108">
+            <Launch target="app.sugarwear/app.aapswear.g7watch.G7WatchActivity" />
+        </Group>
+        <ComplicationSlot slotId="8" displayName="Vigil center tap" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="200" y="200" width="50" height="50">
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchHandsToggleComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingOval x="0" y="0" width="50" height="50" />
+            <Complication type="SMALL_IMAGE">
+                <Group name="vigil-center-visibility" x="0" y="0" width="50" height="50">
+                    <Condition>
+                        <Expressions>
+                            <Expression name="handsVisible">[CONFIGURATION.showHands] == "TRUE"</Expression>
+                        </Expressions>
+                        <Compare expression="handsVisible">
+                            <PartImage x="0" y="0" width="50" height="50" alpha="0">
+                                <Image resource="[COMPLICATION.SMALL_IMAGE]" />
+                            </PartImage>
+                        </Compare>
+                    </Condition>
+                </Group>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+    </Scene>
+</WatchFace>
