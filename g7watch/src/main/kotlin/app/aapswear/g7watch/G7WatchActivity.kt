@@ -866,7 +866,7 @@ class G7WatchActivity : Activity() {
         fun metadataRow(value: String, icon: Int): LinearLayout =
             LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
+                gravity = Gravity.CENTER_VERTICAL or Gravity.START
                 isBaselineAligned = false
                 val iconSide = (18 * resources.configuration.fontScale * resources.displayMetrics.density).toInt()
                 addView(
@@ -885,10 +885,31 @@ class G7WatchActivity : Activity() {
                     },
                 )
             }
-        tile.addView(metadataRow(presentation.primaryMeta, app.aapswear.uishared.R.drawable.ic_metadata_delta))
-        if (presentation.secondaryMeta.isNotBlank()) {
-            tile.addView(metadataRow(presentation.secondaryMeta, app.aapswear.uishared.R.drawable.ic_metadata_age))
+        // Size the centered block to its widest row, then share its left-hand icon column.
+        // Centering each row separately shifts the icons whenever the text widths differ.
+        val metadata = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
+        fun addMetadata(value: String, icon: Int) {
+            metadata.addView(
+                metadataRow(value, icon),
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
         }
+        addMetadata(presentation.primaryMeta, app.aapswear.uishared.R.drawable.ic_metadata_delta)
+        if (presentation.secondaryMeta.isNotBlank()) {
+            val age =
+                presentation.secondaryMeta.replace(
+                    Regex("\\b(\\d+) Min\\b"),
+                ) { match ->
+                    val minutes = match.groupValues[1]
+                    "$minutes ${if (minutes == "1") "Minute" else "Minuten"}"
+                }
+            addMetadata(age, app.aapswear.uishared.R.drawable.ic_metadata_age)
+        }
+        tile.addView(
+            metadata,
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+        )
         return tile
     }
 
@@ -1050,6 +1071,7 @@ class G7WatchActivity : Activity() {
                         updateGraphOnly()
                     }
                 }
+            graphView.onHeaderColorChanged = { graphPeriodPill.setTextColor(it) }
             addView(
                 graphPeriodPill,
                 FrameLayout.LayoutParams(72.dp, 34.dp, Gravity.TOP or Gravity.START).apply {
