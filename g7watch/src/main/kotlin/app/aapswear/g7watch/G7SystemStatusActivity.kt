@@ -84,10 +84,17 @@ class G7SystemStatusActivity : Activity() {
 
                 if (selectedSection == null) {
                     addView(
-                        group("Sensorempfang", palette).apply {
-                            addView(row("Zustand", userStatus.title, palette))
-                            addView(row("Empfang", if (state.collectorEnabled) "Aktiv" else "Pausiert", palette))
-                            addView(row("Letzter Wert", state.lastReading?.let { "${it.glucoseMgDl.toInt()} · ${formatTimestamp(it.timestampEpochMs)}" } ?: "Noch kein Sensorwert", palette))
+                        group(userStatus.title, palette).apply {
+                            addView(
+                                label(
+                                    state.lastReading?.let {
+                                        "Letzter Wert ${it.glucoseMgDl.toInt()} · ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.timestampEpochMs))}"
+                                    } ?: "Noch kein Sensorwert",
+                                    9f,
+                                    palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY),
+                                ).apply { gravity = Gravity.START },
+                            )
+                            addActionRows(this, state, palette)
                         },
                         cardParams(),
                     )
@@ -307,15 +314,6 @@ class G7SystemStatusActivity : Activity() {
                         cardParams(),
                     )
                 }
-                if (selectedSection == null) {
-                    addView(
-                        group("Aktionen", palette).apply {
-                            addActionRows(this, state, palette)
-                        },
-                        cardParams(),
-                    )
-                }
-
                 if (selectedSection == null) {
                     val destinations = listOf("Sensor" to "Sensordetails", "Verbindung" to "Verbindung", "Zeitplanung und Rechte" to "Zeitplanung", "LIVE COLLECTOR STATUS" to "Verbindungsversuch", "Hardwaretest" to "Empfangsstatistik", "Diagnose" to "Diagnose")
                     val rows =
