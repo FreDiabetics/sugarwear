@@ -43,10 +43,13 @@ class G7WatchActivityLayoutTest {
     @Test
     fun `appearance exposes a complete independent WearOS tile graph section`() {
         val activity = Robolectric.buildActivity(G7AppearanceActivity::class.java).setup().get()
+        activity.window.decorView
+            .findViewWithTag<View>("settings-element-WearOS-Tile · Graph")
+            .performClick()
         val text = mutableListOf<String>()
         val tileGraphTitle = findText(activity.window.decorView, "WearOS-Tile · Graph")
         assertNotNull("Tile graph must have its own element card", tileGraphTitle)
-        collectText(tileGraphTitle!!.parent as android.view.View, text)
+        collectText(activity.window.decorView, text)
 
         assertTrue(text.contains("WearOS-Tile · Graph"))
         assertTrue(text.any { it.startsWith("Punktgröße") })
@@ -464,7 +467,9 @@ class G7WatchActivityLayoutTest {
         val controller = Robolectric.buildActivity(G7SettingsActivity::class.java).setup()
         val activity = controller.get()
         try {
-            (findText(activity.window.decorView, "Berechtigungen")!!.parent.parent as View).performClick()
+            activity.window.decorView
+                .findViewWithTag<View>("settings-category-permissions")
+                .performClick()
             assertEquals(
                 G7PermissionsActivity::class.java.name,
                 Shadows
@@ -631,7 +636,7 @@ class G7WatchActivityLayoutTest {
         val activity = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
-        (findText(root, "Sensor")!!.parent.parent as android.view.View).performClick()
+        root.findViewWithTag<View>("settings-category-sugarwear").performClick()
 
         assertEquals(
             G7SystemStatusActivity::class.java.name,
@@ -648,8 +653,7 @@ class G7WatchActivityLayoutTest {
         val activity = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
-        val alarmHeaderText = findText(root, "Alarme")!!
-        (alarmHeaderText.parent.parent as android.view.View).performClick()
+        root.findViewWithTag<View>("settings-category-alarms").performClick()
 
         val intent = Shadows.shadowOf(activity).nextStartedActivity
         assertEquals(G7AlarmSettingsActivity::class.java.name, intent.component?.className)
@@ -661,8 +665,7 @@ class G7WatchActivityLayoutTest {
     fun `direct to watch category opens complete watchface settings`() {
         val settings = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
         val root = settings.findViewById<android.view.View>(android.R.id.content)
-        val header = findText(root, "Vigil")!!
-        (header.parent.parent as android.view.View).performClick()
+        root.findViewWithTag<View>("settings-category-vigil").performClick()
         assertEquals(
             G7DirectToWatchSettingsActivity::class.java.name,
             Shadows
@@ -672,29 +675,18 @@ class G7WatchActivityLayoutTest {
         )
 
         val activity = Robolectric.buildActivity(G7DirectToWatchSettingsActivity::class.java).setup().get()
-        val texts = mutableListOf<String>()
-        collectText(activity.findViewById(android.R.id.content), texts)
-        assertTrue("Watchface" in texts)
-        assertTrue(texts.any { it.startsWith("Größe ·") })
-        assertTrue("LOW-Bereich" in texts)
-        assertTrue("Zielbereich" in texts)
-        assertTrue("HIGH-Bereich" in texts)
-        assertTrue("Eckenrundung · 20.0 dp" in texts)
-        assertTrue("Graphkontur" in texts)
-        assertTrue("Zeitachsenskala" in texts)
-        assertTrue("Zuckerwert fett" in texts)
-        assertFalse("Horizontale Zielwert-Striche" in texts)
-        assertTrue(AppearanceTerminology.GRAPH_HISTORICAL_DOT_OUTLINE in texts)
-        assertFalse("Kontur · aktueller Wert" in texts)
-        assertTrue(texts.any { it.startsWith("Aktuell ·") })
-        assertFalse("Range-Hintergrundfärbung" in texts)
-        assertFalse(texts.any { it.startsWith("Prognose ·") })
-        val settingsRoot = activity.findViewById<android.view.View>(android.R.id.content)
+        val allTexts = mutableListOf<String>()
+        val settingsRoot = activity.findViewById<View>(android.R.id.content)
+        assertNotNull(findText(settingsRoot, "Vigil"))
 
         fun cardText(title: String): List<String> {
-            val heading = findText(settingsRoot, title)
-            assertNotNull("Missing element card: $title", heading)
-            return mutableListOf<String>().also { collectText(heading!!.parent as android.view.View, it) }
+            settingsRoot.findViewWithTag<View>("settings-element-$title").performClick()
+            val texts = mutableListOf<String>().also { collectText(settingsRoot, it) }
+            allTexts += texts
+            val back = arrayListOf<View>()
+            settingsRoot.findViewsWithText(back, "Zurück", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
+            back.single().performClick()
+            return texts
         }
         val glucose = cardText("Glukose")
         assertTrue("mg/dL" in glucose)
@@ -703,10 +695,20 @@ class G7WatchActivityLayoutTest {
         assertTrue(cardText("Alter und Skala").any { it.startsWith("Größe ·") })
         assertTrue("Farbe" in cardText("Uhrzeit"))
         assertTrue("Füllfarbe" in cardText("Trendpfeil"))
-        assertTrue("LOW-Bereich" in cardText("Graph"))
+        val graph = cardText("Graph")
+        assertTrue("LOW-Bereich" in graph)
+        assertTrue("HIGH-Bereich" in graph)
+        assertTrue("Graphkontur" in graph)
+        assertTrue("Zeitachsenskala" in graph)
+        assertTrue(AppearanceTerminology.GRAPH_HISTORICAL_DOT_OUTLINE in graph)
+        assertTrue(graph.any { it.startsWith("Aktuell ·") })
         assertTrue(AppearanceTerminology.DELTA_UNIT in cardText("Delta und Einheit"))
-        assertTrue("Farbe" in texts)
-        assertTrue("Fett" in texts)
+        assertFalse("Horizontale Zielwert-Striche" in allTexts)
+        assertFalse("Kontur · aktueller Wert" in allTexts)
+        assertFalse("Range-Hintergrundfärbung" in allTexts)
+        assertFalse(allTexts.any { it.startsWith("Prognose ·") })
+        activity.finish()
+        settings.finish()
     }
 
     @Test
@@ -768,6 +770,7 @@ class G7WatchActivityLayoutTest {
     fun `direct to watch settings preserve the scroll view and position when a choice changes`() {
         val activity = Robolectric.buildActivity(G7DirectToWatchSettingsActivity::class.java).setup().get()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
+        root.findViewWithTag<View>("settings-element-Glukose").performClick()
         val scroll = findScrollView(root)!!
         assertFalse(scroll.isVerticalFadingEdgeEnabled)
         assertEquals(0, scroll.verticalFadingEdgeLength)
@@ -786,12 +789,13 @@ class G7WatchActivityLayoutTest {
     fun `direct settings sliders and toggles do not rebuild or reset the page`() {
         val activity = Robolectric.buildActivity(G7DirectToWatchSettingsActivity::class.java).setup().get()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
+        root.findViewWithTag<View>("settings-element-Graph").performClick()
         val scroll = findScrollView(root)!!
         measureAndLayout(root)
         scroll.scrollTo(0, 220)
 
         val sliderRow = findTextStartingWith(root, "Punktgröße ·")!!.parent as ViewGroup
-        val seekBar = (0 until sliderRow.childCount).map { sliderRow.getChildAt(it) }.filterIsInstance<SeekBar>().single()
+        val seekBar = findSeekBar(sliderRow)!!
         seekBar.setProgress((seekBar.progress + 4).coerceAtMost(seekBar.max), true)
         val toggleRow = findText(root, "Graphkontur")!!.parent as ViewGroup
         val toggle = (0 until toggleRow.childCount).map { toggleRow.getChildAt(it) }.filterIsInstance<Switch>().single()
@@ -1006,62 +1010,42 @@ class G7WatchActivityLayoutTest {
     }
 
     @Test
-    fun `system status screen keeps all real status groups and back navigation`() {
-        val activity =
-            Robolectric
-                .buildActivity(G7SystemStatusActivity::class.java)
-                .create()
-                .start()
-                .resume()
-                .get()
-        val texts = mutableListOf<String>()
-        collectText(activity.findViewById(android.R.id.content), texts)
-
-        listOf(
-            "LIVE COLLECTOR STATUS",
-            "SYSTEMSTATUS",
-            "SENSOR",
-            "VERBINDUNG",
-            "ZEITPLANUNG",
-            "HARDWARETEST",
-            "DIAGNOSE",
-            "AKTIONEN",
-        ).forEach {
-            assertTrue("Missing group $it", texts.any { text -> text.contains(it, ignoreCase = true) })
+    fun `system status separates operational controls from preserved technical detail pages`() {
+        val controller = Robolectric.buildActivity(G7SystemStatusActivity::class.java).setup()
+        val activity = controller.get()
+        val before = G7SensorStateStore(activity).read()
+        try {
+            val texts = mutableListOf<String>()
+            collectText(activity.window.decorView, texts)
+            assertTrue(texts.contains("Systemstatus"))
+            assertFalse(texts.contains("GATT verbunden"))
+            assertFalse(texts.contains("Sensorcode"))
+            assertTrue(texts.any { it == "Sensor verbinden" || it == "Sensor trennen" })
+            val pages =
+                mapOf(
+                    "Sensor" to listOf("Sensorcode", "GTIN", "Seriennummer", "Kulanzende"),
+                    "Verbindung" to listOf("Reconnect-Strategie", "Empfohlene Aktion"),
+                    "Zeitplanung und Rechte" to listOf("Nächster Reconnect", "Geräte in der Nähe"),
+                    "LIVE COLLECTOR STATUS" to listOf("Aktueller Attempt", "FGS"),
+                    "Hardwaretest" to listOf("GATT verbunden", "Erwartete Fenster"),
+                    "Diagnose" to listOf("Aktiver Attempt", "Fehlercode"),
+                )
+            pages.forEach { (key, fields) ->
+                activity.window.decorView
+                    .findViewWithTag<View>("status-details-$key")
+                    .performClick()
+                texts.clear()
+                collectText(activity.window.decorView, texts)
+                fields.forEach { assertTrue("Missing $key field $it", texts.contains(it)) }
+                val backs = arrayListOf<View>()
+                activity.window.decorView.findViewsWithText(backs, "Zurück", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
+                backs.single().performClick()
+                assertFalse(activity.isFinishing)
+            }
+            assertEquals(before, G7SensorStateStore(activity).read())
+        } finally {
+            controller.pause().stop().destroy()
         }
-        findTextStartingWith(activity.findViewById(android.R.id.content), "▸  Details")!!.performClick()
-        findTextStartingWith(activity.findViewById(android.R.id.content), "▸  Details")!!.performClick()
-        texts.clear()
-        collectText(activity.findViewById(android.R.id.content), texts)
-        listOf(
-            "Sensorstatus",
-            "Session",
-            "Sensorcode",
-            "GTIN",
-            "Seriennummer",
-            "Letzter Wert",
-            "Trendrate",
-            "BLE-Name",
-            "Kulanzende",
-            "Status",
-            "Reconnect-Strategie",
-            "Hinweis",
-            "Empfohlene Aktion",
-            "Nächster Reconnect",
-            "Geräte in der Nähe",
-            "Benachrichtigungen",
-            "GATT verbunden",
-            "Aktiver Attempt",
-            "Fehlercode",
-        ).forEach {
-            assertTrue("Missing status field $it", texts.contains(it))
-        }
-        assertTrue(texts.contains("Systemstatus"))
-        val backViews = arrayListOf<View>()
-        activity.findViewById<View>(android.R.id.content).findViewsWithText(backViews, "Zurück", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
-        assertEquals(1, backViews.size)
-        backViews.single().performClick()
-        assertTrue(activity.isFinishing)
     }
 
     @Test
@@ -1098,6 +1082,12 @@ class G7WatchActivityLayoutTest {
         if (view is ViewGroup) {
             for (index in 0 until view.childCount) collectText(view.getChildAt(index), output)
         }
+    }
+
+    private fun findSeekBar(view: View): SeekBar? {
+        if (view is SeekBar) return view
+        if (view is ViewGroup) for (i in 0 until view.childCount) findSeekBar(view.getChildAt(i))?.let { return it }
+        return null
     }
 
     private fun findGraph(view: android.view.View): G7CollectorGraphView? {

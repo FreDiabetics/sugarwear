@@ -21,9 +21,12 @@ import java.util.Locale
 class G7AlarmSettingsActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var scrollView: ScrollView
+    private var selectedAlarm: CgmAlarmType? = null
+    private var alarmPage: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
             G7EdgeFadeScrollView(this)
@@ -53,12 +56,45 @@ class G7AlarmSettingsActivity : Activity() {
             removeAllViews()
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(18.dp, 32.dp, 18.dp, 56.dp)
+            app.aapswear.uishared.WearSettingsUi
+                .pagePadding(this)
             setBackgroundColor(background)
             addView(topBar(palette), fullWidth())
-            addView(dndCard(palette), cardParams(7))
-            addView(globalCard(settings, palette), cardParams(7))
-            CgmAlarmType.entries.forEach { type -> addView(alarmCard(type, settings, palette), cardParams(7)) }
+            val selected = selectedAlarm
+            if (selected != null) {
+                addView(alarmCard(selected, settings, palette), cardParams(7))
+            } else if (alarmPage == "Systemzugriff") {
+                addView(dndCard(palette), cardParams(7))
+            } else if (alarmPage == "Töne und Vibration") {
+                addView(globalCard(settings, palette), cardParams(7))
+            } else {
+                val generalRows =
+                    listOf("Töne und Vibration", "Systemzugriff").map { title ->
+                        app.aapswear.uishared.WearSettingsUi.navigationRow(this@G7AlarmSettingsActivity, title, null, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)) {
+                            alarmPage = title
+                            scrollView.scrollTo(0, 0)
+                            render()
+                        }
+                    }
+                addView(
+                    app.aapswear.uishared.WearSettingsUi
+                        .navigationGroup(this@G7AlarmSettingsActivity, generalRows, palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)),
+                    cardParams(10),
+                )
+                val rows =
+                    CgmAlarmType.entries.map { type ->
+                        app.aapswear.uishared.WearSettingsUi.navigationRow(this@G7AlarmSettingsActivity, g7AlarmTitle(type), null, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)) {
+                            selectedAlarm = type
+                            scrollView.scrollTo(0, 0)
+                            render()
+                        }
+                    }
+                addView(
+                    app.aapswear.uishared.WearSettingsUi
+                        .navigationGroup(this@G7AlarmSettingsActivity, rows, palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)),
+                    cardParams(10),
+                )
+            }
         }
         restoreScrollPosition(restoreScrollY)
     }
@@ -172,7 +208,18 @@ class G7AlarmSettingsActivity : Activity() {
         render()
     }
 
-    private fun topBar(palette: G7AppearancePalette) = g7SettingsHeader("Alarme", palette)
+    private fun topBar(palette: G7AppearancePalette) = g7SettingsHeader(selectedAlarm?.let(::g7AlarmTitle) ?: alarmPage ?: "Alarme", palette) { navigateBack() }
+
+    private fun navigateBack() {
+        if (selectedAlarm == null && alarmPage == null) {
+            finish()
+        } else {
+            selectedAlarm = null
+            alarmPage = null
+            scrollView.scrollTo(0, 0)
+            render()
+        }
+    }
 
     private fun showThresholdEditor(
         type: CgmAlarmType,
@@ -208,12 +255,13 @@ class G7AlarmSettingsActivity : Activity() {
     }
 
     private fun restoreScrollPosition(scrollY: Int) {
+        val scheduledScrollY = scrollView.scrollY
         scrollView.viewTreeObserver.addOnPreDrawListener(
             object : ViewTreeObserver.OnPreDrawListener {
                 override fun onPreDraw(): Boolean {
                     scrollView.viewTreeObserver.removeOnPreDrawListener(this)
                     val maxScroll = (root.measuredHeight - scrollView.height).coerceAtLeast(0)
-                    scrollView.scrollTo(0, scrollY.coerceAtMost(maxScroll))
+                    if (scrollView.scrollY == scheduledScrollY) scrollView.scrollTo(0, scrollY.coerceAtMost(maxScroll))
                     return true
                 }
             },
