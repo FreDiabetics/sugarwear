@@ -54,6 +54,52 @@ class G7SettingsPresentationTest {
         }
     }
 
+    @Test
+    @Config(qualifiers = "w192dp-h192dp-round")
+    fun `appearance categories open individually and preserve all saved values`() {
+        for (type in listOf(G7AppearanceActivity::class.java, G7DirectToWatchSettingsActivity::class.java)) {
+            val controller = Robolectric.buildActivity(type).setup()
+            val activity = controller.get()
+            try {
+                val prefs =
+                    listOf("g7_appearance", app.aapswear.protocol.DirectToWatchSettingsContract.PREFERENCES)
+                        .associateWith { activity.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
+                val tags = descendants(activity.window.decorView).mapNotNull { (it.tag as? String)?.takeIf { tag -> tag.startsWith("settings-element-") } }.toList()
+                assertTrue(tags.isNotEmpty())
+                for (tag in tags) {
+                    activity.window.decorView
+                        .findViewWithTag<View>(tag)
+                        .performClick()
+                    assertTrue(descendants(activity.window.decorView).none { it.tag == tag })
+                    descendants(activity.window.decorView).single { it.contentDescription == "Zurück" }.performClick()
+                    assertTrue(descendants(activity.window.decorView).any { it.tag == tag })
+                }
+                prefs.forEach { (name, before) -> assertEquals(before, activity.getSharedPreferences(name, Context.MODE_PRIVATE).all) }
+            } finally {
+                controller.pause().stop().destroy()
+            }
+        }
+    }
+
+    @Test
+    fun `alarm list opens each type without triggering or changing an alarm`() {
+        val controller = Robolectric.buildActivity(G7AlarmSettingsActivity::class.java).setup()
+        val activity = controller.get()
+        try {
+            val before = G7AlarmSettingsStore.read(activity)
+            for (type in app.aapswear.g7.CgmAlarmType.entries) {
+                var target: View = descendants(activity.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == g7AlarmTitle(type) }
+                while (!target.isClickable) target = target.parent as View
+                target.performClick()
+                assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Test" })
+                descendants(activity.window.decorView).single { it.contentDescription == "Zurück" }.performClick()
+            }
+            assertEquals(before, G7AlarmSettingsStore.read(activity))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
     private fun descendants(view: View): Sequence<View> =
         sequence {
             yield(view)

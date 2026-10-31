@@ -34,12 +34,14 @@ class G7SystemStatusActivity : Activity() {
     private var companionAccessClosed = false
     private val companionBondAccess by lazy { G7CompanionBondAccess(this) }
     private var showPairingCode = false
+    private var selectedSection: String? = null
     private var hardwareExpanded = false
     private var diagnosticsExpanded = false
     private var scrollView: ScrollView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
         G7RuntimeReconciler.reconcile(this, G7RuntimeEntryPoint.SYSTEM_STATUS)
         render()
     }
@@ -72,223 +74,266 @@ class G7SystemStatusActivity : Activity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(18.dp, 32.dp, 18.dp, 56.dp)
+                app.aapswear.uishared.WearSettingsUi
+                    .pagePadding(this)
                 setBackgroundColor(background)
                 addView(
-                    g7SettingsHeader("Systemstatus", palette),
+                    g7SettingsHeader(selectedSection?.let(::sectionTitle) ?: "Systemstatus", palette) { navigateBack() },
                     LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
                 )
 
-                addView(
-                    group("LIVE COLLECTOR STATUS", palette).apply {
-                        val lastEvent = attempt?.events?.maxByOrNull { it.timestampEpochMs }
-                        val livePhase = lastEvent?.stage?.name ?: userStatus.phase
-                        addView(row("Collector", if (state.collectorEnabled) "Aktiv" else "Pausiert", palette))
-                        addView(row("Aktueller Zustand", livePhase, palette))
-                        addView(
-                            row(
-                                "Letzter gültiger Wert",
-                                state.lastReading?.let { "${it.glucoseMgDl.toInt()} · ${formatTimestamp(it.timestampEpochMs)}" } ?: "—",
-                                palette,
-                            ),
-                        )
-                        addView(
-                            row(
-                                "Alter",
-                                state.lastReading?.let { formatDurationMs(System.currentTimeMillis() - it.timestampEpochMs) } ?: "—",
-                                palette,
-                            ),
-                        )
-                        addView(row("Nächster Sensorzyklus", formatTimestamp(cycle?.expectedReadingEpoch), palette))
-                        addView(
-                            row("Nächster Wakeup", formatTimestamp(state.nextReconnectEpochMs ?: cycle?.requestedReconnectEpoch), palette),
-                        )
-                        addView(row("Aktueller Attempt", state.activeAttemptId?.toString() ?: "—", palette))
-                        addView(row("Verbindungsweg", liveCollectorPath(cycle, livePhase), palette))
-                        addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
-                        addView(row("Letzte Verbindung", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
-                        addView(row("FGS", if (G7CollectorService.isServiceRunning()) "Aktiv" else "Nicht aktiv", palette))
-                    },
-                    cardParams(),
-                )
-
-                addView(
-                    group("Sensor", palette).apply {
-                        addView(row("Sensorstatus", state.sensor?.state?.name ?: "—", palette))
-                        addView(row("Session", state.sensor?.sessionId ?: state.lastReading?.sessionId ?: "—", palette))
-                        addView(row("Sensorcode", pairingCodeDisplayValue(credentials?.pairingCode, showPairingCode), palette))
-                        if (credentials != null) {
+                if (selectedSection == null) {
+                    addView(
+                        group(userStatus.title, palette).apply {
                             addView(
-                                pill(if (showPairingCode) "Sensorcode verbergen" else "Sensorcode anzeigen", palette) {
-                                    showPairingCode = !showPairingCode
-                                    render()
-                                },
+                                label(
+                                    state.lastReading?.let {
+                                        "Letzter Wert ${it.glucoseMgDl.toInt()} · ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.timestampEpochMs))}"
+                                    } ?: "Noch kein Sensorwert",
+                                    9f,
+                                    palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY),
+                                ).apply { gravity = Gravity.START },
                             )
-                        }
-                        addView(row("GTIN", credentials?.gtin ?: "—", palette))
-                        addView(row("Seriennummer", credentials?.sensorSerial ?: "—", palette))
-                        addView(
-                            row(
-                                "Letzter Wert",
-                                state.lastReading?.let { "${it.glucoseMgDl.toInt()} · ${formatTimestamp(it.timestampEpochMs)}" } ?: "—",
-                                palette,
-                            ),
-                        )
-                        addView(row("Sensoralter", state.lastReading?.sensorAgeSeconds?.let(::formatDurationSeconds) ?: "—", palette))
-                        addView(
-                            row(
-                                "Trendrate",
-                                state.lastReading?.trendRateMgDlPerMinute?.let { "%.1f mg/dL/min".format(it) } ?: "—",
-                                palette,
-                            ),
-                        )
-                        addView(row("Sensor-ID", state.sensor?.sensorId ?: state.lastReading?.sensorId ?: "—", palette))
-                        addView(row("Sequenz", state.lastReading?.sequenceNumber?.toString() ?: "—", palette))
-                        addView(row("BLE-Name", state.sensor?.deviceName ?: "—", palette))
-                        addView(
-                            row(
-                                "Sensorstart",
-                                formatTimestamp(state.sensor?.sensorStartEpochMs ?: state.lastReading?.sensorStartEpochMs),
-                                palette,
-                            ),
-                        )
-                        addView(
-                            row(
-                                "Sensorende",
-                                formatTimestamp(state.sensor?.sensorEndEpochMs ?: state.lastReading?.sensorEndEpochMs),
-                                palette,
-                            ),
-                        )
-                        addView(
-                            row(
-                                "Kulanzende",
-                                formatTimestamp(state.sensor?.graceEndEpochMs ?: state.lastReading?.graceEndEpochMs),
-                                palette,
-                            ),
-                        )
-                    },
-                    cardParams(),
-                )
-                addView(
-                    group("Verbindung", palette).apply {
-                        addView(row("Zustand", userStatus.title, palette))
-                        addView(row("Status", userStatus.status, palette))
-                        addView(row("Verbindung", state.connectionState.name, palette))
-                        addView(row("Collector", if (state.collectorEnabled) "Aktiviert" else "Pausiert", palette))
-                        addView(row("Phase", userStatus.phase, palette))
-                        addView(row("Protokoll", state.protocolState.name, palette))
-                        addView(row("Letzter Connect", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
-                        addView(row("Bekannte Adresse", state.sensor?.deviceAddress ?: "Nicht vorhanden", palette))
-                        addView(row("Reconnect-Strategie", G7ReconnectStrategyStore.read(this@G7SystemStatusActivity).name, palette))
-                        addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
-                        addView(row("Hinweis", userStatus.description, palette))
-                        addView(row("Empfohlene Aktion", userStatus.action, palette))
-                    },
-                    cardParams(),
-                )
-                addView(
-                    group("Zeitplanung und Rechte", palette).apply {
-                        addView(row("Nächster Wert", formatTimestamp(cycle?.expectedReadingEpoch), palette))
-                        addView(
-                            row(
-                                "Nächster Reconnect",
-                                formatTimestamp(state.nextReconnectEpochMs ?: cycle?.requestedReconnectEpoch),
-                                palette,
-                            ),
-                        )
-                        addView(row("Alarm", cycle?.alarmKind?.name ?: "—", palette))
-                        addView(row("Exact Alarm", if (canScheduleExactReconnects()) "Erlaubt" else "Nicht erlaubt", palette))
-                        addView(
-                            row(
-                                "Akkuoptimierung",
-                                if (G7BackgroundAccess.isBatteryUnrestricted(
-                                        this@G7SystemStatusActivity,
-                                    )
-                                ) {
-                                    "Uneingeschränkt"
-                                } else {
-                                    "Optimiert"
-                                },
-                                palette,
-                            ),
-                        )
-                        addView(row("Geräte in der Nähe", if (hasNearbyPermission()) "Erlaubt" else "Nicht erlaubt", palette))
-                        addView(row("Benachrichtigungen", if (hasNotificationPermission()) "Erlaubt" else "Nicht erlaubt", palette))
-                        addView(row("Retry", state.retryCount.toString(), palette))
-                        addPermissionRows(this, palette)
-                    },
-                    cardParams(),
-                )
-                addView(
-                    group("Hardwaretest", palette).apply {
-                        addView(
-                            expandableHeader("Details", hardwareExpanded, palette) {
-                                hardwareExpanded = !hardwareExpanded
-                                render()
-                            },
-                        )
-                        if (hardwareExpanded) {
-                            addCycleRows(this, cycle, palette)
-                            addView(row("Erwartete Fenster", hardwareMetrics.expectedWindows.toString(), palette))
-                            addView(row("Versuchte Fenster", hardwareMetrics.attemptedWindows.toString(), palette))
-                            addView(row("Erfolgreiche Fenster", hardwareMetrics.successfulWindows.toString(), palette))
-                            addView(row("Verpasste Fenster", hardwareMetrics.missedWindows.toString(), palette))
-                            addView(row("Uhr aus/Neustart", hardwareMetrics.deviceUnavailableWindows.toString(), palette))
-                            addView(row("First Attempt", hardwareMetrics.firstAttemptSuccess.toString(), palette))
-                            addView(row("Retry-Erfolg", hardwareMetrics.retrySuccess.toString(), palette))
-                            addView(row("GATT 133", hardwareMetrics.gatt133Count.toString(), palette))
-                            addView(row("No Callback", hardwareMetrics.noCallbackCount.toString(), palette))
-                            addView(row("Fallback Scans", hardwareMetrics.fallbackScanCount.toString(), palette))
-                            addView(row("Verfügbarkeit", "%.1f %%".format(hardwareMetrics.availabilityPercent), palette))
-                            addView(row("Längste Wertelücke", hardwareMetrics.longestReadingGapMs?.let(::formatDurationMs) ?: "—", palette))
-                            addView(row("Median Empfang", hardwareMetrics.medianReceiveDelayMs?.let(::formatDurationMs) ?: "—", palette))
-                            addView(row("p95 Empfang", hardwareMetrics.p95ReceiveDelayMs?.let(::formatDurationMs) ?: "—", palette))
-                        }
-                    },
-                    cardParams(),
-                )
-                addView(
-                    group("Diagnose", palette).apply {
-                        addView(
-                            expandableHeader("Details", diagnosticsExpanded, palette) {
-                                diagnosticsExpanded = !diagnosticsExpanded
-                                render()
-                            },
-                        )
-                        if (diagnosticsExpanded) {
+                            addActionRows(this, state, palette)
+                        },
+                        cardParams(),
+                    )
+                }
+                if (selectedSection == "LIVE COLLECTOR STATUS") {
+                    addView(
+                        group("LIVE COLLECTOR STATUS", palette).apply {
                             val lastEvent = attempt?.events?.maxByOrNull { it.timestampEpochMs }
-                            addView(row("Aktiver Attempt", state.activeAttemptId?.toString() ?: "—", palette))
+                            val livePhase = lastEvent?.stage?.name ?: userStatus.phase
+                            addView(row("Collector", if (state.collectorEnabled) "Aktiv" else "Pausiert", palette))
+                            addView(row("Aktueller Zustand", livePhase, palette))
                             addView(
                                 row(
-                                    "Attempt-Alter",
-                                    attempt?.takeIf { it.completedAtEpochMs == null }?.let {
-                                        formatDurationMs(
-                                            System.currentTimeMillis() - it.startedAtEpochMs,
-                                        )
-                                    }
-                                        ?: "—",
+                                    "Letzter gültiger Wert",
+                                    state.lastReading?.let { "${it.glucoseMgDl.toInt()} · ${formatTimestamp(it.timestampEpochMs)}" } ?: "—",
                                     palette,
                                 ),
                             )
-                            addView(row("Letztes Ergebnis", attempt?.result?.name ?: "—", palette))
-                            addView(row("Klassifikation", attempt?.classification?.name ?: "—", palette))
-                            addView(row("Letzte Stufe", lastEvent?.stage?.name ?: "—", palette))
-                            addView(row("Fehlercode", lastEvent?.errorCode ?: state.lastError?.code ?: "—", palette))
-                            addView(row("Letzte Meldung", lastEvent?.message ?: userStatus.description, palette))
-                            addView(row("Slot-Strategie", cycle?.slotStrategy?.name ?: "—", palette))
-                            addView(row("Radio-Fehlerfolge", cycle?.radioFailureStreak?.toString() ?: "0", palette))
-                            addView(row("Radio-Cluster", if (cycle?.radioDegradedCluster == true) "Aktiv" else "Nein", palette))
-                        }
-                    },
-                    cardParams(),
-                )
-                addView(
-                    group("Aktionen", palette).apply {
-                        addActionRows(this, state, palette)
-                    },
-                    cardParams(),
-                )
+                            addView(
+                                row(
+                                    "Alter",
+                                    state.lastReading?.let { formatDurationMs(System.currentTimeMillis() - it.timestampEpochMs) } ?: "—",
+                                    palette,
+                                ),
+                            )
+                            addView(row("Nächster Sensorzyklus", formatTimestamp(cycle?.expectedReadingEpoch), palette))
+                            addView(
+                                row("Nächster Wakeup", formatTimestamp(state.nextReconnectEpochMs ?: cycle?.requestedReconnectEpoch), palette),
+                            )
+                            addView(row("Aktueller Attempt", state.activeAttemptId?.toString() ?: "—", palette))
+                            addView(row("Verbindungsweg", liveCollectorPath(cycle, livePhase), palette))
+                            addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
+                            addView(row("Letzte Verbindung", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
+                            addView(row("FGS", if (G7CollectorService.isServiceRunning()) "Aktiv" else "Nicht aktiv", palette))
+                        },
+                        cardParams(),
+                    )
+                }
 
+                if (selectedSection == "Sensor") {
+                    addView(
+                        group("Sensor", palette).apply {
+                            addView(row("Sensorstatus", state.sensor?.state?.name ?: "—", palette))
+                            addView(row("Session", state.sensor?.sessionId ?: state.lastReading?.sessionId ?: "—", palette))
+                            addView(row("Sensorcode", pairingCodeDisplayValue(credentials?.pairingCode, showPairingCode), palette))
+                            if (credentials != null) {
+                                addView(
+                                    pill(if (showPairingCode) "Sensorcode verbergen" else "Sensorcode anzeigen", palette) {
+                                        showPairingCode = !showPairingCode
+                                        render()
+                                    },
+                                )
+                            }
+                            addView(row("GTIN", credentials?.gtin ?: "—", palette))
+                            addView(row("Seriennummer", credentials?.sensorSerial ?: "—", palette))
+                            addView(
+                                row(
+                                    "Letzter Wert",
+                                    state.lastReading?.let { "${it.glucoseMgDl.toInt()} · ${formatTimestamp(it.timestampEpochMs)}" } ?: "—",
+                                    palette,
+                                ),
+                            )
+                            addView(row("Sensoralter", state.lastReading?.sensorAgeSeconds?.let(::formatDurationSeconds) ?: "—", palette))
+                            addView(
+                                row(
+                                    "Trendrate",
+                                    state.lastReading?.trendRateMgDlPerMinute?.let { "%.1f mg/dL/min".format(it) } ?: "—",
+                                    palette,
+                                ),
+                            )
+                            addView(row("Sensor-ID", state.sensor?.sensorId ?: state.lastReading?.sensorId ?: "—", palette))
+                            addView(row("Sequenz", state.lastReading?.sequenceNumber?.toString() ?: "—", palette))
+                            addView(row("BLE-Name", state.sensor?.deviceName ?: "—", palette))
+                            addView(
+                                row(
+                                    "Sensorstart",
+                                    formatTimestamp(state.sensor?.sensorStartEpochMs ?: state.lastReading?.sensorStartEpochMs),
+                                    palette,
+                                ),
+                            )
+                            addView(
+                                row(
+                                    "Sensorende",
+                                    formatTimestamp(state.sensor?.sensorEndEpochMs ?: state.lastReading?.sensorEndEpochMs),
+                                    palette,
+                                ),
+                            )
+                            addView(
+                                row(
+                                    "Kulanzende",
+                                    formatTimestamp(state.sensor?.graceEndEpochMs ?: state.lastReading?.graceEndEpochMs),
+                                    palette,
+                                ),
+                            )
+                        },
+                        cardParams(),
+                    )
+                }
+                if (selectedSection == "Verbindung") {
+                    addView(
+                        group("Verbindung", palette).apply {
+                            addView(row("Zustand", userStatus.title, palette))
+                            addView(row("Status", userStatus.status, palette))
+                            addView(row("Verbindung", state.connectionState.name, palette))
+                            addView(row("Collector", if (state.collectorEnabled) "Aktiviert" else "Pausiert", palette))
+                            addView(row("Phase", userStatus.phase, palette))
+                            addView(row("Protokoll", state.protocolState.name, palette))
+                            addView(row("Letzter Connect", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
+                            addView(row("Bekannte Adresse", state.sensor?.deviceAddress ?: "Nicht vorhanden", palette))
+                            addView(row("Reconnect-Strategie", G7ReconnectStrategyStore.read(this@G7SystemStatusActivity).name, palette))
+                            addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
+                            addView(row("Hinweis", userStatus.description, palette))
+                            addView(row("Empfohlene Aktion", userStatus.action, palette))
+                        },
+                        cardParams(),
+                    )
+                }
+                if (selectedSection == "Zeitplanung und Rechte") {
+                    addView(
+                        group("Zeitplanung und Rechte", palette).apply {
+                            addView(row("Nächster Wert", formatTimestamp(cycle?.expectedReadingEpoch), palette))
+                            addView(
+                                row(
+                                    "Nächster Reconnect",
+                                    formatTimestamp(state.nextReconnectEpochMs ?: cycle?.requestedReconnectEpoch),
+                                    palette,
+                                ),
+                            )
+                            addView(row("Alarm", cycle?.alarmKind?.name ?: "—", palette))
+                            addView(row("Exact Alarm", if (canScheduleExactReconnects()) "Erlaubt" else "Nicht erlaubt", palette))
+                            addView(
+                                row(
+                                    "Akkuoptimierung",
+                                    if (G7BackgroundAccess.isBatteryUnrestricted(
+                                            this@G7SystemStatusActivity,
+                                        )
+                                    ) {
+                                        "Uneingeschränkt"
+                                    } else {
+                                        "Optimiert"
+                                    },
+                                    palette,
+                                ),
+                            )
+                            addView(row("Geräte in der Nähe", if (hasNearbyPermission()) "Erlaubt" else "Nicht erlaubt", palette))
+                            addView(row("Benachrichtigungen", if (hasNotificationPermission()) "Erlaubt" else "Nicht erlaubt", palette))
+                            addView(row("Retry", state.retryCount.toString(), palette))
+                            addPermissionRows(this, palette)
+                        },
+                        cardParams(),
+                    )
+                }
+                if (selectedSection == "Hardwaretest") {
+                    addView(
+                        group("Hardwaretest", palette).apply {
+                            addView(
+                                expandableHeader("Details", hardwareExpanded, palette) {
+                                    hardwareExpanded = !hardwareExpanded
+                                    render()
+                                },
+                            )
+                            if (hardwareExpanded) {
+                                addCycleRows(this, cycle, palette)
+                                addView(row("Erwartete Fenster", hardwareMetrics.expectedWindows.toString(), palette))
+                                addView(row("Versuchte Fenster", hardwareMetrics.attemptedWindows.toString(), palette))
+                                addView(row("Erfolgreiche Fenster", hardwareMetrics.successfulWindows.toString(), palette))
+                                addView(row("Verpasste Fenster", hardwareMetrics.missedWindows.toString(), palette))
+                                addView(row("Uhr aus/Neustart", hardwareMetrics.deviceUnavailableWindows.toString(), palette))
+                                addView(row("First Attempt", hardwareMetrics.firstAttemptSuccess.toString(), palette))
+                                addView(row("Retry-Erfolg", hardwareMetrics.retrySuccess.toString(), palette))
+                                addView(row("GATT 133", hardwareMetrics.gatt133Count.toString(), palette))
+                                addView(row("No Callback", hardwareMetrics.noCallbackCount.toString(), palette))
+                                addView(row("Fallback Scans", hardwareMetrics.fallbackScanCount.toString(), palette))
+                                addView(row("Verfügbarkeit", "%.1f %%".format(hardwareMetrics.availabilityPercent), palette))
+                                addView(row("Längste Wertelücke", hardwareMetrics.longestReadingGapMs?.let(::formatDurationMs) ?: "—", palette))
+                                addView(row("Median Empfang", hardwareMetrics.medianReceiveDelayMs?.let(::formatDurationMs) ?: "—", palette))
+                                addView(row("p95 Empfang", hardwareMetrics.p95ReceiveDelayMs?.let(::formatDurationMs) ?: "—", palette))
+                            }
+                        },
+                        cardParams(),
+                    )
+                }
+                if (selectedSection == "Diagnose") {
+                    addView(
+                        group("Diagnose", palette).apply {
+                            addView(
+                                expandableHeader("Details", diagnosticsExpanded, palette) {
+                                    diagnosticsExpanded = !diagnosticsExpanded
+                                    render()
+                                },
+                            )
+                            if (diagnosticsExpanded) {
+                                val lastEvent = attempt?.events?.maxByOrNull { it.timestampEpochMs }
+                                addView(row("Aktiver Attempt", state.activeAttemptId?.toString() ?: "—", palette))
+                                addView(
+                                    row(
+                                        "Attempt-Alter",
+                                        attempt?.takeIf { it.completedAtEpochMs == null }?.let {
+                                            formatDurationMs(
+                                                System.currentTimeMillis() - it.startedAtEpochMs,
+                                            )
+                                        }
+                                            ?: "—",
+                                        palette,
+                                    ),
+                                )
+                                addView(row("Letztes Ergebnis", attempt?.result?.name ?: "—", palette))
+                                addView(row("Klassifikation", attempt?.classification?.name ?: "—", palette))
+                                addView(row("Letzte Stufe", lastEvent?.stage?.name ?: "—", palette))
+                                addView(row("Fehlercode", lastEvent?.errorCode ?: state.lastError?.code ?: "—", palette))
+                                addView(row("Letzte Meldung", lastEvent?.message ?: userStatus.description, palette))
+                                addView(row("Slot-Strategie", cycle?.slotStrategy?.name ?: "—", palette))
+                                addView(row("Radio-Fehlerfolge", cycle?.radioFailureStreak?.toString() ?: "0", palette))
+                                addView(row("Radio-Cluster", if (cycle?.radioDegradedCluster == true) "Aktiv" else "Nein", palette))
+                            }
+                        },
+                        cardParams(),
+                    )
+                }
+                if (selectedSection == null) {
+                    val destinations = listOf("Sensor" to "Sensordetails", "Verbindung" to "Verbindung", "Zeitplanung und Rechte" to "Zeitplanung", "LIVE COLLECTOR STATUS" to "Verbindungsversuch", "Hardwaretest" to "Empfangsstatistik", "Diagnose" to "Diagnose")
+                    val rows =
+                        destinations.map { (key, title) ->
+                            app.aapswear.uishared.WearSettingsUi
+                                .navigationRow(this@G7SystemStatusActivity, title, null, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)) {
+                                    selectedSection = key
+                                    hardwareExpanded = true
+                                    diagnosticsExpanded = true
+                                    showPairingCode = false
+                                    scrollView?.scrollTo(0, 0)
+                                    render()
+                                }.apply { tag = "status-details-$key" }
+                        }
+                    addView(
+                        app.aapswear.uishared.WearSettingsUi
+                            .navigationGroup(this@G7SystemStatusActivity, rows, palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)),
+                        cardParams(),
+                    )
+                }
                 addView(
                     label(
                         "Nur einen direkten Sensor-Collector gleichzeitig verwenden. Juggluco oder xDrip vorher beenden.",
@@ -325,6 +370,26 @@ class G7SystemStatusActivity : Activity() {
                     }
                 },
             )
+        }
+    }
+
+    private fun sectionTitle(key: String): String =
+        when (key) {
+            "LIVE COLLECTOR STATUS" -> "Verbindungsversuch"
+            "Hardwaretest" -> "Empfangsstatistik"
+            "Zeitplanung und Rechte" -> "Zeitplanung"
+            "Sensor" -> "Sensordetails"
+            else -> key
+        }
+
+    private fun navigateBack() {
+        if (selectedSection == null) {
+            finish()
+        } else {
+            selectedSection = null
+            showPairingCode = false
+            scrollView?.scrollTo(0, 0)
+            render()
         }
     }
 
@@ -514,9 +579,9 @@ class G7SystemStatusActivity : Activity() {
         action: () -> Unit,
     ) = TextView(this).apply {
         this.text = text
-        textSize = 11f
+        textSize = 15f
         gravity = Gravity.CENTER
-        minHeight = 40.dp
+        minHeight = 48.dp
         setPadding(13.dp, 8.dp, 13.dp, 8.dp)
         app.aapswear.uishared.SystemTypography
             .apply(this, true)

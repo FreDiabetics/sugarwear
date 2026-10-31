@@ -50,7 +50,8 @@ class G7SettingsActivity : Activity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(18.dp, 32.dp, 18.dp, 56.dp)
+                app.aapswear.uishared.WearSettingsUi
+                    .pagePadding(this)
                 setBackgroundColor(background)
                 addView(topBar(palette), fullWidth())
                 addView(
@@ -66,7 +67,43 @@ class G7SettingsActivity : Activity() {
                 )
             }
 
-        G7SettingsSection.entries.forEach { section -> addSection(section, palette) }
+        G7SettingsSection.entries.toList().chunked(3).forEach { sections ->
+            val rows =
+                sections.map { section ->
+                    app.aapswear.uishared.WearSettingsUi
+                        .navigationRow(
+                            this,
+                            section.title,
+                            null,
+                            palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY),
+                            palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY),
+                        ) {
+                            if (section == G7SettingsSection.ABOUT) {
+                                aboutExpanded = !aboutExpanded
+                                render()
+                            } else {
+                                openSection(section)
+                            }
+                        }.apply { tag = "settings-category-${section.name.lowercase()}" }
+                }
+            pageRoot.addView(
+                app.aapswear.uishared.WearSettingsUi
+                    .navigationGroup(this, rows, palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)),
+                cardParams(top = 10),
+            )
+        }
+        if (aboutExpanded) {
+            pageRoot.addView(
+                infoCard(
+                    "SugarWear",
+                    app.aapswear.uishared.AppReleaseInfo
+                        .summary(this, app.aapswear.uishared.AppReleaseInfo.Product.COLLECTOR),
+                    "Eigenständiger Sensorempfang auf der Watch.",
+                    palette,
+                ),
+                cardParams(),
+            )
+        }
 
         if (!::scrollView.isInitialized) {
             scrollView =
@@ -90,75 +127,6 @@ class G7SettingsActivity : Activity() {
                 }
             },
         )
-    }
-
-    private fun addSection(
-        section: G7SettingsSection,
-        palette: G7AppearancePalette,
-    ) {
-        val isAbout = section == G7SettingsSection.ABOUT
-        val content =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                visibility = if (isAbout && aboutExpanded) View.VISIBLE else View.GONE
-                if (isAbout) {
-                    addView(
-                        infoCard(
-                            "SugarWear",
-                            app.aapswear.uishared.AppReleaseInfo
-                                .summary(this@G7SettingsActivity, app.aapswear.uishared.AppReleaseInfo.Product.COLLECTOR),
-                            "Eigenständiger Sensorempfang auf der Watch.",
-                            palette,
-                        ),
-                        cardParams(),
-                    )
-                }
-            }
-        val chevron =
-            text(
-                if (isAbout &&
-                    aboutExpanded
-                ) {
-                    "⌄"
-                } else {
-                    "›"
-                },
-                20f,
-                palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY),
-                true,
-            ).apply {
-                gravity = Gravity.CENTER
-            }
-        val header =
-            LinearLayout(this).apply {
-                tag = "settings-category-${section.name.lowercase()}"
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                minimumHeight = 58.dp
-                setPadding(13.dp, 8.dp, 8.dp, 8.dp)
-                background = rounded(palette.settingsArgb(G7AppearanceRole.MENU_SURFACE), palette.settingsArgb(G7AppearanceRole.MENU_BORDER), 20f)
-                isClickable = true
-                isFocusable = true
-                addView(
-                    LinearLayout(this@G7SettingsActivity).apply {
-                        orientation = LinearLayout.VERTICAL
-                        addView(text(section.title, 11f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY), true))
-                    },
-                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
-                )
-                addView(chevron, LinearLayout.LayoutParams(28.dp, 38.dp))
-                setOnClickListener {
-                    if (isAbout) {
-                        aboutExpanded = !aboutExpanded
-                        content.visibility = if (aboutExpanded) View.VISIBLE else View.GONE
-                        chevron.text = if (aboutExpanded) "⌄" else "›"
-                    } else {
-                        openSection(section)
-                    }
-                }
-            }
-        pageRoot.addView(header, cardParams(top = 6))
-        pageRoot.addView(content, fullWidth())
     }
 
     private fun openSection(section: G7SettingsSection) {

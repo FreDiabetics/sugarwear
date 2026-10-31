@@ -6,9 +6,10 @@ import android.widget.LinearLayout
 internal fun Activity.g7SettingsHeader(
     title: String,
     palette: G7AppearancePalette,
+    back: () -> Unit = { finish() },
 ): LinearLayout =
     app.aapswear.uishared.WearSettingsUi
-        .header(this, title, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY)) { finish() }
+        .header(this, title, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY), back)
         .apply {
             val inset =
                 app.aapswear.uishared.WearSettingsUi
