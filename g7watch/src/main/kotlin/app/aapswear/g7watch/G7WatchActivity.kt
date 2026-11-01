@@ -144,7 +144,7 @@ class G7WatchActivity : Activity() {
             mainHandler.post {
                 if (!companionAccessClosed && !isFinishing && !isDestroyed) {
                     if (release.isSuccess) {
-                        companionBondAccess.ensureForUnlink(ready, failed)
+                        companionBondAccess.ensureForUnlink(ready, failed, explicitRetirement = hasG7SensorAssociation(G7SensorStateStore(this).read()))
                     } else {
                         failed("Sensorempfang konnte nicht beendet werden")
                     }

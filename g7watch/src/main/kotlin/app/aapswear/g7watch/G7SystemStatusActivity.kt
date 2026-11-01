@@ -479,12 +479,20 @@ class G7SystemStatusActivity : Activity() {
                                 render()
                             } else {
                                 companionBondAccess.ensureForUnlink(
+                                    explicitRetirement = true,
                                     onReady = {
                                         diagnosticScope.launch {
-                                            val detached = runCatching { unlinkG7Sensor(applicationContext).detached }.getOrDefault(false)
+                                            val result = runCatching { unlinkG7Sensor(applicationContext) }.getOrNull()
+                                            val detached = result?.detached == true
                                             runOnUiThread {
                                                 unlinkInFlight = false
                                                 unlinkFailed = !detached
+                                                unlinkFailureReason =
+                                                    if (detached && result.bondRemovalStatus == G7BondRemovalStatus.FAILED) {
+                                                        "Sensor getrennt. Ein verbliebener Android-Bluetooth-Eintrag verhindert das Verbinden eines neuen Sensors nicht."
+                                                    } else {
+                                                        null
+                                                    }
                                                 if (!companionAccessClosed && !isFinishing && !isDestroyed) render()
                                             }
                                         }
@@ -507,8 +515,8 @@ class G7SystemStatusActivity : Activity() {
         )
         if (unlinkFailed) {
             target.addView(label("Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen.", 11f, palette.argb(G7AppearanceRole.GLUCOSE_ERROR)))
-            unlinkFailureReason?.let { target.addView(label(it, 11f, palette.argb(G7AppearanceRole.GLUCOSE_ERROR))) }
         }
+        unlinkFailureReason?.let { target.addView(label(it, 11f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY))) }
         if (associated || state.collectorEnabled) {
             target.addView(
                 pill(if (state.collectorEnabled) "Pausieren" else "Fortsetzen", palette) {
