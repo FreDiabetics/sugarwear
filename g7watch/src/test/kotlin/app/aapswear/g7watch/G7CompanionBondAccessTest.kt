@@ -130,6 +130,16 @@ class G7CompanionBondAccessTest {
         assertFalse(access.onActivityResult(17, Activity.RESULT_CANCELED))
     }
 
+    @Test fun `explicit retirement does not require an absent sensor to advertise for consent`() {
+        val backend = Backend().apply { bonded.add(first) }
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val access = G7CompanionBondAccess(activity, backend, sdkInt = 36, unlinkAddresses = { setOf(first) })
+        var ready = 0
+        access.ensureForUnlink({ ready++ }, { error(it) }, explicitRetirement = true)
+        assertEquals(1, ready)
+        assertTrue(backend.requested.isEmpty())
+    }
+
     @Test fun `public removal disassociates only matching owned records after confirmed bond disappearance`() {
         val associations = listOf(G7OwnedCompanionAssociation(1, first), G7OwnedCompanionAssociation(2, second), G7OwnedCompanionAssociation(3, first.lowercase()))
         val events = mutableListOf<String>()

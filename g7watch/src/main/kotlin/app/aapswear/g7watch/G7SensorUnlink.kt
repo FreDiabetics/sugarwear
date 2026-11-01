@@ -15,10 +15,11 @@ import app.aapswear.g7.G7SetupPayload
 
 internal data class G7UnlinkResult(
     val bondRemovalStatus: G7BondRemovalStatus,
+    val localAssociationCleared: Boolean = bondRemovalStatus != G7BondRemovalStatus.FAILED,
 ) {
     val bondRemovalAttempted: Boolean get() = bondRemovalStatus != G7BondRemovalStatus.NOT_REQUIRED
     val bondRemovalRequested: Boolean get() = bondRemovalStatus == G7BondRemovalStatus.REMOVED
-    val detached: Boolean get() = bondRemovalStatus != G7BondRemovalStatus.FAILED
+    val detached: Boolean get() = localAssociationCleared
 }
 
 internal enum class G7BondRemovalStatus { NOT_REQUIRED, REMOVED, FAILED }
@@ -97,12 +98,20 @@ internal fun unlinkG7Sensor(
     val app = context.applicationContext
     val stateStore = G7SensorStateStore(app)
     val beforeRelease = stateStore.read()
+    var bondEnumerationFailed = false
     val addresses =
         try {
             g7SensorUnlinkAddresses(app, bondedAddresses)
+                .filterNot {
+                    !permanentlyRetire && G7RetiredSensors(app).contains(it)
+                }.toSet()
         } catch (_: SecurityException) {
-            releaseG7CollectorOwnership(app)
-            return G7UnlinkResult(G7BondRemovalStatus.FAILED)
+            if (!permanentlyRetire) {
+                releaseG7CollectorOwnership(app)
+                return G7UnlinkResult(G7BondRemovalStatus.FAILED)
+            }
+            bondEnumerationFailed = true
+            g7SensorUnlinkAddresses(app, bondedAddresses = { emptySet() })
         }
     stateStore.save(beforeRelease.copy(health = G7CollectorReliability.releasePending(beforeRelease.health, System.currentTimeMillis())))
     // Cancel the live BLE owner before removing the Android bond. stopService() alone is
@@ -112,15 +121,16 @@ internal fun unlinkG7Sensor(
     val removals = if (addresses.isEmpty()) listOf(bondRemover.remove(app, null)) else addresses.map { bondRemover.remove(app, it) }
     val bondRemovalStatus =
         when {
-            G7BondRemovalStatus.FAILED in removals -> G7BondRemovalStatus.FAILED
+            bondEnumerationFailed || G7BondRemovalStatus.FAILED in removals -> G7BondRemovalStatus.FAILED
             G7BondRemovalStatus.REMOVED in removals -> G7BondRemovalStatus.REMOVED
             else -> G7BondRemovalStatus.NOT_REQUIRED
         }
-    if (!shouldClearG7Association(bondRemovalStatus)) {
+    if (!permanentlyRetire && !shouldClearG7Association(bondRemovalStatus)) {
         return G7UnlinkResult(bondRemovalStatus)
     }
-    // Commit exclusions only after every requested bond is confirmed gone. A failed
-    // detach must not silently block the retained association on the next explicit retry.
+    // Explicit retirement must work even when Android retains an inaccessible bond.
+    // Retain only an address exclusion, never credentials or a runnable old session.
+    // Receiver takeover without retirement still requires confirmed bond removal.
     if (permanentlyRetire) G7RetiredSensors(app).retire(addresses)
     G7ExpectedWindowLedger(app).markSessionEnded(
         beforeRelease.sensor?.sensorId,
@@ -135,7 +145,7 @@ internal fun unlinkG7Sensor(
     app.contentResolver.notifyChange(G7ReadingProvider.STATE_URI, null)
     app.contentResolver.notifyChange(G7ReadingProvider.CONTENT_URI, null)
     app.sendBroadcast(Intent(G7ReadingDatabase.ACTION_G7_READING_UPDATED).setPackage("app.sugarlicious"))
-    return G7UnlinkResult(bondRemovalStatus)
+    return G7UnlinkResult(bondRemovalStatus, localAssociationCleared = true)
 }
 
 @SuppressLint("MissingPermission")

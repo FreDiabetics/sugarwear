@@ -26,9 +26,13 @@ class G7AppearanceActivity : Activity() {
     private var selectedMode: AppearanceMode = AppearanceMode.DARK
     private lateinit var scrollView: ScrollView
     private lateinit var pageRoot: LinearLayout
+    private var selectedCategory: String? = null
+    private val categoryTitles = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
+        selectedCategory = savedInstanceState?.getString("settings-category")
         store = G7AppearanceStore(this)
         selectedMode = store.activeMode()
         pageRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -42,24 +46,32 @@ class G7AppearanceActivity : Activity() {
         render()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("settings-category", selectedCategory)
+    }
+
     private fun render() {
         val palette = store.load(selectedMode)
         applyG7SystemChrome(window, palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND))
 
         val restoreScrollY = scrollView.scrollY
+        categoryTitles.clear()
         var content =
             pageRoot.apply {
                 removeAllViews()
                 orientation = LinearLayout.VERTICAL
-                setPadding(18.dp, 32.dp, 18.dp, 56.dp)
+                app.aapswear.uishared.WearSettingsUi
+                    .pagePadding(this)
                 setBackgroundColor(palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND))
             }
         content.addView(topBar(palette))
-        content.addView(themeSelector(palette), params(top = 8))
+        if (selectedCategory != null) content.addView(themeSelector(palette), params(top = 8))
 
         fun card(title: String): LinearLayout =
             app.aapswear.uishared.WearSettingsUi.elementCard(this, title, palette.settingsArgb(G7AppearanceRole.MENU_SURFACE), palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY)).also {
-                pageRoot.addView(it, params(top = 10))
+                categoryTitles += title
+                if (selectedCategory == title) pageRoot.addView(it, params(top = 10))
             }
         val glucoseCard = card("Glukosewert")
         content = glucoseCard
@@ -244,7 +256,7 @@ class G7AppearanceActivity : Activity() {
                 )
             }
         content.addView(
-            pill("TILE-GLUKOSE RESET", palette.settingsArgb(G7AppearanceRole.MENU_SURFACE), palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY)) {
+            pill("Tile-Darstellung zurücksetzen", palette.settingsArgb(G7AppearanceRole.MENU_SURFACE), palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY)) {
                 store.resetTileGlucoseAppearance(selectedMode)
                 render()
             },
@@ -387,14 +399,17 @@ class G7AppearanceActivity : Activity() {
             }
         }
         content = pageRoot
+        addCategoryNavigation(palette)
 
-        content.addView(
-            pill("ALLES RESET", palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)) {
-                store.resetAll()
-                render()
-            },
-            params(top = 14),
-        )
+        if (selectedCategory == null) {
+            content.addView(
+                pill("Alle Darstellungen zurücksetzen", palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)) {
+                    store.resetAll()
+                    render()
+                },
+                params(top = 14),
+            )
+        }
 
         scrollView.setBackgroundColor(palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND))
         scrollView.viewTreeObserver.addOnPreDrawListener(
@@ -409,28 +424,54 @@ class G7AppearanceActivity : Activity() {
         )
     }
 
-    private fun topBar(palette: G7AppearancePalette) = g7SettingsHeader("Farben & Darstellung", palette)
+    private fun addCategoryNavigation(palette: G7AppearancePalette) {
+        if (selectedCategory != null) return
+        val rows =
+            categoryTitles.map { title ->
+                app.aapswear.uishared.WearSettingsUi
+                    .navigationRow(
+                        this,
+                        title,
+                        null,
+                        palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY),
+                        palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY),
+                    ) {
+                        selectedCategory = title
+                        scrollView.scrollTo(0, 0)
+                        render()
+                    }.apply { tag = "settings-element-$title" }
+            }
+        rows.chunked(4).forEach { group ->
+            pageRoot.addView(
+                app.aapswear.uishared.WearSettingsUi
+                    .navigationGroup(this, group, palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)),
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 12.dp },
+            )
+        }
+    }
+
+    private fun navigateBack() {
+        if (selectedCategory == null) {
+            finish()
+        } else {
+            selectedCategory = null
+            scrollView.scrollTo(0, 0)
+            render()
+        }
+    }
+
+    private fun topBar(palette: G7AppearancePalette) = g7SettingsHeader(selectedCategory ?: "Anzeige", palette) { navigateBack() }
 
     private fun tileHoursRow(palette: G7AppearancePalette) =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            G7AppearanceStore.ALLOWED_GRAPH_HOURS.chunked(3).forEach { group ->
-                val row = LinearLayout(this@G7AppearanceActivity)
-                group.forEach { hours ->
-                    val active = store.tileGraphHours() == hours
-                    row.addView(
-                        pill(
-                            "${hours}h",
-                            if (active) palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY) else palette.settingsArgb(G7AppearanceRole.MENU_SURFACE),
-                            if (active) palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND) else palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY),
-                        ) {
-                            store.setTileGraphHours(hours)
-                            render()
-                        },
-                        LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 3.dp },
-                    )
-                }
-                addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 3.dp })
+            G7AppearanceStore.ALLOWED_GRAPH_HOURS.forEach { hours ->
+                addView(
+                    app.aapswear.uishared.WearSettingsUi.choice(this@G7AppearanceActivity, "${hours}h", store.tileGraphHours() == hours, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)) {
+                        store.setTileGraphHours(hours)
+                        render()
+                    },
+                )
             }
         }
 
@@ -489,30 +530,38 @@ class G7AppearanceActivity : Activity() {
         }
         addView(valueLabel)
         addView(
-            app.aapswear.uishared.ScrollSafeSeekBar(this@G7AppearanceActivity).apply {
-                app.aapswear.uishared.WearSettingsUi
-                    .slider(this, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_BORDER), title)
-                this.max = max - min
-                progress = initial.coerceIn(min, max) - min
-                setOnSeekBarChangeListener(
-                    object : SeekBar.OnSeekBarChangeListener {
-                        override fun onProgressChanged(
-                            seekBar: SeekBar?,
-                            progress: Int,
-                            fromUser: Boolean,
-                        ) {
-                            val value = progress + min
-                            selectedValue = value
-                            valueLabel.text = format(value)
-                            if (fromUser) save(value)
-                        }
+            app.aapswear.uishared
+                .ScrollSafeSeekBar(this@G7AppearanceActivity)
+                .apply {
+                    app.aapswear.uishared.WearSettingsUi
+                        .slider(this, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_BORDER), title)
+                    this.max = max - min
+                    progress = initial.coerceIn(min, max) - min
+                    setOnSeekBarChangeListener(
+                        object : SeekBar.OnSeekBarChangeListener {
+                            override fun onProgressChanged(
+                                seekBar: SeekBar?,
+                                progress: Int,
+                                fromUser: Boolean,
+                            ) {
+                                val value = progress + min
+                                selectedValue = value
+                                valueLabel.text = format(value)
+                                if (fromUser) save(value)
+                            }
 
-                        override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
 
-                        override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-                    },
-                )
-            },
+                            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                        },
+                    )
+                }.let { slider ->
+                    app.aapswear.uishared.WearSettingsUi.inlineSlider(slider) { raw ->
+                        selectedValue = raw + min
+                        valueLabel.text = format(selectedValue)
+                        save(selectedValue)
+                    }
+                },
         )
     }
 
@@ -609,8 +658,8 @@ class G7AppearanceActivity : Activity() {
         action: () -> Unit,
     ) = TextView(this).apply {
         text = textValue
-        textSize = 14f
-        minimumHeight = 40.dp
+        textSize = 15f
+        minimumHeight = 48.dp
         gravity = Gravity.CENTER
         app.aapswear.uishared.SystemTypography
             .apply(this, true)
@@ -622,31 +671,14 @@ class G7AppearanceActivity : Activity() {
 
     private fun themeSelector(palette: G7AppearancePalette) =
         LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             listOf(AppearanceMode.LIGHT to "Hell", AppearanceMode.DARK to "Dunkel").forEach { (mode, title) ->
                 addView(
-                    pill(
-                        title,
-                        if (selectedMode ==
-                            mode
-                        ) {
-                            palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY)
-                        } else {
-                            palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)
-                        },
-                        if (selectedMode ==
-                            mode
-                        ) {
-                            palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)
-                        } else {
-                            palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY)
-                        },
-                    ) {
+                    app.aapswear.uishared.WearSettingsUi.choice(this@G7AppearanceActivity, title, selectedMode == mode, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)) {
                         selectedMode = mode
                         store.setActiveMode(mode)
                         render()
                     },
-                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 6.dp },
                 )
             }
         }

@@ -89,8 +89,16 @@ internal class G7CompanionBondAccess(
     private var expectedAddress: String? = null
     private var activeRequestCode: Int? = null
 
-    fun ensureForUnlink(onReady: () -> Unit, onFailure: (String) -> Unit) {
-        ensure(onReady, onFailure) { unlinkAddresses().filter(backend::isBonded) }
+    fun ensureForUnlink(onReady: () -> Unit, onFailure: (String) -> Unit, explicitRetirement: Boolean = false) {
+        // A removed sensor cannot advertise for a new companion association. Retirement
+        // attempts removal through existing ownership and always ends the local session.
+        if (explicitRetirement) {
+            onReady()
+        } else {
+            ensure(onReady, onFailure) {
+                unlinkAddresses().filter { !G7RetiredSensors(activity).contains(it) && backend.isBonded(it) }
+            }
+        }
     }
 
     fun ensureForAuthenticatedSensor(address: String, onReady: () -> Unit, onFailure: (String) -> Unit) {

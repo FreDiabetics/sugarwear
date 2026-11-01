@@ -197,7 +197,7 @@ class G7SensorDetachPolicyTest {
         }
     }
 
-    @Test fun `failed bond removal keeps sensor association and credentials for safe retry`() {
+    @Test fun `explicit retirement clears old session even when Android retains the bond`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val stateStore = G7SensorStateStore(context)
         stateStore.save(
@@ -209,10 +209,79 @@ class G7SensorDetachPolicyTest {
         val result = unlinkG7Sensor(context, G7BondRemover { _, _ -> G7BondRemovalStatus.FAILED })
 
         assertEquals(G7BondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertTrue(stateStore.read().sensor != null)
+        assertTrue(result.detached)
+        assertNull(stateStore.read().sensor)
+        assertNull(G7CredentialStore(context).read())
         assertFalse(stateStore.read().collectorEnabled)
-        assertFalse(shouldClearG7Association(result.bondRemovalStatus))
-        assertFalse(G7RetiredSensors(context).contains("AA:BB:CC:DD:EE:FF"))
+        assertTrue(G7RetiredSensors(context).contains("AA:BB:CC:DD:EE:FF"))
+    }
+
+    @Test fun `explicit retirement clears local association when Bluetooth enumeration is denied`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        G7SensorStateStore(context).save(
+            G7PersistedState(sensor = G7Sensor("permission-old", "permission-session", deviceAddress = "AA:BB:CC:DD:EE:88"), collectorEnabled = true),
+        )
+        val now = System.currentTimeMillis()
+        G7ReadingDatabase(context).use { database ->
+            runBlocking {
+                assertTrue(
+                    database.insert(
+                        CgmReading(
+                            id = "permission-history",
+                            source = DataSourceId.DEXCOM_G7_WATCH,
+                            sensorId = "permission-old",
+                            sessionId = "permission-session",
+                            glucoseMgDl = 123.0,
+                            timestampEpochMs = now - 60_000L,
+                            receivedAtEpochMs = now,
+                            status = CgmReadingStatus.VALID,
+                        ),
+                    ),
+                )
+            }
+        }
+        val credentials = context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
+        credentials
+            .edit()
+            .putString("pairing_code", "encrypted-old-code")
+            .putString("shared_key", "encrypted-old-key")
+            .apply()
+        val result =
+            unlinkG7Sensor(
+                context,
+                G7BondRemover { _, _ -> G7BondRemovalStatus.FAILED },
+                bondedAddresses = { throw SecurityException("Bluetooth permission revoked") },
+            )
+        assertTrue(result.detached)
+        assertEquals(G7BondRemovalStatus.FAILED, result.bondRemovalStatus)
+        assertNull(G7SensorStateStore(context).read().sensor)
+        assertFalse(G7SensorStateStore(context).read().collectorEnabled)
+        assertNull(G7CredentialStore(context).read())
+        assertTrue(credentials.all.isEmpty())
+        G7ReadingDatabase(context).use { database ->
+            assertTrue(database.query(limit = 300).any { it.id == "permission-history" })
+        }
+        assertTrue(G7RetiredSensors(context).contains("AA:BB:CC:DD:EE:88"))
+    }
+
+    @Test fun `retired system bond cannot block preparing a different sensor`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val address = "AA:BB:CC:DD:EE:99"
+        G7RetiredSensors(context).retire(setOf(address))
+        G7SensorStateStore(context).save(G7PersistedState())
+        var removedAddress: String? = null
+        val result =
+            unlinkG7Sensor(
+                context,
+                G7BondRemover { _, candidate ->
+                    removedAddress = candidate
+                    if (candidate == null) G7BondRemovalStatus.NOT_REQUIRED else G7BondRemovalStatus.FAILED
+                },
+                bondedAddresses = { setOf(address) },
+                permanentlyRetire = false,
+            )
+        assertTrue(result.detached)
+        assertNull(removedAddress)
     }
 
     @Test fun `bond removal wait confirms transition and times out without it`() {

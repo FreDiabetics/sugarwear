@@ -50,7 +50,8 @@ class G7PermissionsActivity : Activity() {
         val background = palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)
         applyG7SystemChrome(window, background)
         root.removeAllViews()
-        root.setPadding(18.dp, 32.dp, 18.dp, 56.dp)
+        app.aapswear.uishared.WearSettingsUi
+            .pagePadding(root)
         root.setBackgroundColor(background)
         root.addView(g7SettingsHeader("Berechtigungen", palette))
         val state = G7SystemAccess.snapshot(this)
