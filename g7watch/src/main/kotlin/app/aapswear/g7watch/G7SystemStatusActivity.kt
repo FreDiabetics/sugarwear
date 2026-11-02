@@ -149,7 +149,8 @@ class G7SystemStatusActivity : Activity() {
                                 )
                             }
                             addView(row("GTIN", credentials?.gtin ?: "—", palette))
-                            addView(row("Seriennummer", credentials?.sensorSerial ?: "—", palette))
+                            val sensorSerial = credentials?.sensorSerial ?: state.sensor?.let { G7SensorMetadataStore(this@G7SystemStatusActivity).serialCandidate(it) }
+                            addView(row(if (credentials?.sensorSerial != null || sensorSerial == null) "Seriennummer" else "Seriennummer · unbestätigt", sensorSerial ?: "—", palette))
                             addView(
                                 row(
                                     "Letzter Wert",
@@ -170,21 +171,21 @@ class G7SystemStatusActivity : Activity() {
                             addView(row("BLE-Name", state.sensor?.deviceName ?: "—", palette))
                             addView(
                                 row(
-                                    "Sensorstart",
+                                    "Sensorstart · berechnet",
                                     formatTimestamp(state.sensor?.sensorStartEpochMs ?: state.lastReading?.sensorStartEpochMs),
                                     palette,
                                 ),
                             )
                             addView(
                                 row(
-                                    "Sensorende",
+                                    "Sensorende · berechnet",
                                     formatTimestamp(state.sensor?.sensorEndEpochMs ?: state.lastReading?.sensorEndEpochMs),
                                     palette,
                                 ),
                             )
                             addView(
                                 row(
-                                    "Kulanzende",
+                                    "Kulanzende · berechnet",
                                     formatTimestamp(state.sensor?.graceEndEpochMs ?: state.lastReading?.graceEndEpochMs),
                                     palette,
                                 ),
