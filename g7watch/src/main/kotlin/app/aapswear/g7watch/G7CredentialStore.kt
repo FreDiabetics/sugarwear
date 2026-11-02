@@ -14,6 +14,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+internal const val G7_CREDENTIAL_PREFERENCES = "g7_credentials"
+
 internal data class StoredG7Credentials(
     override val pairingCode: String,
     override val sensorSerial: String?,
@@ -33,7 +35,7 @@ internal class G7CredentialStore(
         val gtin: String?
     }
 
-    private val preferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val preferences = context.getSharedPreferences(G7_CREDENTIAL_PREFERENCES, Context.MODE_PRIVATE)
 
     fun saveSetup(
         payload: G7SetupPayload,
@@ -130,7 +132,6 @@ internal class G7CredentialStore(
     }
 
     private companion object {
-        const val PREFS = "g7_credentials"
         const val KEY_ALIAS = "sugarlicious_g7_credentials_v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val IV_BYTES = 12

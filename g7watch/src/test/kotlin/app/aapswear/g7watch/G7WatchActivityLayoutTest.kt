@@ -1023,7 +1023,7 @@ class G7WatchActivityLayoutTest {
             assertTrue(texts.any { it == "Sensor verbinden" || it == "Sensor trennen" })
             val pages =
                 mapOf(
-                    "Sensor" to listOf("Sensorcode", "GTIN", "Seriennummer", "Kulanzende"),
+                    "Sensor" to listOf("Sensorcode", "GTIN", "Seriennummer", "Sensorstart · berechnet", "Sensorende · berechnet", "Kulanzende · berechnet"),
                     "Verbindung" to listOf("Reconnect-Strategie", "Empfohlene Aktion"),
                     "Zeitplanung und Rechte" to listOf("Nächster Reconnect", "Geräte in der Nähe"),
                     "LIVE COLLECTOR STATUS" to listOf("Aktueller Attempt", "FGS"),
