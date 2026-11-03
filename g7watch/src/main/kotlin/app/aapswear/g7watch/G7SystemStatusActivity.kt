@@ -149,8 +149,7 @@ class G7SystemStatusActivity : Activity() {
                                 )
                             }
                             addView(row("GTIN", credentials?.gtin ?: "—", palette))
-                            val sensorSerial = credentials?.sensorSerial ?: state.sensor?.let { G7SensorMetadataStore(this@G7SystemStatusActivity).serialCandidate(it) }
-                            addView(row(if (credentials?.sensorSerial != null || sensorSerial == null) "Seriennummer" else "Seriennummer · unbestätigt", sensorSerial ?: "—", palette))
+                            addView(row("Seriennummer", credentials?.sensorSerial ?: "—", palette))
                             addView(
                                 row(
                                     "Letzter Wert",
