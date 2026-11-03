@@ -431,8 +431,6 @@ internal class AndroidG7Collector(
         lastStoredSensorClock: Long? = null,
         onLiveReading: suspend (G7Reading) -> Unit = {},
         allowFallbackScan: Boolean = true,
-        readSensorMetadata: (G7Sensor) -> Boolean = { false },
-        onSensorMetadata: (G7Sensor, String) -> Unit = { _, _ -> },
     ): G7CollectionResult {
         var sensor = initialSensor
         if (G7RetiredSensors(context).contains(sensor.deviceAddress)) {
@@ -545,9 +543,6 @@ internal class AndroidG7Collector(
                             onLiveReading = onLiveReading,
                         )
                     }
-                // All glucose/history operations have completed. An optional read may time out
-                // with a GATT write still outstanding, so never put another data request after it.
-                if (readSensorMetadata(sensor)) connection.readSensorMetadata()?.let { onSensorMetadata(sensor, it) }
                 return G7CollectionResult(sensor, outcome.first, outcome.second, sharedKey)
             } catch (rebond: G7BondReconnectRequired) {
                 connection.close()
@@ -933,19 +928,6 @@ internal class G7GattConnection(
                 }
             }
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    suspend fun readSensorMetadata(): String? {
-        val current = gatt ?: return null
-        val control = current.getService(G7GattProfile.serviceUuid)?.getCharacteristic(G7GattProfile.controlUuid) ?: return null
-        return readG7SensorMetadata(
-            send = { write(current, control, byteArrayOf(0x32), BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) },
-            receive = {
-                val (metadataUuid, bytes) = notifications.receive()
-                bytes.takeIf { metadataUuid == G7GattProfile.controlUuid }
-            },
-        )
     }
 
     @SuppressLint("MissingPermission")

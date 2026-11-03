@@ -584,24 +584,6 @@ class G7CollectorService : Service() {
                         attemptId = attemptId,
                         lastStoredSensorClock = lastStoredSensorClock,
                         allowFallbackScan = G7CollectorReliability.shouldRunPresenceScan(store.read().health),
-                        readSensorMetadata = { metadataSensor ->
-                            synchronized(G7SensorStateStore.lifecycleLock) {
-                                val current = store.read()
-                                token == cycleToken &&
-                                    generation == store.collectorGeneration() &&
-                                    current.collectorEnabled &&
-                                    current.sensor?.sensorId == metadataSensor.sensorId &&
-                                    G7SensorMetadataStore(this).beginRead(metadataSensor, System.currentTimeMillis())
-                            }
-                        },
-                        onSensorMetadata = { metadataSensor, serial ->
-                            synchronized(G7SensorStateStore.lifecycleLock) {
-                                val current = store.read()
-                                if (token == cycleToken && generation == store.collectorGeneration() && current.collectorEnabled && current.sensor?.sensorId == metadataSensor.sensorId) {
-                                    G7SensorMetadataStore(this).save(metadataSensor, serial)
-                                }
-                            }
-                        },
                         onLiveReading = { live ->
                             cycleContext.ensureActive()
                             if (token != cycleToken || !store.read().collectorEnabled) throw CancellationException("Collector paused")
