@@ -1,53 +1,91 @@
 package app.aapswear.g7watch
 
-import android.Manifest
-import android.app.Activity
-import android.app.AlarmManager
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import app.aapswear.g7.CollectorCycleTiming
 import app.aapswear.g7.G7PersistedState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
-class G7SystemStatusActivity : Activity() {
-    private val diagnosticScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var unlinkInFlight = false
-    private var unlinkFailed = false
-    private var unlinkFailureReason: String? = null
+class G7SystemStatusActivity : G7SettingsComposeActivity() {
+    private val status by viewModels<G7SystemStatusViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val pairing by viewModels<G7PairingViewModel> {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return G7PairingViewModel(AndroidG7PairingCommands(applicationContext)) as T
+            }
+        }
+    }
+    private val unlinkInFlight get() = pairing.state.value.unlinkInFlight
+    private val unlinkFailed get() = pairing.state.value.unlinkFailed
+    private val unlinkFailureReason get() = pairing.state.value.unlinkFailureReason
     private var companionAccessClosed = false
-    private val companionBondAccess by lazy { G7CompanionBondAccess(this) }
-    private var showPairingCode = false
-    private var selectedSection: String? = null
-    private var hardwareExpanded = false
-    private var diagnosticsExpanded = false
+    private var claimedAccessToken: Long? = null
+    private val companionConsent: G7CompanionConsentLauncher = G7CompanionConsentLauncher(this) { request, result -> companionBondAccess.onActivityResult(request, result) }
+    private val companionBondAccess: G7CompanionBondAccess by lazy { G7CompanionBondAccess(this, launchConsent = companionConsent::launch) }
+    private var showPairingCode: Boolean
+        get() = status.state.value.showPairingCode
+        set(value) = status.showCode(value)
+    private var selectedSection: String?
+        get() = status.state.value.section
+        set(value) = status.section(value)
+    private var hardwareExpanded: Boolean
+        get() = status.state.value.hardwareExpanded
+        set(value) = status.expandHardware(value)
+    private var diagnosticsExpanded: Boolean
+        get() = status.state.value.diagnosticsExpanded
+        set(value) = status.expandDiagnostics(value)
     private var scrollView: ScrollView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
-        G7RuntimeReconciler.reconcile(this, G7RuntimeEntryPoint.SYSTEM_STATUS)
+        var wasUnlinking = pairing.state.value.unlinkInFlight
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch { status.state.collect { render() } }
+                launch {
+                    pairing.state.collect { state ->
+                        if (wasUnlinking && !state.unlinkInFlight) status.refresh()
+                        wasUnlinking = state.unlinkInFlight
+                        render()
+                        val effect = state.effect as? G7PairingEffect.Access ?: return@collect
+                        if (effect.operation != G7PairingOperation.UNLINK || claimedAccessToken == effect.token) return@collect
+                        claimedAccessToken = effect.token
+                        companionBondAccess.ensureForUnlink(
+                            explicitRetirement = true,
+                            onReady = {
+                                if (!companionAccessClosed) {
+                                    pairing.accessReady(effect.token)
+                                    status.refresh()
+                                }
+                            },
+                            onFailure = { reason -> if (!companionAccessClosed) pairing.accessFailed(effect.token, reason) },
+                        )
+                    }
+                }
+            }
+        }
         render()
     }
 
     override fun onResume() {
         super.onResume()
+        status.refresh()
         render()
     }
 
@@ -58,17 +96,19 @@ class G7SystemStatusActivity : Activity() {
 
     private fun render() {
         val oldScrollY = scrollView?.scrollY ?: 0
-        val palette = G7AppearanceStore(this).load()
+        val loaded = status.state.value
+        if (!settingsReady(G7SettingsIoState(loaded.snapshot, loaded.loading, loaded.error), status::refresh)) return
+        val snapshot = checkNotNull(loaded.snapshot)
+        val palette = snapshot.palette
         val background = palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)
         applyG7SystemChrome(window, background)
 
-        val state = G7SensorStateStore(this).read()
-        val credentials = G7CredentialStore(this).read()
+        val state = snapshot.sensor
+        val credentials = snapshot.credentials
         val userStatus = deriveG7UserStatus(state, credentials != null)
-        val diagnostics = G7CollectorDiagnosticStore(this)
-        val attempt = diagnostics.snapshot().firstOrNull()
-        val cycle = attempt?.cycle ?: diagnostics.pendingScheduledCycle()
-        val hardwareMetrics = G7ExpectedWindowLedger(this).metrics()
+        val attempt = snapshot.attempt
+        val cycle = snapshot.cycle
+        val hardwareMetrics = snapshot.metrics
 
         val content =
             LinearLayout(this).apply {
@@ -128,7 +168,7 @@ class G7SystemStatusActivity : Activity() {
                             addView(row("Verbindungsweg", liveCollectorPath(cycle, livePhase), palette))
                             addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
                             addView(row("Letzte Verbindung", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
-                            addView(row("FGS", if (G7CollectorService.isServiceRunning()) "Aktiv" else "Nicht aktiv", palette))
+                            addView(row("FGS", if (snapshot.serviceRunning) "Aktiv" else "Nicht aktiv", palette))
                         },
                         cardParams(),
                     )
@@ -139,7 +179,19 @@ class G7SystemStatusActivity : Activity() {
                         group("Sensor", palette).apply {
                             addView(row("Sensorstatus", state.sensor?.state?.name ?: "—", palette))
                             addView(row("Session", state.sensor?.sessionId ?: state.lastReading?.sessionId ?: "—", palette))
-                            addView(row("Sensorcode", pairingCodeDisplayValue(credentials?.pairingCode, showPairingCode), palette))
+                            addView(
+                                row(
+                                    "Sensorcode",
+                                    if (showPairingCode) {
+                                        credentials?.pairingCode ?: "\u2014"
+                                    } else if (credentials != null) {
+                                        "\u2022\u2022\u2022\u2022"
+                                    } else {
+                                        "\u2014"
+                                    },
+                                    palette,
+                                ),
+                            )
                             if (credentials != null) {
                                 addView(
                                     pill(if (showPairingCode) "Sensorcode verbergen" else "Sensorcode anzeigen", palette) {
@@ -204,7 +256,7 @@ class G7SystemStatusActivity : Activity() {
                             addView(row("Protokoll", state.protocolState.name, palette))
                             addView(row("Letzter Connect", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
                             addView(row("Bekannte Adresse", state.sensor?.deviceAddress ?: "Nicht vorhanden", palette))
-                            addView(row("Reconnect-Strategie", G7ReconnectStrategyStore.read(this@G7SystemStatusActivity).name, palette))
+                            addView(row("Reconnect-Strategie", snapshot.reconnectStrategy, palette))
                             addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
                             addView(row("Hinweis", userStatus.description, palette))
                             addView(row("Empfohlene Aktion", userStatus.action, palette))
@@ -228,9 +280,7 @@ class G7SystemStatusActivity : Activity() {
                             addView(
                                 row(
                                     "Akkuoptimierung",
-                                    if (G7BackgroundAccess.isBatteryUnrestricted(
-                                            this@G7SystemStatusActivity,
-                                        )
+                                    if (snapshot.access.batteryUnrestricted
                                     ) {
                                         "Uneingeschränkt"
                                     } else {
@@ -353,7 +403,7 @@ class G7SystemStatusActivity : Activity() {
         val currentScroll = scrollView
         if (currentScroll == null) {
             scrollView = G7EdgeFadeScrollView(this).apply { isFillViewport = true }.applyG7EdgeFade()
-            setContentView(scrollView)
+            scrollView?.let(::showSettingsView)
         } else {
             currentScroll.removeAllViews()
         }
@@ -464,49 +514,12 @@ class G7SystemStatusActivity : Activity() {
         target.addView(
             pill(if (associated) "Sensor trennen" else "Sensor verbinden", palette) {
                 if (unlinkInFlight) return@pill
-                if (hasG7SensorAssociation(G7SensorStateStore(this).read())) {
-                    G7CollectorUiTransitionStore.record(this, G7UiSensorAction.UNLINK)
-                    unlinkInFlight = true
-                    unlinkFailureReason = null
-                    render()
-                    diagnosticScope.launch {
-                        val released = runCatching { releaseG7CollectorOwnership(applicationContext) }.isSuccess
-                        runOnUiThread {
-                            if (companionAccessClosed || isFinishing || isDestroyed) return@runOnUiThread
-                            if (!released) {
-                                unlinkInFlight = false
-                                unlinkFailed = true
-                                render()
-                            } else {
-                                companionBondAccess.ensureForUnlink(
-                                    explicitRetirement = true,
-                                    onReady = {
-                                        diagnosticScope.launch {
-                                            val result = runCatching { unlinkG7Sensor(applicationContext) }.getOrNull()
-                                            val detached = result?.detached == true
-                                            runOnUiThread {
-                                                unlinkInFlight = false
-                                                unlinkFailed = !detached
-                                                unlinkFailureReason =
-                                                    if (detached && result.bondRemovalStatus == G7BondRemovalStatus.FAILED) {
-                                                        "Sensor getrennt. Ein verbliebener Android-Bluetooth-Eintrag verhindert das Verbinden eines neuen Sensors nicht."
-                                                    } else {
-                                                        null
-                                                    }
-                                                if (!companionAccessClosed && !isFinishing && !isDestroyed) render()
-                                            }
-                                        }
-                                    },
-                                    onFailure = { reason ->
-                                        unlinkFailureReason = reason
-                                        unlinkInFlight = false
-                                        unlinkFailed = true
-                                        if (!companionAccessClosed && !isFinishing && !isDestroyed) render()
-                                    },
-                                )
-                            }
-                        }
-                    }
+                if (hasG7SensorAssociation(
+                        status.state.value.snapshot
+                            ?.sensor ?: state,
+                    )
+                ) {
+                    status.recordUnlink { pairing.unlink() }
                 } else {
                     startActivity(Intent(this, G7WatchActivity::class.java).putExtra(G7WatchActivity.EXTRA_OPEN_PAIRING, true))
                 }
@@ -521,10 +534,11 @@ class G7SystemStatusActivity : Activity() {
             target.addView(
                 pill(if (state.collectorEnabled) "Pausieren" else "Fortsetzen", palette) {
                     if (unlinkInFlight) return@pill
-                    val enabled = G7SensorStateStore(this).read().collectorEnabled
-                    G7CollectorUiTransitionStore.record(this, if (enabled) G7UiSensorAction.PAUSE else G7UiSensorAction.RESUME)
-                    if (enabled) pauseCollectorWithExitOffer() else G7CollectorService.start(this)
-                    Handler(Looper.getMainLooper()).postDelayed({ if (!isFinishing && !isDestroyed) render() }, 350L)
+                    val enabled =
+                        status.state.value.snapshot
+                            ?.sensor
+                            ?.collectorEnabled == true
+                    if (enabled) pauseCollectorWithExitOffer() else status.resumeCollector()
                 }.apply { isEnabled = !unlinkInFlight },
                 buttonParams(),
             )
@@ -532,7 +546,7 @@ class G7SystemStatusActivity : Activity() {
     }
 
     internal fun pauseCollectorWithExitOffer() {
-        G7CollectorService.stop(this)
+        status.pause()
         android.app.AlertDialog
             .Builder(this)
             .setTitle("SugarWear beenden?")
@@ -543,10 +557,14 @@ class G7SystemStatusActivity : Activity() {
     }
 
     private fun hasNearbyPermission(): Boolean =
-        checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        status.state.value.snapshot
+            ?.access
+            ?.bluetoothGranted == true
 
-    private fun hasNotificationPermission(): Boolean = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    private fun hasNotificationPermission(): Boolean =
+        status.state.value.snapshot
+            ?.access
+            ?.notificationsGranted == true
 
     private fun group(
         title: String,
@@ -632,17 +650,15 @@ class G7SystemStatusActivity : Activity() {
         cornerRadius = radiusDp * resources.displayMetrics.density
     }
 
-    private fun canScheduleExactReconnects(): Boolean = getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (!companionBondAccess.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
-    }
+    private fun canScheduleExactReconnects(): Boolean =
+        status.state.value.snapshot
+            ?.access
+            ?.exactAlarmsGranted == true
 
     override fun onDestroy() {
         companionAccessClosed = true
         companionBondAccess.cancel()
-        diagnosticScope.cancel()
+        pairing.platformDetached()
         super.onDestroy()
     }
 
