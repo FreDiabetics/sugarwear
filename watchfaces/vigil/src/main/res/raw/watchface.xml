@@ -114,7 +114,7 @@
             </Condition>
         </Group>
         <ComplicationSlot slotId="0" displayName="Vigil glucose" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="90" y="28" width="340" height="108">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchHeaderComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchHeaderComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="340" height="108" />
             <Complication type="SMALL_IMAGE">
                 <Condition>
@@ -136,7 +136,7 @@
             <Complication type="EMPTY" />
         </ComplicationSlot>
         <ComplicationSlot slotId="1" displayName="Vigil glucose graph" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="140" width="450" height="285">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchGraphComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchGraphComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="450" height="285" />
             <Complication type="SMALL_IMAGE">
                 <PartImage x="0" y="0" width="450" height="285">
@@ -152,7 +152,7 @@
         </ComplicationSlot>
         <ComplicationSlot slotId="2" displayName="Vigil scale and age" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="40" y="146" width="180" height="34">
             <Variant mode="AMBIENT" target="alpha" value="0" />
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchStatusComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchStatusComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="180" height="34" />
             <Complication type="SMALL_IMAGE">
                 <PartImage x="0" y="0" width="180" height="34">
@@ -162,7 +162,7 @@
             <Complication type="EMPTY" />
         </ComplicationSlot>
         <ComplicationSlot slotId="5" displayName="Vigil clock" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="90" y="347" width="270" height="78">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchClockComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchClockComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="270" height="78" />
             <Complication type="SMALL_IMAGE">
                 <Condition>
@@ -186,7 +186,7 @@
             <Complication type="EMPTY" />
         </ComplicationSlot>
         <ComplicationSlot slotId="9" displayName="Vigil analog glucose" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="0" width="450" height="450">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchAnalogHeaderComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchAnalogHeaderComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="450" height="450" />
             <Complication type="SMALL_IMAGE">
                 <Condition>
@@ -230,7 +230,7 @@
             <Complication type="EMPTY" />
         </ComplicationSlot>
         <ComplicationSlot slotId="7" displayName="Vigil hands" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="0" width="450" height="450">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchHandsComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchHandsComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="450" height="450" />
             <Complication type="SMALL_IMAGE">
                 <Group name="vigil-hands-visibility" x="0" y="0" width="450" height="450">
@@ -288,7 +288,7 @@
             <Complication type="EMPTY" />
         </ComplicationSlot>
         <ComplicationSlot slotId="10" displayName="Vigil graph action" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="0" y="140" width="450" height="205">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchGraphActionComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchGraphActionComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingBox x="0" y="0" width="450" height="205" />
             <Complication type="SMALL_IMAGE">
                 <PartImage x="0" y="0" width="450" height="205" alpha="0">
@@ -298,13 +298,13 @@
             <Complication type="EMPTY" />
         </ComplicationSlot>
         <Group name="vigil-open-sensor" x="105" y="358" width="240" height="56">
-            <Launch target="app.sugarwear/app.aapswear.g7watch.G7WatchActivity" />
+            <Launch target="app.sugarwear/app.sugarwear.CgmWatchActivity" />
         </Group>
         <Group name="vigil-open-sugarwear" x="75" y="28" width="300" height="108">
-            <Launch target="app.sugarwear/app.aapswear.g7watch.G7WatchActivity" />
+            <Launch target="app.sugarwear/app.sugarwear.CgmWatchActivity" />
         </Group>
         <ComplicationSlot slotId="8" displayName="Vigil center tap" isCustomizable="FALSE" supportedTypes="SMALL_IMAGE EMPTY" x="200" y="200" width="50" height="50">
-            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.aapswear.complications.DirectToWatchHandsToggleComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <DefaultProviderPolicy primaryProvider="app.sugarwear/app.sugarlicious.complications.DirectToWatchHandsToggleComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
             <BoundingOval x="0" y="0" width="50" height="50" />
             <Complication type="SMALL_IMAGE">
                 <Group name="vigil-center-visibility" x="0" y="0" width="50" height="50">
