@@ -83,10 +83,10 @@ jobs:
         run: |
           test -s "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           android --no-metrics sdk install "platforms;android-37" "build-tools;37.0.0" --canary
-      - name: Check product architecture and artwork
-        run: |
-          python3 -m pip install Pillow==11.3.0 CairoSVG==2.9.0
-          python3 -m unittest discover -s tools/tests
+      - name: Prepare native raster backend
+        uses: ./shared/sugarlicious/.github/actions/prepare-cairo
+      - name: Check Kotlin product architecture and artwork
+        run: ./gradlew :tools:maintenance:test
       - name: Enforce Kotlin static analysis and formatting
         run: ./gradlew detekt ktlintCheck
       - name: Test and build SugarWear and Vigil
@@ -98,7 +98,7 @@ jobs:
         run: |
           ./shared/sugarlicious/tools/wff-validator/validate.ps1 -WatchfaceFiles @((Join-Path $PWD 'watchfaces/vigil/src/main/res/raw/watchface.xml'))
       - name: Verify code-free Vigil APK
-        run: python3 tools/verify_codefree_vigil.py
+        run: ./gradlew :tools:maintenance:run --args=verify-codefree-vigil
       - name: Upload collector visual QA previews
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

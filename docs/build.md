@@ -11,11 +11,14 @@ Use JDK 21 and Android SDK platform 37, build tools 37.0.0, and platform tools. 
 Run checks from this repository root:
 
 ```sh
-python -m unittest discover -s tools/tests
+./gradlew :tools:maintenance:test
 ./gradlew test assembleDebug :watchfaces:vigil:assembleRelease detekt ktlintCheck lint
 ```
 
 CI also validates Vigil using the official pinned WFF validator and checks that its release APK has no DEX code.
+The shared Kotlin maintenance module replaces the former Python tools and tests.
+Raster parity tests require Cairo 1.18.4; setup and commands are documented in
+`shared/sugarlicious/tools/maintenance/README.md`.
 
 Connect exactly one Wear OS watch through ADB and enable debugging. Other connected phones are ignored; multiple physical watches cause an explicit error. Duplicate wireless transports are grouped by hardware serial. In the Android Studio terminal on Windows, build and install with this single command:
 
