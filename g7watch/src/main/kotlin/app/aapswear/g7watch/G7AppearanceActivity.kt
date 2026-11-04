@@ -1,6 +1,5 @@
 package app.aapswear.g7watch
 
-import android.app.Activity
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -11,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.viewModels
 import app.aapswear.model.AppearanceControlContract
 import app.aapswear.model.AppearanceMode
 import app.aapswear.model.AppearanceTerminology
@@ -21,20 +21,24 @@ import app.aapswear.uishared.SharedColorEditor
 import app.aapswear.uishared.SharedNumberEditor
 import kotlin.math.roundToInt
 
-class G7AppearanceActivity : Activity() {
-    private lateinit var store: G7AppearanceStore
-    private var selectedMode: AppearanceMode = AppearanceMode.DARK
+class G7AppearanceActivity : G7SettingsComposeActivity() {
+    private val navigation by viewModels<G7SettingsNavigationViewModel>()
+    private val store by viewModels<G7AppearanceSettingsViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val selectedMode get() = checkNotNull(store.state.value.snapshot).activeMode
     private lateinit var scrollView: ScrollView
     private lateinit var pageRoot: LinearLayout
-    private var selectedCategory: String? = null
+    private var selectedCategory: String?
+        get() = navigation.state.value.category
+        set(value) = navigation.selectCategory(value)
     private val categoryTitles = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bindSettingsState(navigation.state, render = ::render)
+        bindSettingsState(store.state, render = ::render)
+
         onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
         selectedCategory = savedInstanceState?.getString("settings-category")
-        store = G7AppearanceStore(this)
-        selectedMode = store.activeMode()
         pageRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
             G7EdgeFadeScrollView(this)
@@ -42,7 +46,7 @@ class G7AppearanceActivity : Activity() {
                     isFillViewport = true
                     addView(pageRoot)
                 }.applyG7EdgeFade()
-        setContentView(scrollView)
+        showSettingsView(scrollView)
         render()
     }
 
@@ -52,6 +56,8 @@ class G7AppearanceActivity : Activity() {
     }
 
     private fun render() {
+        if (!settingsReady(store.state.value, store::refresh)) return
+        showSettingsView(scrollView)
         val palette = store.load(selectedMode)
         applyG7SystemChrome(window, palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND))
 
@@ -675,7 +681,6 @@ class G7AppearanceActivity : Activity() {
             listOf(AppearanceMode.LIGHT to "Hell", AppearanceMode.DARK to "Dunkel").forEach { (mode, title) ->
                 addView(
                     app.aapswear.uishared.WearSettingsUi.choice(this@G7AppearanceActivity, title, selectedMode == mode, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), palette.settingsArgb(G7AppearanceRole.MENU_SURFACE)) {
-                        selectedMode = mode
                         store.setActiveMode(mode)
                         render()
                     },

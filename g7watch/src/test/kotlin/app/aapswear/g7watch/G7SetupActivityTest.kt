@@ -20,19 +20,29 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class G7SetupActivityTest {
+    @get:org.junit.Rule val mainDispatcher = G7MainDispatcherRule()
+
     @Test fun `first run explains Bluetooth without automatically pairing or granting access`() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         shadowOf(app).denyPermissions(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
-        val activity = Robolectric.buildActivity(G7SetupActivity::class.java).setup().get()
-        val texts = descendants(activity.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }.toList()
-        assertTrue(texts.contains("Bluetooth"))
-        assertTrue(texts.contains("Noch nicht erlaubt"))
-        assertFalse(app.getSharedPreferences("g7_setup", Context.MODE_PRIVATE).getBoolean("complete", false))
-        assertTrue(G7SystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.BLUETOOTH_SCAN))
-        descendants(activity.window.decorView).filterIsInstance<Button>().first { it.text == "Später einrichten" }.performClick()
-        assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text == "Benachrichtigungen" })
-        assertTrue(G7SystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.BLUETOOTH_SCAN))
-        activity.finish()
+        val controller = Robolectric.buildActivity(G7SetupActivity::class.java).setup().visible()
+        val activity = controller.get()
+        try {
+            awaitG7SettingsUi(activity) {
+                descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Bluetooth" }
+            }
+            val texts = descendants(activity.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }.toList()
+            assertTrue(texts.contains("Bluetooth"))
+            assertTrue(texts.contains("Noch nicht erlaubt"))
+            assertFalse(app.getSharedPreferences("g7_setup", Context.MODE_PRIVATE).getBoolean("complete", false))
+            assertTrue(G7SystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.BLUETOOTH_SCAN))
+            descendants(activity.window.decorView).filterIsInstance<Button>().first { it.text == "Später einrichten" }.performClick()
+            assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text == "Benachrichtigungen" })
+            assertTrue(G7SystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.BLUETOOTH_SCAN))
+        } finally {
+            controller.pause().stop().destroy()
+            shadowOf(android.os.Looper.getMainLooper()).idle()
+        }
     }
 
     private fun descendants(view: View): Sequence<View> =

@@ -40,9 +40,71 @@ import kotlin.math.roundToInt
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class G7WatchActivityLayoutTest {
+    @get:org.junit.Rule val mainDispatcher = G7MainDispatcherRule()
+
+    private val activeControllers = mutableListOf<org.robolectric.android.controller.ActivityController<out androidx.activity.ComponentActivity>>()
+
+    @org.junit.After fun destroyComposeActivities() {
+        activeControllers.forEach { controller ->
+            val lifecycle = controller.get().lifecycle
+            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) controller.pause()
+            if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) controller.stop()
+            if (lifecycle.currentState != androidx.lifecycle.Lifecycle.State.DESTROYED) controller.destroy()
+        }
+        Shadows.shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    /** Compose needs an attached window and the real IO snapshot before inspecting its views. */
+    private fun <T : android.app.Activity> T.awaitUi(): T {
+        if (this !is androidx.activity.ComponentActivity) return this
+        measureAndLayout(window.decorView)
+        val deadline =
+            System.nanoTime() +
+                java.util.concurrent.TimeUnit.SECONDS
+                    .toNanos(5)
+        while (findScrollView(window.decorView) == null && System.nanoTime() < deadline) {
+            Shadows.shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(16))
+            measureAndLayout(window.decorView)
+            Thread.sleep(2)
+        }
+        val labels = mutableListOf<String>()
+        collectText(window.decorView, labels)
+        val dataReady =
+            if (this is G7WatchActivity) {
+                androidx.lifecycle
+                    .ViewModelProvider(this)[G7ViewModel::class.java]
+                    .state.value.snapshot != null
+            } else {
+                null
+            }
+        assertNotNull("Collector UI must load in an attached, resumed window: labels=$labels; dataReady=$dataReady", findScrollView(window.decorView))
+        return this
+    }
+
+    private fun awaitCondition(activity: android.app.Activity, ready: () -> Boolean) {
+        val deadline =
+            System.nanoTime() +
+                java.util.concurrent.TimeUnit.SECONDS
+                    .toNanos(5)
+        while (!ready() && System.nanoTime() < deadline) {
+            Shadows.shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(16))
+            measureAndLayout(activity.window.decorView)
+            Thread.sleep(2)
+        }
+        val labels = mutableListOf<String>()
+        collectText(activity.window.decorView, labels)
+        assertTrue("Expected lifecycle-driven UI action to complete: $labels", ready())
+    }
+
     @Test
     fun `appearance exposes a complete independent WearOS tile graph section`() {
-        val activity = Robolectric.buildActivity(G7AppearanceActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7AppearanceActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         activity.window.decorView
             .findViewWithTag<View>("settings-element-WearOS-Tile · Graph")
             .performClick()
@@ -163,10 +225,14 @@ class G7WatchActivityLayoutTest {
         val activity =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create()
                 .start()
                 .resume()
+                .visible()
                 .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
         assertNotNull(findScrollView(root))
@@ -198,9 +264,13 @@ class G7WatchActivityLayoutTest {
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
         G7SensorStateStore(context).save(G7PersistedState())
-        val controller = Robolectric.buildActivity(G7SystemStatusActivity::class.java).setup()
-        val activity = controller.get()
+        val controller = Robolectric.buildActivity(G7SystemStatusActivity::class.java).also { activeControllers += it }.setup()
+        val activity = controller.get().awaitUi()
         try {
+            val statusModel = androidx.lifecycle.ViewModelProvider(activity)[G7SystemStatusViewModel::class.java]
+            assertSame(activity.application, statusModel.getApplication<android.app.Application>())
+            assertNull("Cleared sensor state must remain cleared before rendering", G7SensorStateStore(activity).read().sensor)
+            awaitCondition(activity) { findText(activity.window.decorView, "Sensor verbinden") != null }
             val texts = mutableListOf<String>()
             collectText(activity.window.decorView, texts)
             assertEquals(1, texts.count { it == "Sensor verbinden" })
@@ -218,9 +288,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `overview removes the connected pill and keeps a dedicated outage header above the value card`() {
-        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).setup()
+        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).also { activeControllers += it }.setup()
         try {
-            val root = controller.get().window.decorView
+            val root =
+                controller
+                    .get()
+                    .awaitUi()
+                    .window.decorView
             val texts = mutableListOf<String>()
             collectText(root, texts)
             assertFalse(texts.any { it.contains("VERBUNDEN") || it.contains("SENSOREMPFANG PAUSIERT") })
@@ -235,15 +309,62 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `sensor actions are only available from settings`() {
-        val overview = Robolectric.buildActivity(G7WatchActivity::class.java).setup()
-        val settings = Robolectric.buildActivity(G7SettingsActivity::class.java).setup()
-        val sensor = Robolectric.buildActivity(G7SystemStatusActivity::class.java).setup()
+        val overview = Robolectric.buildActivity(G7WatchActivity::class.java).also { activeControllers += it }.setup()
+        val settings = Robolectric.buildActivity(G7SettingsActivity::class.java).also { activeControllers += it }.setup()
+        val sensor = Robolectric.buildActivity(G7SystemStatusActivity::class.java).also { activeControllers += it }.setup()
         try {
-            assertNull(findText(overview.get().window.decorView, "Sensor trennen"))
-            assertNull(findText(overview.get().window.decorView, "Pausieren"))
-            assertNotNull(findText(settings.get().window.decorView, "Sensor"))
-            assertNotNull(findText(sensor.get().window.decorView, "Sensor trennen"))
-            assertTrue(findText(sensor.get().window.decorView, "Pausieren") != null || findText(sensor.get().window.decorView, "Fortsetzen") != null)
+            assertNull(
+                findText(
+                    overview
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                    "Sensor trennen",
+                ),
+            )
+            assertNull(
+                findText(
+                    overview
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                    "Pausieren",
+                ),
+            )
+            assertNotNull(
+                findText(
+                    settings
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                    "Sensor",
+                ),
+            )
+            assertNotNull(
+                findText(
+                    sensor
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                    "Sensor trennen",
+                ),
+            )
+            assertTrue(
+                findText(
+                    sensor
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                    "Pausieren",
+                ) != null ||
+                    findText(
+                        sensor
+                            .get()
+                            .awaitUi()
+                            .window.decorView,
+                        "Fortsetzen",
+                    ) != null,
+            )
         } finally {
             overview.pause().stop().destroy()
             settings.pause().stop().destroy()
@@ -261,12 +382,30 @@ class G7WatchActivityLayoutTest {
         val controller =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
+                .visible()
         try {
-            assertNotNull(findEditor(controller.get().window.decorView))
-            assertNotNull(findText(controller.get().window.decorView, "Verbinden"))
+            assertNotNull(
+                findEditor(
+                    controller
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                ),
+            )
+            assertNotNull(
+                findText(
+                    controller
+                        .get()
+                        .awaitUi()
+                        .window.decorView,
+                    "Verbinden",
+                ),
+            )
             assertFalse(G7SensorStateStore(context).read().collectorEnabled)
         } finally {
             controller.pause().stop().destroy()
@@ -282,8 +421,8 @@ class G7WatchActivityLayoutTest {
         val reading = stateStore.read().lastReading!!
         runBlocking { G7ReadingDatabase(context).use { it.insert(reading) } }
         val beforeHistory = G7ReadingDatabase(context).use { it.query(limit = 300) }
-        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).setup()
-        val activity = controller.get()
+        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).also { activeControllers += it }.setup()
+        val activity = controller.get().awaitUi()
         var calls = 0
         var pending: (() -> Unit)? = null
         activity.prepareUnlinkAccess = { ready, _ -> ready() }
@@ -304,9 +443,10 @@ class G7WatchActivityLayoutTest {
             activity.performSensorUnlink()
             activity.performSensorUnlink()
             assertEquals(0, calls)
+            awaitCondition(activity) { pending != null }
             assertNotNull(pending)
             pending!!.invoke()
-            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            awaitCondition(activity) { calls == 1 }
             assertEquals(1, calls)
             assertSame(overview, content.getChildAt(0))
             assertEquals(oldY, scroll.scrollY)
@@ -325,14 +465,14 @@ class G7WatchActivityLayoutTest {
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
         val before = G7SensorStateStore(context).read()
-        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).setup()
-        val activity = controller.get()
+        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).also { activeControllers += it }.setup()
+        val activity = controller.get().awaitUi()
         activity.prepareUnlinkAccess = { ready, _ -> ready() }
         activity.executeAssociationTask = { it() }
         activity.unlinkSensor = { G7UnlinkResult(G7BondRemovalStatus.FAILED) }
         try {
             activity.performSensorUnlink()
-            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            awaitCondition(activity) { findText(activity.window.decorView, "Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen.") != null }
             assertEquals(before.sensor, G7SensorStateStore(context).read().sensor)
             assertNull(findText(activity.window.decorView, "Sensor trennen"))
             assertNull(findText(activity.window.decorView, "Sensor verbinden"))
@@ -350,8 +490,8 @@ class G7WatchActivityLayoutTest {
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
         val before = G7SensorStateStore(context).read().sensor
-        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).setup()
-        val activity = controller.get()
+        val controller = Robolectric.buildActivity(G7WatchActivity::class.java).also { activeControllers += it }.setup()
+        val activity = controller.get().awaitUi()
         var unlinkCalls = 0
         activity.prepareUnlinkAccess = { _, failed -> failed("Systemfreigabe abgebrochen") }
         activity.unlinkSensor = {
@@ -360,6 +500,7 @@ class G7WatchActivityLayoutTest {
         }
         try {
             activity.performSensorUnlink()
+            awaitCondition(activity) { findText(activity.window.decorView, "Systemfreigabe abgebrochen") != null }
             assertEquals(0, unlinkCalls)
             assertEquals(before, G7SensorStateStore(context).read().sensor)
             assertNull(findText(activity.window.decorView, "Sensor trennen"))
@@ -380,13 +521,17 @@ class G7WatchActivityLayoutTest {
         val controller =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
-        val activity = controller.get()
+                .visible()
+        val activity = controller.get().awaitUi()
         try {
             assertNotNull(findEditor(activity.window.decorView))
             activity.handleSystemBack()
+            awaitCondition(activity) { findEditor(activity.window.decorView) == null }
             assertFalse(activity.isFinishing)
             assertNull(findEditor(activity.window.decorView))
             assertNull(findText(activity.window.decorView, "Sensor verbinden"))
@@ -407,10 +552,13 @@ class G7WatchActivityLayoutTest {
         val controller =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
-        val activity = controller.get()
+                .visible()
+        val activity = controller.get().awaitUi()
         var ready: (() -> Unit)? = null
         var starts = 0
         activity.prepareUnlinkAccess = { granted, _ -> ready = granted }
@@ -423,9 +571,10 @@ class G7WatchActivityLayoutTest {
             findEditor(activity.window.decorView)!!.setText("0123")
             findText(activity.window.decorView, "Verbinden")!!.performClick()
             assertEquals(0, starts)
+            awaitCondition(activity) { ready != null }
             assertNotNull(ready)
             ready!!.invoke()
-            Shadows.shadowOf(Looper.getMainLooper()).idle()
+            awaitCondition(activity) { starts == 1 }
             assertEquals(1, starts)
         } finally {
             controller.pause().stop().destroy()
@@ -442,16 +591,20 @@ class G7WatchActivityLayoutTest {
         val controller =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
-        val activity = controller.get()
+                .visible()
+        val activity = controller.get().awaitUi()
         var starts = 0
         activity.prepareUnlinkAccess = { _, failed -> failed("Systemfreigabe abgebrochen") }
         activity.connectSensor = { _, _ -> starts++ }
         try {
             findEditor(activity.window.decorView)!!.setText("0123")
             findText(activity.window.decorView, "Verbinden")!!.performClick()
+            awaitCondition(activity) { findText(activity.window.decorView, "Systemfreigabe abgebrochen") != null }
             assertEquals(0, starts)
             assertNotNull(findEditor(activity.window.decorView))
             assertNotNull(findText(activity.window.decorView, "Verbinden"))
@@ -464,8 +617,8 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `permissions entry opens the dedicated app permissions page`() {
-        val controller = Robolectric.buildActivity(G7SettingsActivity::class.java).setup()
-        val activity = controller.get()
+        val controller = Robolectric.buildActivity(G7SettingsActivity::class.java).also { activeControllers += it }.setup()
+        val activity = controller.get().awaitUi()
         try {
             activity.window.decorView
                 .findViewWithTag<View>("settings-category-permissions")
@@ -566,11 +719,18 @@ class G7WatchActivityLayoutTest {
         val controller =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
+                .visible()
         try {
-            val root = controller.get().window.decorView
+            val root =
+                controller
+                    .get()
+                    .awaitUi()
+                    .window.decorView
             assertNotNull(findText(root, "Sensorsuche pausiert"))
             assertFalse(requireNotNull(findConnectionDots(root)).isAnimating)
         } finally {
@@ -597,10 +757,14 @@ class G7WatchActivityLayoutTest {
         val activity =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
+                .visible()
                 .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
         assertNotNull(findConnectionDots(root))
@@ -611,7 +775,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `collector settings contain product sections and retain about`() {
-        val activity = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7SettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
         val headers = mutableListOf<android.view.View>()
 
@@ -633,7 +803,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `system status entry opens system status`() {
-        val activity = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7SettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
         root.findViewWithTag<View>("settings-category-sugarwear").performClick()
@@ -650,7 +826,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `alarm settings menu opens alarm configuration and not system status`() {
-        val activity = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7SettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
         root.findViewWithTag<View>("settings-category-alarms").performClick()
@@ -663,7 +845,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `direct to watch category opens complete watchface settings`() {
-        val settings = Robolectric.buildActivity(G7SettingsActivity::class.java).setup().get()
+        val settings =
+            Robolectric
+                .buildActivity(G7SettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val root = settings.findViewById<android.view.View>(android.R.id.content)
         root.findViewWithTag<View>("settings-category-vigil").performClick()
         assertEquals(
@@ -674,7 +862,13 @@ class G7WatchActivityLayoutTest {
                 ?.className,
         )
 
-        val activity = Robolectric.buildActivity(G7DirectToWatchSettingsActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7DirectToWatchSettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val allTexts = mutableListOf<String>()
         val settingsRoot = activity.findViewById<View>(android.R.id.content)
         assertNotNull(findText(settingsRoot, "Vigil"))
@@ -768,7 +962,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `direct to watch settings preserve the scroll view and position when a choice changes`() {
-        val activity = Robolectric.buildActivity(G7DirectToWatchSettingsActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7DirectToWatchSettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
         root.findViewWithTag<View>("settings-element-Glukose").performClick()
         val scroll = findScrollView(root)!!
@@ -787,7 +987,13 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `direct settings sliders and toggles do not rebuild or reset the page`() {
-        val activity = Robolectric.buildActivity(G7DirectToWatchSettingsActivity::class.java).setup().get()
+        val activity =
+            Robolectric
+                .buildActivity(G7DirectToWatchSettingsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
         root.findViewWithTag<View>("settings-element-Graph").performClick()
         val scroll = findScrollView(root)!!
@@ -812,10 +1018,14 @@ class G7WatchActivityLayoutTest {
         val activity =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create()
                 .start()
                 .resume()
+                .visible()
                 .get()
+                .awaitUi()
         val texts = mutableListOf<String>()
         collectText(activity.findViewById(android.R.id.content), texts)
 
@@ -847,10 +1057,13 @@ class G7WatchActivityLayoutTest {
         val controller =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create()
                 .start()
                 .resume()
-        val activity = controller.get()
+                .visible()
+        val activity = controller.get().awaitUi()
         val before = findGraph(activity.findViewById(android.R.id.content))
         assertNotNull(before)
         val scroll = findScrollView(activity.findViewById(android.R.id.content))!!
@@ -893,10 +1106,14 @@ class G7WatchActivityLayoutTest {
         val activity =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create()
                 .start()
                 .resume()
+                .visible()
                 .get()
+                .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
         assertNull(findText(root, "Systemstatus"))
@@ -984,10 +1201,14 @@ class G7WatchActivityLayoutTest {
         val activity =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create()
                 .start()
                 .resume()
+                .visible()
                 .get()
+                .awaitUi()
         val arrows = mutableListOf<ImageView>()
         collectTrendArrows(activity.findViewById(android.R.id.content), arrows)
 
@@ -1011,8 +1232,8 @@ class G7WatchActivityLayoutTest {
 
     @Test
     fun `system status separates operational controls from preserved technical detail pages`() {
-        val controller = Robolectric.buildActivity(G7SystemStatusActivity::class.java).setup()
-        val activity = controller.get()
+        val controller = Robolectric.buildActivity(G7SystemStatusActivity::class.java).also { activeControllers += it }.setup()
+        val activity = controller.get().awaitUi()
         val before = G7SensorStateStore(activity).read()
         try {
             val texts = mutableListOf<String>()
@@ -1053,10 +1274,14 @@ class G7WatchActivityLayoutTest {
         val activity =
             Robolectric
                 .buildActivity(G7WatchActivity::class.java)
+                .also { activeControllers += it }
+                .also { activeControllers += it }
                 .create()
                 .start()
                 .resume()
+                .visible()
                 .get()
+                .awaitUi()
         val rootBefore = activity.findViewById<android.view.View>(android.R.id.content).let { (it as ViewGroup).getChildAt(0) }
         val graphBefore = findGraph(rootBefore)!!
         val scroll = findScrollView(rootBefore)!!

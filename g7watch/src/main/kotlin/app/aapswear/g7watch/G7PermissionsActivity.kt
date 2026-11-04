@@ -1,6 +1,5 @@
 package app.aapswear.g7watch
 
-import android.app.Activity
 import android.app.NotificationManager
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -10,15 +9,33 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.edit
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 
 /** User-initiated access setup, shared by Pixel Watch and Galaxy Watch. */
-class G7PermissionsActivity : Activity() {
+class G7PermissionsActivity : G7SettingsComposeActivity() {
+    private val access by viewModels<G7SettingsAccessViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val requests by viewModels<G7PermissionRequestViewModel> {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return G7PermissionRequestViewModel(access::recordRequests) as T
+            }
+        }
+    }
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            requests.systemReturned()
+            access.refresh()
+            render()
+        }
     private lateinit var root: LinearLayout
     private lateinit var scroll: G7EdgeFadeScrollView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bindSettingsState(access.state, render = ::render)
+
         root =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -30,23 +47,20 @@ class G7PermissionsActivity : Activity() {
                 addView(root)
             }
         scroll.applyG7EdgeFade()
-        setContentView(scroll)
+        showSettingsView(scroll)
     }
 
     override fun onResume() {
         super.onResume()
-        G7CgmAlarmNotifier.prepareCurrentChannels(this)
-        render()
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        access.refresh(prepare = true)
         render()
     }
 
     private fun render() {
+        if (!settingsReady(access.state.value, { access.refresh() })) return
+        showSettingsView(scroll)
         val y = scroll.scrollY
-        val palette = G7AppearanceStore(this).load()
+        val palette = checkNotNull(access.state.value.snapshot).palette
         val background = palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)
         applyG7SystemChrome(window, background)
         root.removeAllViews()
@@ -54,7 +68,7 @@ class G7PermissionsActivity : Activity() {
             .pagePadding(root)
         root.setBackgroundColor(background)
         root.addView(g7SettingsHeader("Berechtigungen", palette))
-        val state = G7SystemAccess.snapshot(this)
+        val state = checkNotNull(access.state.value.snapshot).access
 
         fun card(title: String, status: String, detail: String, action: String, click: () -> Unit) {
             val content =
@@ -102,11 +116,9 @@ class G7PermissionsActivity : Activity() {
 
         fun requestOrOpen(permissions: Set<String>, fallback: List<android.content.Intent>) {
             val missing = G7SystemAccess.missingRuntimePermissions(this).filter { it in permissions }.toTypedArray()
-            val preferences = getSharedPreferences("g7_permission_requests", MODE_PRIVATE)
-            val permanentlyDenied = missing.any { preferences.getBoolean(it, false) && !shouldShowRequestPermissionRationale(it) }
-            if (missing.isNotEmpty() && !permanentlyDenied) {
-                preferences.edit { missing.forEach { putBoolean(it, true) } }
-                requestPermissions(missing, 701)
+            val rationale = missing.filter { shouldShowRequestPermissionRationale(it) }.toSet()
+            if (requests.shouldRequest(missing.toList(), access.requestedPermissions(), rationale)) {
+                permissionLauncher.launch(missing)
             } else {
                 open(fallback)
             }
@@ -126,7 +138,7 @@ class G7PermissionsActivity : Activity() {
         card("Genaue Alarme", status(state.exactAlarmsGranted), "Für zeitgenaue Wiederverbindung, Sensorfenster und Alarmwiederholung.", "Alarmzugriff öffnen") {
             open(G7SystemAccess.exactAlarmSettingsIntents(packageName))
         }
-        card("Nicht stören", g7AlarmAudioPolicyLabel(G7AlarmSystemAccess.snapshot(this)), "Systemzugriff: ${status(state.dndAccessGranted)}. Eigene Töne benötigen die Systemausnahme Alarme im Ruhemodus. Die Kanal-Ausnahme allein gibt den Ton nicht frei.", "Systemfreigabe öffnen") {
+        card("Nicht stören", g7AlarmAudioPolicyLabel(checkNotNull(access.state.value.snapshot).alarmAccess), "Systemzugriff: ${status(state.dndAccessGranted)}. Eigene Töne benötigen die Systemausnahme Alarme im Ruhemodus. Die Kanal-Ausnahme allein gibt den Ton nicht frei.", "Systemfreigabe öffnen") {
             if (G7AlarmSystemAccess.openPolicySettings(this) != G7SettingsOpenResult.OPENED) unavailable()
         }
         val ready = state.alarmChannels.count { it.importance != null && it.importance > NotificationManager.IMPORTANCE_NONE && it.bypassDnd }

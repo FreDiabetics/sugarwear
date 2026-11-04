@@ -18,6 +18,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class G7SettingsPresentationTest {
+    @get:org.junit.Rule val mainDispatcher = G7MainDispatcherRule()
+
     @Test
     fun `settings remain readable with a light or customized display palette`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -39,8 +41,9 @@ class G7SettingsPresentationTest {
         G7AppearanceStore(context).load(AppearanceMode.DARK)
         val preferences = context.getSharedPreferences("g7_appearance", Context.MODE_PRIVATE)
         val before = preferences.all.toMap()
-        val controller = Robolectric.buildActivity(G7AppearanceActivity::class.java).setup()
+        val controller = Robolectric.buildActivity(G7AppearanceActivity::class.java).setup().visible()
         try {
+            awaitReady(controller.get())
             val labels = descendants(controller.get().window.decorView).filterIsInstance<TextView>().toList()
             assertTrue(labels.any { it.text.toString() == "Glukosewert" })
             assertTrue(labels.any { it.text.toString() == "Trendpfeil" })
@@ -58,9 +61,10 @@ class G7SettingsPresentationTest {
     @Config(qualifiers = "w192dp-h192dp-round")
     fun `appearance categories open individually and preserve all saved values`() {
         for (type in listOf(G7AppearanceActivity::class.java, G7DirectToWatchSettingsActivity::class.java)) {
-            val controller = Robolectric.buildActivity(type).setup()
+            val controller = Robolectric.buildActivity(type).setup().visible()
             val activity = controller.get()
             try {
+                awaitReady(activity)
                 val prefs =
                     listOf("g7_appearance", app.aapswear.protocol.DirectToWatchSettingsContract.PREFERENCES)
                         .associateWith { activity.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
@@ -83,9 +87,10 @@ class G7SettingsPresentationTest {
 
     @Test
     fun `alarm list opens each type without triggering or changing an alarm`() {
-        val controller = Robolectric.buildActivity(G7AlarmSettingsActivity::class.java).setup()
+        val controller = Robolectric.buildActivity(G7AlarmSettingsActivity::class.java).setup().visible()
         val activity = controller.get()
         try {
+            awaitReady(activity)
             val before = G7AlarmSettingsStore.read(activity)
             for (type in app.aapswear.g7.CgmAlarmType.entries) {
                 var target: View = descendants(activity.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == g7AlarmTitle(type) }
@@ -98,6 +103,28 @@ class G7SettingsPresentationTest {
         } finally {
             controller.pause().stop().destroy()
         }
+    }
+
+    private fun awaitReady(activity: android.app.Activity) {
+        val deadline =
+            System.nanoTime() +
+                java.util.concurrent.TimeUnit.SECONDS
+                    .toNanos(5)
+        while (System.nanoTime() < deadline) {
+            org.robolectric.Shadows
+                .shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofMillis(16))
+            val decor = activity.window.decorView
+            decor.measure(View.MeasureSpec.makeMeasureSpec(454, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(454, View.MeasureSpec.EXACTLY))
+            decor.layout(0, 0, 454, 454)
+            if (descendants(decor).any { it.tag?.toString()?.startsWith("settings-element-") == true } ||
+                descendants(decor).filterIsInstance<TextView>().any { it.text.toString() == "T\u00f6ne und Vibration" }
+            ) {
+                return
+            }
+            Thread.sleep(2)
+        }
+        throw AssertionError("Settings snapshot must load in its Compose host")
     }
 
     private fun descendants(view: View): Sequence<View> =

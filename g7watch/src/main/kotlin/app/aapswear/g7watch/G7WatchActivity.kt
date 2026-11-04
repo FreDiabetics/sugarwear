@@ -1,10 +1,8 @@
 package app.aapswear.g7watch
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.database.ContentObserver
 import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.drawable.GradientDrawable
@@ -20,8 +18,16 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.edit
-import androidx.core.view.isVisible
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.aapswear.g7.CgmReading
 import app.aapswear.g7.CgmReadingStatus
 import app.aapswear.g7.G7PersistedState
@@ -36,79 +42,7 @@ import app.aapswear.model.WearGlucoseCardStyle
 import app.aapswear.model.cgmBoundaryDisplay
 import app.aapswear.model.wearGlucoseCardPresentation
 import app.aapswear.uishared.TrendDrawableResources
-import java.util.concurrent.Executors
 import kotlin.math.roundToInt
-
-internal fun hasUsableCollectorSession(
-    reading: CgmReading?,
-    sensorId: String?,
-): Boolean = reading != null && reading.status == CgmReadingStatus.VALID && reading.sensorId == sensorId
-
-internal fun hasG7SensorAssociation(state: G7PersistedState): Boolean =
-    state.sensor != null &&
-        (
-            !state.sensor?.deviceAddress.isNullOrBlank() ||
-                state.authenticationState == app.aapswear.g7.G7AuthenticationState.AUTHENTICATED ||
-                hasUsableCollectorSession(state.lastReading, state.sensor?.sensorId)
-        )
-
-@Suppress("UNUSED_PARAMETER")
-internal fun isG7PairingAttemptActive(
-    state: G7PersistedState,
-    nowEpochMs: Long,
-): Boolean = state.collectorEnabled && state.pairingAttemptId != null && state.lastError?.recoverable != false
-
-internal fun pairingSuccessRemainingMs(
-    deadlineEpochMs: Long,
-    nowEpochMs: Long,
-): Long = (deadlineEpochMs - nowEpochMs).coerceAtLeast(0L)
-
-internal enum class G7PairingScreenStep { ENTER_CODE, CONNECTING, CONNECTED }
-
-@Suppress("UNUSED_PARAMETER")
-internal fun initialG7PairingScreenStep(
-    state: G7PersistedState,
-    restored: G7PairingScreenStep? = null,
-): G7PairingScreenStep? {
-    if (restored == G7PairingScreenStep.ENTER_CODE) return restored
-    if (restored == G7PairingScreenStep.CONNECTING) return restored
-    return restored?.takeIf { it == G7PairingScreenStep.CONNECTED }
-}
-
-internal fun advanceG7PairingScreen(
-    current: G7PairingScreenStep,
-    state: G7PersistedState,
-): G7PairingScreenStep =
-    if (
-        current == G7PairingScreenStep.CONNECTING &&
-        !state.sensor?.deviceAddress.isNullOrBlank() &&
-        hasUsableCollectorSession(state.lastReading, state.sensor?.sensorId)
-    ) {
-        G7PairingScreenStep.CONNECTED
-    } else {
-        current
-    }
-
-internal fun canStartG7Pairing(
-    step: G7PairingScreenStep?,
-    inFlight: Boolean,
-    code: String,
-): Boolean = step == G7PairingScreenStep.ENTER_CODE && !inFlight && code.length == 4 && code.all(Char::isDigit)
-
-internal fun shouldScheduleG7PairingCompletion(
-    step: G7PairingScreenStep?,
-    alreadyScheduled: Boolean,
-): Boolean = step == G7PairingScreenStep.CONNECTED && !alreadyScheduled
-
-@Suppress("UNUSED_PARAMETER")
-internal fun isTerminalG7PairingFailure(
-    state: G7PersistedState,
-    pairingStartedAtEpochMs: Long,
-    nowEpochMs: Long,
-): Boolean {
-    val error = state.lastError?.takeIf { it.occurredAtEpochMs >= pairingStartedAtEpochMs }
-    return error?.code == "G7-AUTH-204" || error?.recoverable == false
-}
 
 internal fun nextDirectGraphHours(current: Int): Int {
     val options = G7DirectToWatchSettingsStore.HOUR_OPTIONS
@@ -116,122 +50,122 @@ internal fun nextDirectGraphHours(current: Int): Int {
     return options[if (index < 0) 0 else (index + 1) % options.size]
 }
 
-class G7WatchActivity : Activity() {
+class G7WatchActivity : ComponentActivity() {
+    private val runtimePermissions =
+        registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts
+                .RequestMultiplePermissions(),
+        ) {
+            refreshScreen()
+        }
+    private val overviewModel by lazy {
+        ViewModelProvider(
+            this,
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    require(modelClass.isAssignableFrom(G7ViewModel::class.java))
+                    return G7ViewModel(AndroidG7OverviewRepository(applicationContext)) as T
+                }
+            },
+        )[G7ViewModel::class.java]
+    }
+    private val screenHost by lazy { FrameLayout(this) }
+    private var overviewState = G7OverviewState()
     private val systemBackCallback = android.window.OnBackInvokedCallback { handleSystemBack() }
     private val appearanceStore by lazy { G7AppearanceStore(this) }
     private val directSettings by lazy { G7DirectToWatchSettingsStore(this) }
-    private var readingObserverRegistered = false
     private var activePalette: G7AppearancePalette? = null
     private var screenBuilt = false
     private var pairingGateVisible = false
-    private var pairingStep: G7PairingScreenStep? = null
-    private var pairingCodeDraft = ""
-    private var pairingStartInFlight = false
-    private var pairingAccessPending = false
-    private var pairingStartGeneration = 0L
-    internal var connectSensor: (android.content.Context, String) -> Unit = { context, code -> connectG7SensorToThisWatch(context, code) }
-    private var unlinkInFlight = false
-    private var unlinkFailed = false
-    private var unlinkFailureReason: String? = null
-    private val companionBondAccess by lazy { G7CompanionBondAccess(this) }
-    private var companionAccessClosed = false
-    private var pairingBondAccessInFlight = false
-    private var pairingBondAccessReady = false
-    private var pairingBondAccessFailure: String? = null
-    internal var prepareUnlinkAccess: (onReady: () -> Unit, onFailure: (String) -> Unit) -> Unit = { ready, failed ->
-        executeAssociationTask {
-            val release = runCatching { releaseG7CollectorOwnership(applicationContext) }
-            mainHandler.post {
-                if (!companionAccessClosed && !isFinishing && !isDestroyed) {
-                    if (release.isSuccess) {
-                        companionBondAccess.ensureForUnlink(ready, failed, explicitRetirement = hasG7SensorAssociation(G7SensorStateStore(this).read()))
-                    } else {
-                        failed("Sensorempfang konnte nicht beendet werden")
-                    }
+    private val pairingCommands by lazy { AndroidG7PairingCommands(applicationContext) }
+    private val pairingModel by lazy {
+        ViewModelProvider(
+            this,
+            object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    require(modelClass.isAssignableFrom(G7PairingViewModel::class.java))
+                    return G7PairingViewModel(pairingCommands) as T
                 }
-            }
-        }
+            },
+        )[G7PairingViewModel::class.java]
     }
-    internal var unlinkSensor: (android.content.Context) -> G7UnlinkResult = { unlinkG7Sensor(it) }
-    internal var executeAssociationTask: (() -> Unit) -> Unit = { pairingExecutor.execute(it) }
-    private var pairingCompletionScheduled = false
+    private val pairingStep get() = pairingModel.state.value.step
+    private var pairingCodeDraft: String
+        get() = pairingModel.state.value.draft
+        set(value) = pairingModel.editCode(value)
+    private val pairingStartInFlight get() = pairingModel.state.value.startInFlight
+    private val pairingAccessPending get() = pairingModel.state.value.accessPending
+    private val unlinkFailed get() = pairingModel.state.value.unlinkFailed
+    private val unlinkFailureReason get() = pairingModel.state.value.unlinkFailureReason
+    private val pairingBondAccessInFlight get() = pairingModel.state.value.bondInFlight
+    private val pairingBondAccessFailure get() = pairingModel.state.value.bondFailure
+    private val pairingStartedAtEpochMs get() = pairingModel.state.value.startedAt
+    private val pairingFailureMessage get() = pairingModel.state.value.failureMessage
+    private var claimedPairingEffect: Long? = null
+    internal var connectSensor: (android.content.Context, String) -> Unit
+        get() = { _, code -> pairingCommands.connectCommand(code) }
+        set(value) {
+            val app = applicationContext
+            pairingCommands.connectCommand = { value(app, it) }
+        }
+    private val companionConsent: G7CompanionConsentLauncher = G7CompanionConsentLauncher(this) { request, result -> companionBondAccess.onActivityResult(request, result) }
+    private val companionBondAccess: G7CompanionBondAccess by lazy { G7CompanionBondAccess(this, launchConsent = companionConsent::launch) }
+    private var companionAccessClosed = false
+    internal var prepareUnlinkAccess: (onReady: () -> Unit, onFailure: (String) -> Unit) -> Unit = { ready, failed ->
+        companionBondAccess.ensureForUnlink(ready, failed, explicitRetirement = overviewState.snapshot?.persisted?.let(::hasG7SensorAssociation) == true)
+    }
+    internal var unlinkSensor: (android.content.Context) -> G7UnlinkResult
+        get() = { pairingCommands.unlinkCommand() }
+        set(value) {
+            val app = applicationContext
+            pairingCommands.unlinkCommand = { value(app) }
+        }
+    internal var executeAssociationTask: (() -> Unit) -> Unit
+        get() = pairingCommands.executionOverride ?: { task -> mainHandler.post(task) }
+        set(value) {
+            pairingCommands.executionOverride = value
+        }
     private var pairingErrorCode: String? = null
     private var renderedPairingProgress: G7PairingProgress? = null
-    private var pairingStartedAtEpochMs = Long.MAX_VALUE
-    private var pairingFailureMessage: String? = null
     private var pairingScrollView: ScrollView? = null
     private var renderedPairingStep: G7PairingScreenStep? = null
     private val pairingScrollPositions = mutableMapOf<G7PairingScreenStep, Int>()
-    private val pairingExecutor = Executors.newSingleThreadExecutor()
-    private val pairingSuccessFinish =
-        Runnable {
-            if (!pairingCompletionScheduled) return@Runnable
-            pairingCompletionScheduled = false
-            pairingStep = null
-            pairingGateVisible = false
-            if (!isFinishing && !isDestroyed) buildScreen(appearanceStore.load())
-        }
-    private val pairingRefresh =
-        object : Runnable {
-            override fun run() {
-                if (!isFinishing && !isDestroyed && pairingGateVisible) {
-                    refreshScreen()
-                    mainHandler.postDelayed(this, 1_000L)
-                }
-            }
-        }
-    private val graphClockRefresh =
-        object : Runnable {
-            override fun run() {
-                if (!isFinishing && !isDestroyed && screenBuilt && G7SensorStateStore(this@G7WatchActivity).read().collectorEnabled) refreshLiveContent()
-            }
-        }
     private var overviewResumed = false
-    private val collectorPreferences by lazy { getSharedPreferences("g7_collector_state", MODE_PRIVATE) }
-    private val collectorPhaseRefresh = Runnable { if (overviewResumed && screenBuilt && !pairingGateVisible) refreshLiveContent() }
-    private val collectorPhaseListener =
-        android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == "state" && overviewResumed && screenBuilt && !pairingGateVisible) {
-                val transition = G7CollectorUiTransitionStore.read(this)
-                if (transition != null && (collectorAttemptPresentation(G7SensorStateStore(this).read(), transition, System.currentTimeMillis()) != null || collectorAttemptLabel.isVisible)) {
-                    mainHandler.removeCallbacks(collectorPhaseRefresh)
-                    mainHandler.postDelayed(collectorPhaseRefresh, 50L)
-                }
-            }
-        }
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var scrollView: ScrollView
     private lateinit var statusHost: LinearLayout
     private lateinit var signalLossHeader: app.aapswear.uishared.SignalLossWarningView
     private lateinit var collectorStatusTitle: TextView
     private lateinit var collectorAttemptLabel: TextView
-    private val attemptExpiryRefresh = Runnable { if (screenBuilt && !pairingGateVisible) refreshLiveContent() }
     private lateinit var glucoseHost: LinearLayout
     private lateinit var graphView: G7CollectorGraphView
     private lateinit var graphPeriodPill: TextView
-    private val readingObserver =
-        object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean) {
-                if (!isFinishing && !isDestroyed) refreshScreen()
-            }
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContent {
+            val state by overviewModel.state.collectAsStateWithLifecycle()
+            val pairing by pairingModel.state.collectAsStateWithLifecycle()
+            AndroidView(factory = { screenHost }, modifier = Modifier.fillMaxSize(), update = {
+                overviewState = state
+                if (overviewResumed) {
+                    consumePairingEffect(pairing.effect)
+                    refreshScreen()
+                }
+            })
+        }
         onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, systemBackCallback)
         val setup = getSharedPreferences("g7_setup", MODE_PRIVATE)
         // Imported pending cycles refer to the old UID's alarms; rearm them for this package.
         G7RuntimeReconciler.reconcile(this, if (setup.getBoolean("productAccessReview", false)) G7RuntimeEntryPoint.PACKAGE_REPLACED else G7RuntimeEntryPoint.WATCH_APP)
         // Pairing credentials must not be copied into the Activity saved-state bundle.
-        pairingCodeDraft = ""
         val restoredStep =
             savedInstanceState?.getString(KEY_PAIRING_STEP)?.let {
                 runCatching { G7PairingScreenStep.valueOf(it) }.getOrNull()
             }
-        pairingStep = initialG7PairingScreenStep(G7SensorStateStore(this).read(), restoredStep)
-        if (pairingStep == G7PairingScreenStep.CONNECTING) {
-            pairingStartedAtEpochMs = G7SensorStateStore(this).read().pairingStartedAtEpochMs ?: System.currentTimeMillis()
-        }
+        restoredStep?.let { pairingModel.open(it) }
         consumePairingIntent()
         if (setup.getBoolean("productAccessReview", false)) {
             setup.edit { remove("productAccessReview") }
@@ -256,7 +190,7 @@ class G7WatchActivity : Activity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         consumePairingIntent()
@@ -266,118 +200,62 @@ class G7WatchActivity : Activity() {
     private fun consumePairingIntent() {
         if (intent?.getBooleanExtra(EXTRA_OPEN_PAIRING, false) == true) {
             intent.removeExtra(EXTRA_OPEN_PAIRING)
-            if (!hasG7SensorAssociation(G7SensorStateStore(this).read())) {
-                pairingStep = G7PairingScreenStep.ENTER_CODE
-            }
+            pairingModel.requestOpen()
         }
     }
 
     override fun onResume() {
         super.onResume()
         overviewResumed = true
-        collectorPreferences.registerOnSharedPreferenceChangeListener(collectorPhaseListener)
+        pairingModel.setVisible(true)
         // Rehydrate the separately installed Vigil complication provider as well. This also
         // repairs settings after that package was reinstalled while SugarWear data stayed intact.
         directSettings.sync()
-        registerReadingObserver()
         refreshScreen()
-        scheduleOverviewClock()
-    }
-
-    private fun scheduleOverviewClock() {
-        mainHandler.removeCallbacks(graphClockRefresh)
-        val state = G7SensorStateStore(this).read()
-        if (overviewResumed && !pairingGateVisible && state.collectorEnabled && state.sensor != null) {
-            val now = System.currentTimeMillis()
-            mainHandler.postDelayed(graphClockRefresh, 60_000L - now % 60_000L)
-        }
     }
 
     override fun onPause() {
         overviewResumed = false
-        collectorPreferences.unregisterOnSharedPreferenceChangeListener(collectorPhaseListener)
-        mainHandler.removeCallbacks(collectorPhaseRefresh)
-        mainHandler.removeCallbacks(pairingRefresh)
-        mainHandler.removeCallbacks(graphClockRefresh)
-        mainHandler.removeCallbacks(attemptExpiryRefresh)
-        unregisterReadingObserver()
+        pairingModel.setVisible(false)
         super.onPause()
     }
 
-    private fun registerReadingObserver() {
-        if (readingObserverRegistered) return
-        contentResolver.registerContentObserver(
-            G7ReadingProvider.CONTENT_URI,
-            true,
-            readingObserver,
-        )
-        readingObserverRegistered = true
-    }
-
-    private fun unregisterReadingObserver() {
-        if (!readingObserverRegistered) return
-        contentResolver.unregisterContentObserver(readingObserver)
-        readingObserverRegistered = false
+    private fun showScreen(view: View) {
+        screenHost.removeAllViews()
+        screenHost.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
 
     private fun refreshScreen() {
         val palette = appearanceStore.load()
-        val state = G7SensorStateStore(this).read()
-        val currentStep = pairingStep
-        if (currentStep != null) {
-            val nextStep = if (pairingStartInFlight) currentStep else advanceG7PairingScreen(currentStep, state)
-            if (nextStep == G7PairingScreenStep.CONNECTED && android.os.Build.VERSION.SDK_INT < 36) pairingBondAccessReady = true
-            if (nextStep == G7PairingScreenStep.CONNECTED && !pairingBondAccessReady) {
-                pairingStep = G7PairingScreenStep.CONNECTING
-                if (!pairingGateVisible) buildPairingGate(palette, state)
-                if (!pairingBondAccessInFlight && pairingBondAccessFailure == null) {
-                    pairingBondAccessInFlight = true
-                    val address = state.sensor?.deviceAddress
-                    if (address.isNullOrBlank()) {
-                        pairingBondAccessInFlight = false
-                        // Address publication can lag the first reading briefly. Keep observing
-                        // the same session instead of latching a recoverable publication race.
-                        buildPairingGate(palette, state)
-                    } else {
-                        companionBondAccess.ensureForAuthenticatedSensor(
-                            address,
-                            onReady = {
-                                pairingBondAccessInFlight = false
-                                pairingBondAccessReady = true
-                                if (!companionAccessClosed && !isFinishing && !isDestroyed) refreshScreen()
-                            },
-                            onFailure = { reason ->
-                                pairingBondAccessInFlight = false
-                                pairingBondAccessFailure = reason
-                                if (!companionAccessClosed && !isFinishing && !isDestroyed) buildPairingGate(palette, G7SensorStateStore(this).read())
-                            },
-                        )
-                    }
-                }
+        val state =
+            overviewState.snapshot?.persisted ?: if (pairingStep != null) {
+                G7PersistedState()
+            } else {
+                screenBuilt = false
+                showScreen(
+                    label(if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden. Zum Wiederholen tippen." else "Daten werden geladen", 13f, palette.argb(G7AppearanceRole.MENU_TEXT_PRIMARY)).apply {
+                        if (overviewState.failed) setOnClickListener { overviewModel.retry() }
+                    },
+                )
                 return
             }
-            val nextError =
-                state.lastError
-                    ?.takeIf { it.occurredAtEpochMs >= pairingStartedAtEpochMs }
-                    ?.code
-                    .takeIf { nextStep == G7PairingScreenStep.CONNECTING }
-            if (nextStep != currentStep) {
-                pairingStep = nextStep
-                pairingStartInFlight = false
-                buildPairingGate(palette, state)
-                schedulePairingCompletion()
-            } else if (!pairingGateVisible ||
+        pairingModel.sensorChanged(state)
+        val currentStep = pairingStep
+        if (currentStep != null) {
+            val nextError = state.lastError?.takeIf { it.occurredAtEpochMs >= pairingStartedAtEpochMs }?.code
+            val progress = g7PairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
+            if (!pairingGateVisible ||
                 palette != activePalette ||
+                renderedPairingStep != currentStep ||
                 nextError != pairingErrorCode ||
-                renderedPairingProgress != g7PairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
+                renderedPairingProgress != progress
             ) {
                 pairingErrorCode = nextError
                 buildPairingGate(palette, state)
             }
-            if (nextStep == G7PairingScreenStep.CONNECTED) schedulePairingCompletion()
         } else if (!screenBuilt || pairingGateVisible || palette != activePalette) {
             pairingGateVisible = false
-            mainHandler.removeCallbacks(pairingRefresh)
+
             buildScreen(palette)
         } else {
             refreshLiveContent()
@@ -515,14 +393,8 @@ class G7WatchActivity : Activity() {
                 )
                 content.addView(
                     pill("Erneut versuchen", PillStyle.PRIMARY, palette) {
-                        pairingStartInFlight = false
-                        if (pairingBondAccessFailure != null) {
-                            pairingBondAccessFailure = null
-                            refreshScreen()
-                        } else {
-                            pairingStep = G7PairingScreenStep.ENTER_CODE
-                            buildPairingGate(palette, state)
-                        }
+                        pairingModel.retry()
+                        refreshScreen()
                     },
                     LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                         topMargin = 5.dp
@@ -534,10 +406,7 @@ class G7WatchActivity : Activity() {
                 content.addView(
                     pill("Abbrechen", PillStyle.SECONDARY, palette) {
                         if (pairingAccessPending) {
-                            ++pairingStartGeneration
-                            pairingAccessPending = false
-                            pairingStartInFlight = false
-                            pairingStep = null
+                            pairingModel.cancelPendingAccess()
                             companionBondAccess.cancel()
                             refreshScreen()
                         } else {
@@ -623,50 +492,9 @@ class G7WatchActivity : Activity() {
                         code.error = "Bitte genau vier Ziffern eingeben"
                         return@pill
                     }
-                    pairingStartInFlight = true
-                    pairingFailureMessage = null
-                    pairingBondAccessReady = false
-                    pairingBondAccessFailure = null
-                    pairingStartedAtEpochMs = System.currentTimeMillis()
                     code.isEnabled = false
-                    pairingStep = G7PairingScreenStep.CONNECTING
-                    buildPairingGate(palette, G7SensorStateStore(this).read())
-                    val startGeneration = ++pairingStartGeneration
-                    pairingAccessPending = true
-
-                    fun failed(reason: String) {
-                        if (startGeneration != pairingStartGeneration) return
-                        pairingAccessPending = false
-                        pairingStartInFlight = false
-                        pairingStep = G7PairingScreenStep.ENTER_CODE
-                        pairingFailureMessage = reason
-                        if (!companionAccessClosed && !isFinishing && !isDestroyed) {
-                            buildPairingGate(appearanceStore.load(), G7SensorStateStore(this).read())
-                        }
-                    }
-                    prepareUnlinkAccess(
-                        {
-                            if (startGeneration == pairingStartGeneration && !companionAccessClosed && !isFinishing && !isDestroyed) {
-                                pairingAccessPending = false
-                                executeAssociationTask {
-                                    if (startGeneration == pairingStartGeneration) {
-                                        val result = runCatching { connectSensor(applicationContext, entered) }
-                                        mainHandler.post {
-                                            if (startGeneration == pairingStartGeneration) {
-                                                if (result.isSuccess) {
-                                                    pairingStartInFlight = false
-                                                    if (!companionAccessClosed && !isFinishing && !isDestroyed) refreshScreen()
-                                                } else {
-                                                    failed("Verbindung konnte nicht gestartet werden. Bitte erneut versuchen.")
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        { reason -> failed(reason) },
-                    )
+                    pairingModel.start(entered)
+                    buildPairingGate(palette, state)
                 },
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     topMargin = 7.dp
@@ -685,7 +513,7 @@ class G7WatchActivity : Activity() {
                 }.applyG7EdgeFade()
         pairingScrollView = newScrollView
         renderedPairingStep = step
-        setContentView(
+        showScreen(
             FrameLayout(this).apply {
                 setBackgroundColor(background)
                 addView(
@@ -698,17 +526,6 @@ class G7WatchActivity : Activity() {
             },
         )
         newScrollView.post { newScrollView.scrollTo(0, pairingScrollPositions[step] ?: 0) }
-        mainHandler.removeCallbacks(pairingRefresh)
-        // Poll state while pairing, but rebuild only when the semantic pairing presentation
-        // changes. The animated dots own their own animation and must not recreate the page.
-        if (step == G7PairingScreenStep.CONNECTING) mainHandler.postDelayed(pairingRefresh, 1_000L)
-    }
-
-    private fun schedulePairingCompletion() {
-        if (!shouldScheduleG7PairingCompletion(pairingStep, pairingCompletionScheduled)) return
-        pairingCompletionScheduled = true
-        mainHandler.removeCallbacks(pairingSuccessFinish)
-        mainHandler.postDelayed(pairingSuccessFinish, PAIRING_SUCCESS_DURATION_MS)
     }
 
     private fun buildScreen(palette: G7AppearancePalette) {
@@ -736,7 +553,7 @@ class G7WatchActivity : Activity() {
         content.addView(collectorAttemptLabel, cardParams(top = 2))
         glucoseHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(glucoseHost, cardParams(top = 4))
-        val graphReadings = G7ReadingDatabase(this).use { it.query(limit = 300) }
+        val graphReadings = overviewState.snapshot?.graphReadings.orEmpty()
         content.addView(graphTile(graphReadings, palette), cardParams(top = 7))
         content.addView(header())
 
@@ -762,7 +579,7 @@ class G7WatchActivity : Activity() {
                     setBackgroundColor(background)
                     addView(content)
                 }.applyG7EdgeFade()
-        setContentView(scrollView)
+        showScreen(scrollView)
         screenBuilt = true
         refreshLiveContent(preserveScroll = false)
         if (previousScrollY > 0) scrollView.post { scrollView.scrollTo(0, previousScrollY) }
@@ -784,7 +601,7 @@ class G7WatchActivity : Activity() {
         reading: CgmReading?,
         palette: G7AppearancePalette,
     ): LinearLayout {
-        val now = System.currentTimeMillis()
+        val now = overviewState.now
         val basePresentation =
             wearGlucoseCardPresentation(
                 WearGlucoseCardInput(
@@ -928,25 +745,24 @@ class G7WatchActivity : Activity() {
             return
         }
         preserveScrollPosition(preserveScroll) {
-            val state = G7SensorStateStore(this).read()
-            val credentials = G7CredentialStore(this).read()
-            val pillState = deriveG7StatusPillState(state, credentials != null)
+            val snapshot = overviewState.snapshot ?: return
+            val state = snapshot.persisted
+            val pillState = deriveG7StatusPillState(state, snapshot.credentialsPresent)
 
             statusHost.removeAllViews()
             if (unlinkFailed) {
                 statusHost.addView(label("Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen.", 11f, palette.argb(G7AppearanceRole.GLUCOSE_ERROR)))
                 unlinkFailureReason?.let { statusHost.addView(label(it, 11f, palette.argb(G7AppearanceRole.GLUCOSE_ERROR))) }
             }
-            val warning = g7SensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)
+            val warning = if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden" else g7SensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)
             signalLossHeader.visibility = if (warning == null) View.GONE else View.VISIBLE
             warning?.let(signalLossHeader::setMessage)
-            val attempt = collectorAttemptPresentation(state, G7CollectorUiTransitionStore.read(this), System.currentTimeMillis())
+            signalLossHeader.setOnClickListener(if (overviewState.failed) View.OnClickListener { overviewModel.retry() } else null)
+            val attempt = collectorAttemptPresentation(state, snapshot.transition, overviewState.now)
             collectorStatusTitle.text = if (pillState == G7StatusPillState.PAUSED) "Datenempfang pausiert" else attempt?.title.orEmpty()
             collectorAttemptLabel.text = attempt?.phase.orEmpty()
             collectorStatusTitle.visibility = if (warning != null || collectorStatusTitle.text.isBlank()) View.GONE else View.VISIBLE
             collectorAttemptLabel.visibility = if (attempt == null) View.GONE else View.VISIBLE
-            mainHandler.removeCallbacks(attemptExpiryRefresh)
-            attempt?.expiresAt?.let { deadline -> mainHandler.postDelayed(attemptExpiryRefresh, (deadline - System.currentTimeMillis()).coerceAtLeast(1L)) }
             glucoseHost.removeAllViews()
             glucoseHost.addView(
                 label("Gewebeglukose", 11f, 0xFFFFFFFF.toInt(), false).apply {
@@ -954,54 +770,36 @@ class G7WatchActivity : Activity() {
                     setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
                 },
             )
-            glucoseHost.addView(glucoseTile(state.lastReading.takeIf { state.collectorEnabled }, palette))
+            glucoseHost.addView(glucoseTile(state.lastReading.takeIf { state.collectorEnabled && !overviewState.failed }, palette))
             updateGraphOnly(preserveScroll = false)
         }
-        scheduleOverviewClock()
     }
 
     internal fun performSensorUnlink(closePairing: Boolean = false) {
-        if (unlinkInFlight) return
-        unlinkInFlight = true
-        unlinkFailureReason = null
-        if (!closePairing) refreshLiveContent()
-
-        fun finish(detached: Boolean) {
-            unlinkInFlight = false
-            unlinkFailed = !detached
-            if (closePairing) {
-                pairingStep = null
-                pairingStartInFlight = false
-                pairingCompletionScheduled = false
-                mainHandler.removeCallbacks(pairingSuccessFinish)
-            }
-            if (!companionAccessClosed && !isFinishing && !isDestroyed) refreshScreen()
-        }
-        prepareUnlinkAccess(
-            {
-                if (!companionAccessClosed && !isFinishing && !isDestroyed) {
-                    executeAssociationTask {
-                        val detached = runCatching { unlinkSensor(applicationContext).detached }.getOrDefault(false)
-                        mainHandler.post { finish(detached) }
-                    }
-                }
-            },
-            { reason ->
-                unlinkFailureReason = reason
-                finish(false)
-            },
-        )
+        pairingModel.unlink(closePairing)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (!companionBondAccess.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
+    private fun consumePairingEffect(effect: G7PairingEffect?) {
+        if (effect == null || effect.token == claimedPairingEffect || companionAccessClosed) return
+        claimedPairingEffect = effect.token
+        when (effect) {
+            is G7PairingEffect.Access ->
+                prepareUnlinkAccess(
+                    { pairingModel.accessReady(effect.token) },
+                    { reason -> pairingModel.accessFailed(effect.token, reason) },
+                )
+            is G7PairingEffect.VerifyBond ->
+                companionBondAccess.ensureForAuthenticatedSensor(
+                    effect.address,
+                    { pairingModel.bondReady(effect.token) },
+                    { reason -> pairingModel.bondFailed(effect.token, reason) },
+                )
+        }
     }
 
     internal fun handleSystemBack() {
         if (pairingStep == G7PairingScreenStep.ENTER_CODE) {
-            pairingStep = null
-            pairingCodeDraft = ""
+            pairingModel.close()
             refreshScreen()
         } else {
             finish()
@@ -1013,14 +811,18 @@ class G7WatchActivity : Activity() {
         val palette = activePalette ?: return
         preserveScrollPosition(preserveScroll) {
             val hours = directSettings.graphHours()
-            val latestTimestamp = G7SensorStateStore(this).read().lastReading?.timestampEpochMs
-            val ageMinutes = latestTimestamp?.let { ((System.currentTimeMillis() - it).coerceAtLeast(0L) / 60_000L) }
+            val latestTimestamp =
+                overviewState.snapshot
+                    ?.persisted
+                    ?.lastReading
+                    ?.timestampEpochMs
+            val ageMinutes = latestTimestamp?.let { ((overviewState.now - it).coerceAtLeast(0L) / 60_000L) }
             graphPeriodPill.text =
                 buildString {
                     append(hours).append('h')
                     if (ageMinutes != null) append(" • ").append(ageMinutes).append('m')
                 }
-            val readings = G7ReadingDatabase(this).use { it.query(limit = 300) }
+            val readings = overviewState.snapshot?.graphReadings.orEmpty()
             graphView.bind(
                 readings = readings,
                 palette = palette,
@@ -1178,25 +980,14 @@ class G7WatchActivity : Activity() {
                     add(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
-        if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), PERMISSION_REQUEST)
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray,
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSION_REQUEST) refreshLiveContent()
+        if (missing.isNotEmpty()) runtimePermissions.launch(missing.toTypedArray())
     }
 
     override fun onDestroy() {
         onBackInvokedDispatcher.unregisterOnBackInvokedCallback(systemBackCallback)
+        pairingModel.platformDetached()
         companionAccessClosed = true
         companionBondAccess.cancel()
-        mainHandler.removeCallbacks(pairingSuccessFinish)
-        pairingExecutor.shutdown()
-        unregisterReadingObserver()
         super.onDestroy()
     }
 
@@ -1269,7 +1060,7 @@ class G7WatchActivity : Activity() {
         internal const val EXTRA_OPEN_PAIRING = "g7.open_pairing"
         const val PERMISSION_REQUEST = 7
         const val KEY_PAIRING_STEP = "pairing_step"
-        const val PAIRING_SUCCESS_DURATION_MS = 3_000L
+        const val PAIRING_SUCCESS_DURATION_MS = G7_PAIRING_SUCCESS_DURATION_MS
     }
 }
 

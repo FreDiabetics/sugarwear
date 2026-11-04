@@ -1,6 +1,5 @@
 package app.aapswear.g7watch
 
-import android.app.Activity
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -12,20 +11,29 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.viewModels
 import app.aapswear.g7.CgmAlarmSettings
 import app.aapswear.g7.CgmAlarmType
 import app.aapswear.uishared.SharedNumberEditor
 import java.util.Locale
 
 /** Immediate-save alarm configuration. Test notifications never touch the real alarm state. */
-class G7AlarmSettingsActivity : Activity() {
+class G7AlarmSettingsActivity : G7SettingsComposeActivity() {
     private lateinit var root: LinearLayout
     private lateinit var scrollView: ScrollView
-    private var selectedAlarm: CgmAlarmType? = null
-    private var alarmPage: String? = null
+    private val access by viewModels<G7SettingsAccessViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private var selectedAlarm: CgmAlarmType?
+        get() = access.navigation.value.selectedAlarm
+        set(value) = access.selectAlarm(value)
+    private var alarmPage: String?
+        get() = access.navigation.value.alarmPage
+        set(value) = access.selectPage(value)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bindSettingsState(access.state, { old, new -> old.snapshot != new.snapshot || old.error != new.error }, ::render)
+        bindSettingsState(access.navigation, render = ::render)
+
         onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
@@ -34,23 +42,25 @@ class G7AlarmSettingsActivity : Activity() {
                     isFillViewport = true
                     addView(root)
                 }.applyG7EdgeFade()
-        setContentView(scrollView)
-        G7CgmAlarmNotifier.prepareCurrentChannels(this)
+        showSettingsView(scrollView)
+        access.refresh(prepare = true)
         render()
     }
 
     override fun onResume() {
         super.onResume()
-        G7CgmAlarmNotifier.prepareCurrentChannels(this)
+        access.refresh(prepare = true)
         render()
     }
 
     private fun render() {
+        if (!settingsReady(access.state.value, { access.refresh() })) return
+        showSettingsView(scrollView)
         val restoreScrollY = scrollView.scrollY
-        val palette = G7AppearanceStore(this).load()
+        val palette = checkNotNull(access.state.value.snapshot).palette
         val background = palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)
         applyG7SystemChrome(window, background)
-        val settings = G7AlarmSettingsStore.read(this)
+        val settings = checkNotNull(access.state.value.snapshot).alarms
 
         root.apply {
             removeAllViews()
@@ -100,7 +110,7 @@ class G7AlarmSettingsActivity : Activity() {
     }
 
     private fun dndCard(palette: G7AppearancePalette): LinearLayout {
-        val status = G7AlarmSystemAccess.snapshot(this)
+        val status = checkNotNull(access.state.value.snapshot).alarmAccess
         val granted = status.policyAccessGranted
         return card(palette).apply {
             addView(label("NICHT STÖREN", 8f, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), true))
@@ -120,7 +130,7 @@ class G7AlarmSettingsActivity : Activity() {
                 ),
             )
             addView(label(g7AlarmAudioPolicyLabel(status), 10f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_PRIMARY), true))
-            addView(label(if (G7BackgroundAccess.isBatteryUnrestricted(this@G7AlarmSettingsActivity)) "Doze-Akkuexemption erlaubt" else "Doze-Akkuexemption fehlt", 9f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)))
+            addView(label(if (checkNotNull(access.state.value.snapshot).access.batteryUnrestricted) "Doze-Akkuexemption erlaubt" else "Doze-Akkuexemption fehlt", 9f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)))
             addView(
                 actionButton("Berechtigungen und Alarmkan\u00e4le", palette) {
                     startActivity(Intent(this@G7AlarmSettingsActivity, G7PermissionsActivity::class.java))
@@ -135,11 +145,11 @@ class G7AlarmSettingsActivity : Activity() {
     ): LinearLayout =
         card(palette).apply {
             addView(label("ALARMVERHALTEN", 8f, palette.settingsArgb(G7AppearanceRole.MENU_PRIMARY), true))
-            addView(toggle("Sound", settings.soundEnabled, palette) { save(settings.copy(soundEnabled = it)) })
-            val volumeOverride = G7AlarmVolume.enabled(this@G7AlarmSettingsActivity)
+            addView(toggle("Sound", settings.soundEnabled, palette) { edit(G7AlarmSettingsEdit.Sound(it)) })
+            val volumeOverride = checkNotNull(access.state.value.snapshot).volumeOverride
             addView(
                 toggle("Eigene Alarmlautstärke", volumeOverride, palette) {
-                    G7AlarmVolume.configure(this@G7AlarmSettingsActivity, it)
+                    access.volume(it)
                     render()
                 },
             )
@@ -147,24 +157,24 @@ class G7AlarmSettingsActivity : Activity() {
             addView(label("System · ${audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM)}/${audio.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM)}", 9f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)))
             if (volumeOverride) {
                 addView(
-                    stepper("Alarmlautstärke", "${G7AlarmVolume.percent(this@G7AlarmSettingsActivity)} %", palette, {
-                        G7AlarmVolume.configure(this@G7AlarmSettingsActivity, true, G7AlarmVolume.percent(this@G7AlarmSettingsActivity) - 10)
+                    stepper("Alarmlautstärke", "${checkNotNull(access.state.value.snapshot).volumePercent} %", palette, {
+                        access.adjustVolume(-10)
                         render()
                     }, {
-                        G7AlarmVolume.configure(this@G7AlarmSettingsActivity, true, G7AlarmVolume.percent(this@G7AlarmSettingsActivity) + 10)
+                        access.adjustVolume(10)
                         render()
                     }),
                 )
             }
             addView(label("Ohne eigene Lautstärke gilt die System-Alarmlautstärke. Mit eigener Lautstärke wird sie für 30 Sekunden überschrieben und anschließend wiederhergestellt. Eigene SugarWear-Töne bleiben aktiv.", 8.5f, palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY)))
 
-            addView(toggle("Vibration", settings.vibrationEnabled, palette) { save(settings.copy(vibrationEnabled = it)) })
-            addView(toggle("Wiederholen", settings.repeatEnabled, palette) { save(settings.copy(repeatEnabled = it)) })
+            addView(toggle("Vibration", settings.vibrationEnabled, palette) { edit(G7AlarmSettingsEdit.Vibration(it)) })
+            addView(toggle("Wiederholen", settings.repeatEnabled, palette) { edit(G7AlarmSettingsEdit.Repeat(it)) })
             addView(
                 stepper("Wiederholung", "${settings.repeatIntervalMinutes} min", palette, {
-                    save(settings.copy(repeatIntervalMinutes = (settings.repeatIntervalMinutes - 5).coerceAtLeast(5)))
+                    edit(G7AlarmSettingsEdit.AdjustRepeat(-5))
                 }, {
-                    save(settings.copy(repeatIntervalMinutes = (settings.repeatIntervalMinutes + 5).coerceAtMost(120)))
+                    edit(G7AlarmSettingsEdit.AdjustRepeat(5))
                 }),
             )
         }
@@ -175,7 +185,7 @@ class G7AlarmSettingsActivity : Activity() {
         palette: G7AppearancePalette,
     ): LinearLayout =
         card(palette).apply {
-            addView(toggle(g7AlarmTitle(type), alarmEnabled(settings, type), palette) { save(withAlarmEnabled(settings, type, it)) })
+            addView(toggle(g7AlarmTitle(type), alarmEnabled(settings, type), palette) { edit(G7AlarmSettingsEdit.AlarmEnabled(type, it)) })
             thresholdText(
                 type,
                 settings,
@@ -197,14 +207,13 @@ class G7AlarmSettingsActivity : Activity() {
             }
             addView(
                 actionButton("Test", palette) {
-                    G7CgmAlarmNotifier.showTest(this@G7AlarmSettingsActivity, type, G7AlarmSettingsStore.read(this@G7AlarmSettingsActivity))
+                    access.test(type)
                 },
             )
         }
 
-    private fun save(settings: CgmAlarmSettings) {
-        G7AlarmSettingsStore.write(this, settings)
-        G7CgmAlarmNotifier.ensureAllChannels(this, settings)
+    private fun edit(edit: G7AlarmSettingsEdit) {
+        access.edit(edit)
         render()
     }
 
@@ -248,7 +257,7 @@ class G7AlarmSettingsActivity : Activity() {
                 }
             },
             onValue = { text ->
-                parsed(text)?.let { withThreshold(settings, type, it) }?.let(::save)
+                parsed(text)?.let { edit(G7AlarmSettingsEdit.Threshold(type, it)) }
             },
             onDismiss = { restoreScrollPosition(restoreScrollY) },
         )
@@ -283,7 +292,7 @@ class G7AlarmSettingsActivity : Activity() {
         textSize = 15f
         app.aapswear.uishared.SystemTypography
             .apply(this, true)
-        setOnCheckedChangeListener { _, value -> if (value != checked) changed(value) }
+        setOnCheckedChangeListener { _, value -> changed(value) }
     }
 
     private fun stepper(

@@ -1,6 +1,5 @@
 package app.aapswear.g7watch
 
-import android.app.Activity
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -11,6 +10,7 @@ import android.view.ViewTreeObserver
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.viewModels
 
 internal enum class G7SettingsSection(
     val title: String,
@@ -24,26 +24,33 @@ internal enum class G7SettingsSection(
     ABOUT("Über", "SugarWear"),
 }
 
-class G7SettingsActivity : Activity() {
-    private var aboutExpanded = false
+class G7SettingsActivity : G7SettingsComposeActivity() {
+    private val access by viewModels<G7SettingsAccessViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val navigation by viewModels<G7SettingsNavigationViewModel>()
+    private val aboutExpanded get() = navigation.state.value.aboutExpanded
     private lateinit var pageRoot: LinearLayout
     private lateinit var scrollView: ScrollView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bindSettingsState(navigation.state, render = ::render)
+        bindSettingsState(access.state, render = ::render)
+
         render()
     }
 
     override fun onResume() {
         super.onResume()
+        access.refresh()
         if (::pageRoot.isInitialized) render()
     }
 
     private fun render() {
-        val palette = G7AppearanceStore(this).load()
+        if (!settingsReady(access.state.value, { access.refresh() })) return
+        val palette = checkNotNull(access.state.value.snapshot).palette
         val background = palette.settingsArgb(G7AppearanceRole.MENU_BACKGROUND)
         applyG7SystemChrome(window, background)
-        val state = G7SensorStateStore(this).read()
+        val state = checkNotNull(access.state.value.snapshot).sensor
 
         val restoreScrollY = if (::scrollView.isInitialized) scrollView.scrollY else 0
         pageRoot =
@@ -79,7 +86,7 @@ class G7SettingsActivity : Activity() {
                             palette.settingsArgb(G7AppearanceRole.MENU_TEXT_SECONDARY),
                         ) {
                             if (section == G7SettingsSection.ABOUT) {
-                                aboutExpanded = !aboutExpanded
+                                navigation.toggleAbout()
                                 render()
                             } else {
                                 openSection(section)
@@ -111,7 +118,7 @@ class G7SettingsActivity : Activity() {
                     .apply {
                         isFillViewport = true
                     }.applyG7EdgeFade()
-            setContentView(scrollView)
+            showSettingsView(scrollView)
         } else {
             scrollView.removeAllViews()
         }

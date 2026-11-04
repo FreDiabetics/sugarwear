@@ -1,6 +1,5 @@
 package app.aapswear.g7watch
 
-import android.app.Activity
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -12,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.viewModels
 import app.aapswear.model.AppearanceControlContract
 import app.aapswear.model.AppearanceMode
 import app.aapswear.model.AppearanceTerminology
@@ -22,23 +22,26 @@ import app.aapswear.uishared.SharedColorEditor
 import app.aapswear.uishared.SharedNumberEditor
 import kotlin.math.roundToInt
 
-class G7DirectToWatchSettingsActivity : Activity() {
-    private lateinit var settings: G7DirectToWatchSettingsStore
-    private lateinit var appearance: G7AppearanceStore
-    private var mode = AppearanceMode.DARK
+class G7DirectToWatchSettingsActivity : G7SettingsComposeActivity() {
+    private val navigation by viewModels<G7SettingsNavigationViewModel>()
+    private val settings by viewModels<G7VigilSettingsViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val appearance by viewModels<G7AppearanceSettingsViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val mode get() = checkNotNull(settings.state.value.snapshot).activeMode
     private lateinit var scrollView: ScrollView
     private lateinit var pageRoot: LinearLayout
-    private var selectedCategory: String? = null
+    private var selectedCategory: String?
+        get() = navigation.state.value.category
+        set(value) = navigation.selectCategory(value)
     private val categoryTitles = linkedSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bindSettingsState(navigation.state, render = ::render)
+        bindSettingsState(settings.state, render = ::render)
+        bindSettingsState(appearance.state, render = ::render)
+
         onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
         selectedCategory = savedInstanceState?.getString("settings-category")
-        settings = G7DirectToWatchSettingsStore(this)
-        appearance = G7AppearanceStore(this)
-        mode = settings.activeAppearanceMode(appearance.activeMode())
-        settings.saveActiveAppearanceMode(mode)
         pageRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
             G7EdgeFadeScrollView(this)
@@ -46,7 +49,7 @@ class G7DirectToWatchSettingsActivity : Activity() {
                     isFillViewport = true
                     addView(pageRoot)
                 }.applyG7EdgeFade()
-        setContentView(scrollView)
+        showSettingsView(scrollView)
         render()
     }
 
@@ -56,6 +59,9 @@ class G7DirectToWatchSettingsActivity : Activity() {
     }
 
     private fun render() {
+        if (!settingsReady(settings.state.value, settings::refresh)) return
+        if (!settingsReady(appearance.state.value, appearance::refresh)) return
+        showSettingsView(scrollView)
         val restoreScrollY = scrollView.scrollY
         categoryTitles.clear()
         val palette = appearance.load(mode)
@@ -373,7 +379,6 @@ class G7DirectToWatchSettingsActivity : Activity() {
             listOf(AppearanceMode.LIGHT to "Hell", AppearanceMode.DARK to "Dunkel").forEach { (value, title) ->
                 addView(
                     app.aapswear.uishared.WearSettingsUi.choice(this@G7DirectToWatchSettingsActivity, title, mode == value, p.settingsArgb(G7AppearanceRole.MENU_PRIMARY), p.settingsArgb(G7AppearanceRole.MENU_SURFACE)) {
-                        mode = value
                         settings.saveActiveAppearanceMode(value)
                         render()
                     },

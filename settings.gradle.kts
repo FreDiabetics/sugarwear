@@ -12,7 +12,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "SugarWear"
-val sharedRoot = file("shared/sugarlicious")
+val sharedRoot = providers.gradleProperty("sharedSourceRoot").orNull?.let(::file) ?: file("shared/sugarlicious")
 check(sharedRoot.resolve("core-model/build.gradle.kts").isFile) {
     "Shared sources missing. Run git submodule update --init --recursive."
 }
@@ -22,3 +22,5 @@ sharedModules.forEach { module ->
     project(":$module").projectDir = sharedRoot.resolve(module)
 }
 include(":g7watch", ":watchfaces:vigil")
+include(":tools:maintenance")
+project(":tools:maintenance").projectDir = sharedRoot.resolve("tools/maintenance")

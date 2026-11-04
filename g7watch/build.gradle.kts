@@ -1,5 +1,6 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
@@ -13,6 +14,7 @@ android {
         versionCode = rootProject.extra["sugarwearVersionCode"] as Int
         versionName = rootProject.extra["sugarwearVersionName"] as String
     }
+    buildFeatures { compose = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
@@ -37,6 +39,14 @@ tasks.configureEach {
 }
 
 dependencies {
+    implementation(platform("androidx.compose:compose-bom:2026.09.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.fragment:fragment-ktx:1.9.1")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.11.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     implementation(project(":dexcom-g7"))
     implementation(project(":wear-storage"))
     implementation(project(":wear-protocol"))

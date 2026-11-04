@@ -1,7 +1,6 @@
 package app.aapswear.g7watch
 
 import android.Manifest
-import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
@@ -10,19 +9,38 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.edit
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 
 /** First-run guide. Only the OS can grant access; skipping never claims success. */
-class G7SetupActivity : Activity() {
-    private var step = 0
-    private var awaitingSystem = false
+class G7SetupActivity : G7SettingsComposeActivity() {
+    private val access by viewModels<G7SettingsAccessViewModel> { androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory(application) }
+    private val setup by viewModels<G7SetupViewModel> {
+        object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return G7SetupViewModel(access::completeSetup) as T
+            }
+        }
+    }
+    private val permissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            setup.systemReturned()
+            access.refresh()
+            render()
+        }
+    private val step get() = setup.state.value.step
+    private val awaitingSystem get() = setup.state.value.awaitingSystem
     private val steps = listOf("Bluetooth", "Benachrichtigungen", "Hintergrundbetrieb", "Genaue Alarme", "Nicht stören", "Alarmkanäle", "Alarmlautstärke")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        step = savedInstanceState?.getInt("step") ?: 0
-        awaitingSystem = savedInstanceState?.getBoolean("awaiting") ?: false
-        G7CgmAlarmNotifier.prepareCurrentChannels(this)
+        bindSettingsState(access.state, render = ::render)
+        bindSettingsState(setup.state, render = ::render)
+        bindSettingsState(access.setupCompleted, render = ::render)
+
+        if (savedInstanceState != null) setup.restore(savedInstanceState.getInt("step"), savedInstanceState.getBoolean("awaiting"))
+        access.refresh(prepare = true)
         render()
     }
 
@@ -34,37 +52,24 @@ class G7SetupActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        G7CgmAlarmNotifier.prepareCurrentChannels(this)
-        if (awaitingSystem) awaitingSystem = false
+        access.refresh(prepare = true)
+        setup.systemReturned()
+        access.refresh()
         render()
     }
 
-    private fun granted(): Boolean {
-        val state = G7SystemAccess.snapshot(this)
-        return when (step) {
-            0 -> state.bluetoothGranted
-            1 -> state.notificationsGranted
-            2 -> state.batteryUnrestricted
-            3 -> state.exactAlarmsGranted
-            4 -> state.dndAccessGranted && G7AlarmSystemAccess.snapshot(this).dndAllowsAlarmAudio == true
-            5 -> state.alarmChannels.all { it.importance != null && it.importance > 0 && it.bypassDnd }
-            else -> true
-        }
-    }
+    private fun granted(): Boolean = setup.granted(checkNotNull(access.state.value.snapshot).access, checkNotNull(access.state.value.snapshot).alarmAccess)
 
-    private fun explanation(): String =
-        when (step) {
-            0 -> "Geräte in der Nähe für den direkten Sensorempfang. Der Sensor wird erst über Sensor verbinden eingerichtet."
-            1 -> "Erlaubt Glukosealarme und den laufenden Collectorstatus."
-            2 -> "Die Akkuausnahme schützt den zeitkritischen Sensorempfang vor Doze-Einschränkungen."
-            3 -> "Erlaubt zeitgenaue Sensorfenster und Alarmwiederholungen."
-            4 -> "Der Systemzugriff erlaubt Kanal-Ausnahmen. Eigene Alarmtöne benötigen zusätzlich die Systemausnahme Alarme im Ruhemodus; Kanal-Ausnahmen allein reichen dafür nicht. Aktueller Tonstatus: ${g7AlarmAudioPolicyLabel(G7AlarmSystemAccess.snapshot(this))}."
-            5 -> "Alle SugarWear-Alarmkanäle gemeinsam prüfen. Ihre Ausnahme betrifft die Meldungen. Eigene Töne verwenden die System-Alarmausgabe und benötigen deren Freigabe im Ruhemodus."
-            else -> "Standard ist die System-Alarmlautstärke. Unter Alarme lässt sich optional eine eigene Lautstärke wählen und jeder eigene SugarWear-Ton testen. Lautstärke 0 bleibt ohne Überschreibung stumm."
-        }
+    private fun explanation(): String = setup.explanation(checkNotNull(access.state.value.snapshot).alarmAccess)
 
     private fun render() {
-        val palette = G7AppearanceStore(this).load()
+        if (!settingsReady(access.state.value, { access.refresh() })) return
+        if (access.setupCompleted.value) {
+            finish()
+            return
+        }
+        if (setup.state.value.complete) access.completeSetup()
+        val palette = checkNotNull(access.state.value.snapshot).palette
         val density = resources.displayMetrics.density
         val root =
             LinearLayout(this).apply {
@@ -132,26 +137,21 @@ class G7SetupActivity : Activity() {
                     "Später einrichten"
                 },
             ) {
-                if (step < steps.lastIndex) {
-                    step++
-                    render()
-                } else {
-                    getSharedPreferences("g7_setup", MODE_PRIVATE).edit { putBoolean("complete", true) }
-                    finish()
-                }
+                setup.advance()
+                render()
             },
         )
         val scroll = G7EdgeFadeScrollView(this).apply { addView(root, ViewGroup.LayoutParams(-1, -2)) }
-        setContentView(scroll)
+        showSettingsView(scroll)
     }
 
     private fun openStep() {
-        awaitingSystem = true
+        if (!setup.beginSystemRequest()) return
         when (step) {
             0, 1 -> {
                 val permissions = if (step == 0) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.POST_NOTIFICATIONS)
                 val missing = G7SystemAccess.missingRuntimePermissions(this).filter { it in permissions }.toTypedArray()
-                if (missing.isNotEmpty()) requestPermissions(missing, 702) else G7SystemAccess.open(this, G7SystemAccess.appSettingsIntents(packageName))
+                if (missing.isNotEmpty()) permissionLauncher.launch(missing) else G7SystemAccess.open(this, G7SystemAccess.appSettingsIntents(packageName))
             }
             2 -> if (!G7BackgroundAccess.openBatterySettings(this)) unavailable()
             3 -> if (!G7SystemAccess.open(this, G7SystemAccess.exactAlarmSettingsIntents(packageName))) unavailable()
@@ -161,14 +161,8 @@ class G7SetupActivity : Activity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        awaitingSystem = false
-        render()
-    }
-
     private fun unavailable() {
-        awaitingSystem = false
+        setup.systemReturned()
         Toast.makeText(this, "Diese Systemfreigabe ist auf dieser Uhr nicht verfügbar. Sie wurde nicht erteilt.", Toast.LENGTH_LONG).show()
     }
 }
