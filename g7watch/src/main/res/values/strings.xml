@@ -1,7 +1,0 @@
-<resources>
-    <string name="app_name">SugarWear</string>
-    <string name="tile_g7_label">SugarWear</string>
-    <string name="tile_g7_description">Lokaler Sensorwert mit Trend, Delta und Alter</string>
-    <string name="tile_graph_label">SugarWear Verlauf</string>
-    <string name="tile_graph_description">Gewebeglukose-Verlauf als Full-Bleed-Graph</string>
-</resources>

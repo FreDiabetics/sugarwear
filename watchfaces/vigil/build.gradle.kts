@@ -1,7 +1,7 @@
 plugins { id("com.android.application") }
 android {
     enableKotlin = false
-    namespace = "app.aapswear.watchface.sugarlicious.directtowatch"
+    namespace = "app.sugarwear.watchface.vigil"
     compileSdk = 37
     defaultConfig {
         applicationId = "app.sugarwear.watchfacepush.vigil"
