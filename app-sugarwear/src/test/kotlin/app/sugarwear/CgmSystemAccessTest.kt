@@ -97,7 +97,9 @@ class CgmSystemAccessTest {
     }
 
     @Test fun `pairing requires the two nearby device grants but not notification permission`() {
-        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+        val context =
+            androidx.test.core.app.ApplicationProvider
+                .getApplicationContext<android.app.Application>()
         val permissions = org.robolectric.Shadows.shadowOf(context)
         permissions.denyPermissions(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS)
         assertEquals(setOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT), CgmSystemAccess.missingBluetoothPermissions(context).toSet())
