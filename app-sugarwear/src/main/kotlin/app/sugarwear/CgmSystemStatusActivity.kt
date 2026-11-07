@@ -61,7 +61,6 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                         if (effect.operation != CgmPairingOperation.UNLINK || claimedAccessToken == effect.token) return@collect
                         claimedAccessToken = effect.token
                         companionBondAccess.ensureForUnlink(
-                            explicitRetirement = true,
                             onReady = {
                                 if (!companionAccessClosed) {
                                     pairing.accessReady(effect.token)
@@ -521,7 +520,25 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
             buttonParams(),
         )
         if (unlinkFailed) {
-            target.addView(label("Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
+            target.addView(
+                label(
+                    "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.",
+                    11f,
+                    palette.argb(CgmAppearanceRole.GLUCOSE_ERROR),
+                ),
+            )
+            target.addView(
+                pill("Bluetooth-Einstellungen", palette) {
+                    CgmSystemAccess.open(
+                        this,
+                        listOf(
+                            Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
+                            Intent(android.provider.Settings.ACTION_SETTINGS),
+                        ),
+                    )
+                },
+                buttonParams(),
+            )
         }
         unlinkFailureReason?.let { target.addView(label(it, 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY))) }
         if (associated || state.collectorEnabled) {
