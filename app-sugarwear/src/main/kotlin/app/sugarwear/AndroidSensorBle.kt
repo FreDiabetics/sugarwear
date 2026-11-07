@@ -58,6 +58,12 @@ internal data class CgmDiscoveryCandidateDeferred(
     val errorCode: String,
 ) : CgmBleTelemetry
 
+/** A scanned G7 spoke BLE but failed application-level authentication. Never persist its address or keys. */
+internal data class CgmDiscoveryCandidateRejected(
+    val timestampEpochMs: Long,
+    val errorCode: String,
+) : CgmBleTelemetry
+
 internal data class CgmDirectConnectStarted(
     val timestampEpochMs: Long,
     val elapsedRealtimeMs: Long,
@@ -560,6 +566,9 @@ internal class CgmHardwareCollector(
                 connection.close()
                 if (error.errorCode == "G7-AUTH-MISMATCH" && initialSensor.deviceAddress.isNullOrBlank() && scanner is SensorScanner) {
                     sensor.deviceAddress?.let(scanner::rejectCandidate)
+                    // This event was previously dropped: exports showed successful GATT and
+                    // auth challenges, then a new scan with no explanation for rejection.
+                    onTelemetry(CgmDiscoveryCandidateRejected(System.currentTimeMillis(), error.errorCode))
                     sensor = initialSensor
                     sharedKey = null
                     discoveryRequired = true
