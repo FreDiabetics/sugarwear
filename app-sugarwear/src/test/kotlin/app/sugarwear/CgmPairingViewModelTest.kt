@@ -124,9 +124,9 @@ class CgmPairingViewModelTest {
         runTest {
             val commands =
                 object : CgmPairingCommands {
-                    override suspend fun releaseOwnership() {}
+                    override suspend fun releaseOwnership() = Unit
 
-                    override suspend fun connect(code: String) {}
+                    override suspend fun connect(code: String) = Unit
 
                     override suspend fun unlink(): Boolean = false
                 }
