@@ -545,25 +545,24 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `explicit connect waits for old bond access before preparing and starting`() {
+    fun `new sensor start does not require companion consent for a stale old bond`() {
         val context =
             androidx.test.core.app.ApplicationProvider
-                .getApplicationContext<android.content.Context>()
+                .getApplicationContext<android.app.Application>()
+        Shadows.shadowOf(context).grantPermissions(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
         CgmSensorStateStore(context).save(CgmPersistedState())
         val saved = android.os.Bundle().apply { putString("pairing_step", CgmPairingScreenStep.ENTER_CODE.name) }
         val controller =
             Robolectric
                 .buildActivity(CgmWatchActivity::class.java)
                 .also { activeControllers += it }
-                .also { activeControllers += it }
                 .create(saved)
                 .start()
                 .resume()
                 .visible()
         val activity = controller.get().awaitUi()
-        var ready: (() -> Unit)? = null
         var starts = 0
-        activity.prepareUnlinkAccess = { granted, _ -> ready = granted }
+        activity.prepareUnlinkAccess = { _, _ -> error("Companion consent must not gate new sensor pairing") }
         activity.executeAssociationTask = { it() }
         activity.connectSensor = { _, code ->
             assertEquals("0123", code)
@@ -572,10 +571,6 @@ class CgmWatchActivityLayoutTest {
         try {
             findEditor(activity.window.decorView)!!.setText("0123")
             findText(activity.window.decorView, "Verbinden")!!.performClick()
-            assertEquals(0, starts)
-            awaitCondition(activity) { ready != null }
-            assertNotNull(ready)
-            ready!!.invoke()
             awaitCondition(activity) { starts == 1 }
             assertEquals(1, starts)
         } finally {
@@ -584,16 +579,16 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `cancelled old bond access returns to code entry without starting connection`() {
+    fun `missing nearby device access cannot start a new sensor`() {
         val context =
             androidx.test.core.app.ApplicationProvider
-                .getApplicationContext<android.content.Context>()
+                .getApplicationContext<android.app.Application>()
+        Shadows.shadowOf(context).denyPermissions(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
         CgmSensorStateStore(context).save(CgmPersistedState())
         val saved = android.os.Bundle().apply { putString("pairing_step", CgmPairingScreenStep.ENTER_CODE.name) }
         val controller =
             Robolectric
                 .buildActivity(CgmWatchActivity::class.java)
-                .also { activeControllers += it }
                 .also { activeControllers += it }
                 .create(saved)
                 .start()
@@ -601,17 +596,15 @@ class CgmWatchActivityLayoutTest {
                 .visible()
         val activity = controller.get().awaitUi()
         var starts = 0
-        activity.prepareUnlinkAccess = { _, failed -> failed("Systemfreigabe abgebrochen") }
+        activity.prepareUnlinkAccess = { _, _ -> error("Denied runtime BLE access must not trigger companion consent") }
+        activity.executeAssociationTask = { it() }
         activity.connectSensor = { _, _ -> starts++ }
         try {
             findEditor(activity.window.decorView)!!.setText("0123")
             findText(activity.window.decorView, "Verbinden")!!.performClick()
-            awaitCondition(activity) { findText(activity.window.decorView, "Systemfreigabe abgebrochen") != null }
+            Shadows.shadowOf(Looper.getMainLooper()).idle()
             assertEquals(0, starts)
-            assertNotNull(findEditor(activity.window.decorView))
-            assertNotNull(findText(activity.window.decorView, "Verbinden"))
-            assertNotNull(findText(activity.window.decorView, "Systemfreigabe abgebrochen"))
-            assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
+            assertTrue(CgmSystemAccess.missingBluetoothPermissions(activity).isNotEmpty())
         } finally {
             controller.pause().stop().destroy()
         }

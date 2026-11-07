@@ -31,7 +31,11 @@ internal data class CgmAlarmChannelAccess(
 
 /** Reads system state; opening a settings screen never changes the reported grant. */
 internal object CgmSystemAccess {
-    val runtimePermissions = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.POST_NOTIFICATIONS)
+    val bluetoothPermissions = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+    val runtimePermissions = bluetoothPermissions + Manifest.permission.POST_NOTIFICATIONS
+
+    fun missingBluetoothPermissions(context: Context): Array<String> =
+        bluetoothPermissions.filter { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
 
     fun missingRuntimePermissions(context: Context): Array<String> =
         runtimePermissions.filter { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()

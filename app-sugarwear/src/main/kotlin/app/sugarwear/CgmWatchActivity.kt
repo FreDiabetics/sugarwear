@@ -56,6 +56,16 @@ class CgmWatchActivity : ComponentActivity() {
             androidx.activity.result.contract.ActivityResultContracts
                 .RequestMultiplePermissions(),
         ) {
+            // A system dialog is not a companion-device association. Resume the
+            // original pairing request only if Android actually granted both BLE rights.
+            pendingPairingPermissionToken?.let { token ->
+                pendingPairingPermissionToken = null
+                if (CgmSystemAccess.missingBluetoothPermissions(this).isEmpty()) {
+                    pairingModel.accessReady(token)
+                } else {
+                    pairingModel.accessFailed(token, "Bluetooth-Berechtigung fehlt. Bitte Geräte in der Nähe für SugarWear erlauben.")
+                }
+            }
             refreshScreen()
         }
     private val overviewModel by viewModels<CollectorViewModel>()
@@ -83,6 +93,7 @@ class CgmWatchActivity : ComponentActivity() {
     private val pairingStartedAtEpochMs get() = pairingModel.state.value.startedAt
     private val pairingFailureMessage get() = pairingModel.state.value.failureMessage
     private var claimedPairingEffect: Long? = null
+    private var pendingPairingPermissionToken: Long? = null
     internal var connectSensor: (android.content.Context, String) -> Unit
         get() = { _, code -> pairingCommands.connectCommand(code) }
         set(value) {
@@ -763,10 +774,24 @@ class CgmWatchActivity : ComponentActivity() {
         claimedPairingEffect = effect.token
         when (effect) {
             is CgmPairingEffect.Access ->
-                prepareUnlinkAccess(
-                    { pairingModel.accessReady(effect.token) },
-                    { reason -> pairingModel.accessFailed(effect.token, reason) },
-                )
+                when (effect.operation) {
+                    CgmPairingOperation.START -> {
+                        // Pairing a new G7 sensor needs BLE SCAN/CONNECT, not a
+                        // CompanionDeviceManager association for a stale old bond.
+                        val missing = CgmSystemAccess.missingBluetoothPermissions(this)
+                        if (missing.isEmpty()) {
+                            pairingModel.accessReady(effect.token)
+                        } else {
+                            pendingPairingPermissionToken = effect.token
+                            runtimePermissions.launch(missing)
+                        }
+                    }
+                    CgmPairingOperation.UNLINK ->
+                        prepareUnlinkAccess(
+                            { pairingModel.accessReady(effect.token) },
+                            { reason -> pairingModel.accessFailed(effect.token, reason) },
+                        )
+                }
             is CgmPairingEffect.VerifyBond ->
                 companionBondAccess.ensureForAuthenticatedSensor(
                     effect.address,
