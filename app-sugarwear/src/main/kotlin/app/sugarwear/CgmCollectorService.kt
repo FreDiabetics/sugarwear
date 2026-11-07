@@ -561,15 +561,31 @@ class CgmCollectorService : Service() {
                         onTelemetry = { telemetry ->
                             // Cleanup telemetry runs while the cycle is cancelling; never interrupt
                             // it before AndroidSensorBle has disconnected and closed the GATT client.
-                            if (telemetry is CgmDiscoveryCandidateDeferred) {
+                            if (telemetry is CgmDiscoveryCandidateDeferred || telemetry is CgmDiscoveryCandidateRejected) {
+                                val errorCode =
+                                    when (telemetry) {
+                                        is CgmDiscoveryCandidateDeferred -> telemetry.errorCode
+                                        is CgmDiscoveryCandidateRejected -> telemetry.errorCode
+                                        else -> error("Unexpected discovery telemetry")
+                                    }
+                                val occurredAt =
+                                    when (telemetry) {
+                                        is CgmDiscoveryCandidateDeferred -> telemetry.timestampEpochMs
+                                        is CgmDiscoveryCandidateRejected -> telemetry.timestampEpochMs
+                                        else -> error("Unexpected discovery telemetry")
+                                    }
                                 persist(
                                     store.read().copy(
                                         lastError =
                                             CgmCollectorError(
-                                                telemetry.errorCode,
+                                                errorCode,
                                                 true,
-                                                telemetry.timestampEpochMs,
-                                                "G7-Kandidat nicht erreichbar · weitere Sensoren werden gesucht",
+                                                occurredAt,
+                                                if (telemetry is CgmDiscoveryCandidateRejected) {
+                                                    "Ein G7-Kandidat konnte nicht authentifiziert werden; Suche wird fortgesetzt"
+                                                } else {
+                                                    "G7-Kandidat nicht erreichbar · weitere Sensoren werden gesucht"
+                                                },
                                             ),
                                     ),
                                 )
@@ -1169,6 +1185,15 @@ class CgmCollectorService : Service() {
         telemetry: CgmBleTelemetry,
     ) {
         when (telemetry) {
+            is CgmDiscoveryCandidateRejected ->
+                attemptStore.record(
+                    attemptId,
+                    CollectorDiagnosticStage.RECOVERY,
+                    CollectorDiagnosticResult.RECOVERABLE_ERROR,
+                    "G7-Signal und GATT-Verbindung vorhanden, aber Authentifizierungsnachweis fehlgeschlagen · nächster Kandidat",
+                    errorCode = telemetry.errorCode,
+                    nowEpochMs = telemetry.timestampEpochMs,
+                )
             is CgmDiscoveryCandidateDeferred -> {
                 attemptStore.record(
                     attemptId,

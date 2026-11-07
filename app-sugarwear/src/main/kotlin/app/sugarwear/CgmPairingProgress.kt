@@ -23,7 +23,13 @@ internal fun cgmPairingProgress(
     if (awaitingSystemAccess) return CgmPairingProgress("Android-Bluetooth-Freigabe wird benötigt", true)
     val phase = cgmProtocolPhaseName(state.protocolState)
     val radioError = error?.takeIf { it.code.startsWith("G7-GATT-") || it.code.startsWith("G7-BLE-") }
-    val message = listOfNotNull(phase, radioError?.safeMessage?.substringBefore(" · scan=")).distinct().joinToString("\n")
+    val authenticationMismatch = error?.takeIf { it.code == "G7-AUTH-MISMATCH" }
+    val message =
+        listOfNotNull(
+            phase,
+            authenticationMismatch?.let { "G7 erkannt, aber ein Kandidat konnte nicht authentifiziert werden. Kopplungscode prüfen; Suche läuft weiter." },
+            radioError?.safeMessage?.substringBefore(" · scan="),
+        ).distinct().joinToString("\n")
     val waiting = state.protocolState in setOf(CgmProtocolState.RECOVERING, CgmProtocolState.WAITING_FOR_NEXT_READING, CgmProtocolState.IDLE, CgmProtocolState.DISCONNECTED, CgmProtocolState.ERROR)
     return CgmPairingProgress(message, state.activeAttemptId != null && !waiting)
 }
