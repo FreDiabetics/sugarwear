@@ -478,7 +478,7 @@ class CgmWatchActivityLayoutTest {
             assertEquals(before.sensor, CgmSensorStateStore(context).read().sensor)
             assertNull(findText(activity.window.decorView, "Sensor trennen"))
             assertNull(findText(activity.window.decorView, "Sensor verbinden"))
-            assertNull(findText(activity.window.decorView, "Bluetooth-Einstellungen"))
+            assertNotNull(findText(activity.window.decorView, "Bluetooth-Einstellungen"))
             assertNotNull(findText(activity.window.decorView, "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten."))
             assertNull(findEditor(activity.window.decorView))
         } finally {

@@ -743,6 +743,17 @@ class CgmWatchActivity : ComponentActivity() {
             if (unlinkFailed) {
                 statusHost.addView(label("Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
                 unlinkFailureReason?.let { statusHost.addView(label(it, 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR))) }
+                statusHost.addView(
+                    pill("Bluetooth-Einstellungen", PillStyle.SECONDARY, palette) {
+                        CgmSystemAccess.open(
+                            this,
+                            listOf(
+                                Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
+                                Intent(android.provider.Settings.ACTION_SETTINGS),
+                            ),
+                        )
+                    },
+                )
             }
             val warning = if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden" else cgmSensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)
             signalLossHeader.visibility = if (warning == null) View.GONE else View.VISIBLE
