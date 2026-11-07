@@ -24,15 +24,20 @@ class CgmScanFiltersTest {
     }
 
     @Test
-    fun `initial discovery has nonempty filters covering complete and shortened Manufacturer names`() {
+    fun `initial discovery uses hardware name-type filters with callback-side G7 identity checks`() {
         val filters = cgmScanFilters(null)
         assertFalse(filters.isEmpty())
         for (type in listOf(ScanRecord.DATA_TYPE_LOCAL_NAME_COMPLETE, ScanRecord.DATA_TYPE_LOCAL_NAME_SHORT)) {
             for (name in listOf("DXCM1234", "DX011234", "DX021234")) {
                 assertTrue(filters.any { it.matches(advertisement(name, type)) })
+                assertTrue(isCgmAdvertisedName(name))
             }
         }
-        assertFalse(filters.any { it.matches(advertisement("Unrelated")) })
+        // The hardware only filters name-field presence, avoiding chipset-dependent
+        // prefix matching. An unrelated name reaches the callback but is never a CGM.
+        assertTrue(filters.any { it.matches(advertisement("Unrelated")) })
+        assertFalse(isCgmAdvertisedName("Unrelated"))
+        assertFalse(filters.any { it.matches(advertisement(null)) })
     }
 
     @Test
