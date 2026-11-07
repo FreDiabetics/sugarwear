@@ -474,12 +474,12 @@ class CgmWatchActivityLayoutTest {
         activity.unlinkSensor = { CgmUnlinkResult(CgmBondRemovalStatus.FAILED) }
         try {
             activity.performSensorUnlink()
-            awaitCondition(activity) { findText(activity.window.decorView, "Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen.") != null }
+            awaitCondition(activity) { findText(activity.window.decorView, "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.") != null }
             assertEquals(before.sensor, CgmSensorStateStore(context).read().sensor)
             assertNull(findText(activity.window.decorView, "Sensor trennen"))
             assertNull(findText(activity.window.decorView, "Sensor verbinden"))
             assertNull(findText(activity.window.decorView, "Bluetooth-Einstellungen"))
-            assertNotNull(findText(activity.window.decorView, "Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen."))
+            assertNotNull(findText(activity.window.decorView, "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten."))
             assertNull(findEditor(activity.window.decorView))
         } finally {
             controller.pause().stop().destroy()

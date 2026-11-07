@@ -130,12 +130,28 @@ class CgmCompanionBondAccessTest {
         assertFalse(access.onActivityResult(17, Activity.RESULT_CANCELED))
     }
 
-    @Test fun `explicit retirement does not require an absent sensor to advertise for consent`() {
+    @Test fun `explicit disconnect must get consent for an unowned bonded sensor`() {
         val backend = Backend().apply { bonded.add(first) }
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         val access = CgmCompanionBondAccess(activity, backend, sdkInt = 36, unlinkAddresses = { setOf(first) })
         var ready = 0
-        access.ensureForUnlink({ ready++ }, { error(it) }, explicitRetirement = true)
+
+        access.ensureForUnlink({ ready++ }, { error(it) })
+        assertEquals(0, ready)
+        assertEquals(listOf(first), backend.requested)
+        backend.created!!.invoke(first)
+
+        assertEquals(1, ready)
+    }
+
+    @Test fun `already unbonded sensor can finish without consent`() {
+        val backend = Backend()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val access = CgmCompanionBondAccess(activity, backend, sdkInt = 36, unlinkAddresses = { setOf(first) })
+        var ready = 0
+
+        access.ensureForUnlink({ ready++ }, { error(it) })
+
         assertEquals(1, ready)
         assertTrue(backend.requested.isEmpty())
     }
