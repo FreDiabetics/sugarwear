@@ -78,7 +78,7 @@ internal class CgmCompanionBondAccess(
     private val activity: Activity,
     private val backend: CgmCompanionAssociationBackend = AndroidCgmCompanionAssociationBackend(activity),
     private val sdkInt: Int = Build.VERSION.SDK_INT,
-    private val unlinkAddresses: () -> Set<String> = { cgmSensorUnlinkAddresses(activity) },
+    private val unlinkAddresses: () -> Set<String> = { cgmRecordedSensorAddresses(activity) },
     private val launchConsent: (IntentSender, Int) -> Unit = { sender, request ->
         activity.startIntentSenderForResult(sender, request, null, 0, 0, 0)
     },
@@ -89,15 +89,11 @@ internal class CgmCompanionBondAccess(
     private var expectedAddress: String? = null
     private var activeRequestCode: Int? = null
 
-    fun ensureForUnlink(onReady: () -> Unit, onFailure: (String) -> Unit, explicitRetirement: Boolean = false) {
-        // A removed sensor cannot advertise for a new companion association. Retirement
-        // attempts removal through existing ownership and always ends the local session.
-        if (explicitRetirement) {
-            onReady()
-        } else {
-            ensure(onReady, onFailure) {
-                unlinkAddresses().filter { !CgmRetiredSensors(activity).contains(it) && backend.isBonded(it) }
-            }
+    fun ensureForUnlink(onReady: () -> Unit, onFailure: (String) -> Unit) {
+        // Android 16+ needs an app-owned association before removeBond can unpair
+        // even a previously bonded sensor. Explicit disconnect may not bypass consent.
+        ensure(onReady, onFailure) {
+            unlinkAddresses().filter { backend.isBonded(it) }
         }
     }
 

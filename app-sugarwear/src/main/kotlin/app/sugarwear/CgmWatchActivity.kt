@@ -104,7 +104,7 @@ class CgmWatchActivity : ComponentActivity() {
     private val companionBondAccess: CgmCompanionBondAccess by lazy { CgmCompanionBondAccess(this, launchConsent = companionConsent::launch) }
     private var companionAccessClosed = false
     internal var prepareUnlinkAccess: (onReady: () -> Unit, onFailure: (String) -> Unit) -> Unit = { ready, failed ->
-        companionBondAccess.ensureForUnlink(ready, failed, explicitRetirement = overviewState.snapshot?.persisted?.let(::hasCgmSensorAssociation) == true)
+        companionBondAccess.ensureForUnlink(ready, failed)
     }
     internal var unlinkSensor: (android.content.Context) -> CgmUnlinkResult
         get() = { pairingCommands.unlinkCommand() }
@@ -741,7 +741,7 @@ class CgmWatchActivity : ComponentActivity() {
 
             statusHost.removeAllViews()
             if (unlinkFailed) {
-                statusHost.addView(label("Trennen fehlgeschlagen. Sensorzuordnung bleibt erhalten. Bluetooth-Verbindung bei Bedarf in den Systemeinstellungen entfernen.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
+                statusHost.addView(label("Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
                 unlinkFailureReason?.let { statusHost.addView(label(it, 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR))) }
             }
             val warning = if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden" else cgmSensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)

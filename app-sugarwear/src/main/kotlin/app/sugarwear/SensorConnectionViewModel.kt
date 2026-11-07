@@ -195,7 +195,7 @@ internal class SensorConnectionViewModel(
 
     private fun finishUnlink(detached: Boolean) {
         mutableState.update { it.copy(unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) commands.unlinkWarning else it.unlinkFailureReason) }
-        if (closeAfterUnlink) close()
+        if (closeAfterUnlink && detached) close()
     }
 
     fun cancelPendingAccess() {

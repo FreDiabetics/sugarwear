@@ -47,7 +47,7 @@ internal fun releaseCgmCollectorOwnership(context: Context) {
     val app = context.applicationContext
     val stateStore = CgmSensorStateStore(app)
     val current = stateStore.read()
-    stateStore.save(current.copy(health = CgmCollectorReliability.releasePending(current.health, System.currentTimeMillis())))
+    stateStore.save(current.copy(collectorEnabled = false, health = CgmCollectorReliability.releasePending(current.health, System.currentTimeMillis())))
     CgmCollectorRuntimeRegistry.cancelLiveCycle()
     SensorScanner.forceCleanup()
     CgmCollectorService.stop(app)
@@ -92,7 +92,7 @@ internal fun connectCgmSensorToThisWatch(
 internal fun unlinkCgmSensor(
     context: Context,
     bondRemover: CgmBondRemover = CgmBondRemover(::removeCgmBond),
-    bondedAddresses: (Context) -> Set<String> = ::cgmBondedSensorAddresses,
+    bondedAddresses: (Context) -> Set<String> = { emptySet() },
     permanentlyRetire: Boolean = true,
 ): CgmUnlinkResult {
     val app = context.applicationContext
@@ -125,12 +125,9 @@ internal fun unlinkCgmSensor(
             CgmBondRemovalStatus.REMOVED in removals -> CgmBondRemovalStatus.REMOVED
             else -> CgmBondRemovalStatus.NOT_REQUIRED
         }
-    if (!permanentlyRetire && !shouldClearCgmAssociation(bondRemovalStatus)) {
-        return CgmUnlinkResult(bondRemovalStatus)
-    }
-    // Explicit retirement must work even when Android retains an inaccessible bond.
-    // Retain only an address exclusion, never credentials or a runnable old session.
-    // Receiver takeover without retirement still requires confirmed bond removal.
+    // A disconnect is complete only after Android confirms the sensor is unpaired.
+    // Preserve identity/credentials when OS removal fails so the user can retry.
+    if (!shouldClearCgmAssociation(bondRemovalStatus)) return CgmUnlinkResult(bondRemovalStatus)
     if (permanentlyRetire) CgmRetiredSensors(app).retire(addresses)
     CgmExpectedWindowLedger(app).markSessionEnded(
         beforeRelease.sensor?.sensorId,
@@ -158,6 +155,10 @@ internal fun cgmBondedSensorAddresses(context: Context): Set<String> =
         .filter { isCgmAdvertisedName(it.name) }
         .map { it.address }
         .toSet()
+
+/** Only the recorded sensor identity is eligible for automatic Bluetooth unpairing. */
+internal fun cgmRecordedSensorAddresses(context: Context): Set<String> =
+    cgmSensorUnlinkAddresses(context, bondedAddresses = { emptySet() })
 
 /** Include orphaned address metadata even if encrypted credentials can no longer be opened. */
 internal fun cgmSensorUnlinkAddresses(
