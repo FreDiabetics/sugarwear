@@ -206,7 +206,11 @@ class CgmSensorDetachPolicyTest {
         val address = "AA:BB:CC:DD:EE:FF"
         stateStore.save(CgmPersistedState(sensor = CgmSensor("sensor-retry", "session-retry", deviceAddress = address), collectorEnabled = true))
         val credentials = context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
-        credentials.edit().putString("shared_address", address).putString("shared_key", "existing-key").commit()
+        credentials
+            .edit()
+            .putString("shared_address", address)
+            .putString("shared_key", "existing-key")
+            .commit()
 
         val result = unlinkCgmSensor(context, CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED })
 
@@ -223,7 +227,11 @@ class CgmSensorDetachPolicyTest {
         val address = "AA:BB:CC:DD:EE:88"
         CgmSensorStateStore(context).save(CgmPersistedState(sensor = CgmSensor("permission-old", "permission-session", deviceAddress = address), collectorEnabled = true))
         val credentials = context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
-        credentials.edit().putString("shared_address", address).putString("shared_key", "existing-key").commit()
+        credentials
+            .edit()
+            .putString("shared_address", address)
+            .putString("shared_key", "existing-key")
+            .commit()
 
         val result =
             unlinkCgmSensor(
@@ -242,7 +250,11 @@ class CgmSensorDetachPolicyTest {
     @Test fun `new sensor setup never tries to remove unrelated OS bonded G7 peers`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         CgmSensorStateStore(context).save(CgmPersistedState())
-        context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE).edit().clear().commit()
+        context
+            .getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
         val removed = mutableListOf<String?>()
 
         val sensor =
