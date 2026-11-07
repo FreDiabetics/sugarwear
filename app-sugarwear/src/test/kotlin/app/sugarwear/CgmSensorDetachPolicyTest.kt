@@ -200,71 +200,77 @@ class CgmSensorDetachPolicyTest {
         }
     }
 
-    @Test fun `explicit retirement clears old session even when Android retains the bond`() {
+    @Test fun `explicit disconnect only succeeds after confirmed OS bond removal`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val stateStore = CgmSensorStateStore(context)
-        stateStore.save(
-            CgmPersistedState(
-                sensor = CgmSensor("sensor-retry", "session-retry", deviceAddress = "AA:BB:CC:DD:EE:FF"),
-                collectorEnabled = true,
-            ),
-        )
-        val result = unlinkCgmSensor(context, CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED })
-
-        assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertTrue(result.detached)
-        assertNull(stateStore.read().sensor)
-        assertNull(CgmCredentialStore(context).read())
-        assertFalse(stateStore.read().collectorEnabled)
-        assertTrue(CgmRetiredSensors(context).contains("AA:BB:CC:DD:EE:FF"))
-    }
-
-    @Test fun `explicit retirement clears local association when Bluetooth enumeration is denied`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        CgmSensorStateStore(context).save(
-            CgmPersistedState(sensor = CgmSensor("permission-old", "permission-session", deviceAddress = "AA:BB:CC:DD:EE:88"), collectorEnabled = true),
-        )
-        val now = System.currentTimeMillis()
-        CgmReadingDatabase(context).use { database ->
-            runBlocking {
-                assertTrue(
-                    database.insert(
-                        CgmReading(
-                            id = "permission-history",
-                            source = DataSourceId.DEXCOM_G7_WATCH,
-                            sensorId = "permission-old",
-                            sessionId = "permission-session",
-                            glucoseMgDl = 123.0,
-                            timestampEpochMs = now - 60_000L,
-                            receivedAtEpochMs = now,
-                            status = CgmReadingStatus.VALID,
-                        ),
-                    ),
-                )
-            }
-        }
+        val address = "AA:BB:CC:DD:EE:FF"
+        stateStore.save(CgmPersistedState(sensor = CgmSensor("sensor-retry", "session-retry", deviceAddress = address), collectorEnabled = true))
         val credentials = context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
         credentials
             .edit()
-            .putString("pairing_code", "encrypted-old-code")
-            .putString("shared_key", "encrypted-old-key")
-            .apply()
+            .putString("shared_address", address)
+            .putString("shared_key", "existing-key")
+            .commit()
+
+        val result = unlinkCgmSensor(context, CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED })
+
+        assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
+        assertFalse(result.detached)
+        assertEquals("sensor-retry", stateStore.read().sensor?.sensorId)
+        assertEquals("existing-key", credentials.getString("shared_key", null))
+        assertFalse(stateStore.read().collectorEnabled)
+        assertFalse(CgmRetiredSensors(context).contains(address))
+    }
+
+    @Test fun `denied Bluetooth enumeration cannot silently clear sensor or credentials`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val address = "AA:BB:CC:DD:EE:88"
+        CgmSensorStateStore(context).save(CgmPersistedState(sensor = CgmSensor("permission-old", "permission-session", deviceAddress = address), collectorEnabled = true))
+        val credentials = context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
+        credentials
+            .edit()
+            .putString("shared_address", address)
+            .putString("shared_key", "existing-key")
+            .commit()
+
         val result =
             unlinkCgmSensor(
                 context,
                 CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED },
                 bondedAddresses = { throw SecurityException("Bluetooth permission revoked") },
             )
-        assertTrue(result.detached)
+
+        assertFalse(result.detached)
         assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertNull(CgmSensorStateStore(context).read().sensor)
+        assertEquals("permission-old", CgmSensorStateStore(context).read().sensor?.sensorId)
         assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
-        assertNull(CgmCredentialStore(context).read())
-        assertTrue(credentials.all.isEmpty())
-        CgmReadingDatabase(context).use { database ->
-            assertTrue(database.query(limit = 300).any { it.id == "permission-history" })
-        }
-        assertTrue(CgmRetiredSensors(context).contains("AA:BB:CC:DD:EE:88"))
+        assertEquals("existing-key", credentials.getString("shared_key", null))
+    }
+
+    @Test fun `new sensor setup never tries to remove unrelated OS bonded G7 peers`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        CgmSensorStateStore(context).save(CgmPersistedState())
+        context
+            .getSharedPreferences("g7_credentials", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
+        val removed = mutableListOf<String?>()
+
+        val sensor =
+            moveCgmSensorToThisWatch(
+                context,
+                "1234",
+                CgmBondRemover { _, address ->
+                    removed += address
+                    if (address == null) CgmBondRemovalStatus.NOT_REQUIRED else CgmBondRemovalStatus.FAILED
+                },
+                saveSetup = { },
+            )
+
+        assertEquals(listOf(null), removed)
+        assertEquals(sensor, CgmSensorStateStore(context).read().sensor)
+        assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
     }
 
     @Test fun `retired system bond cannot block preparing a different sensor`() {

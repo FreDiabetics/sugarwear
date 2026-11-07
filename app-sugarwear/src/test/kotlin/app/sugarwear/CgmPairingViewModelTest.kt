@@ -120,6 +120,26 @@ class CgmPairingViewModelTest {
             assertEquals(listOf("release"), commands.calls)
         }
 
+    @Test fun `failed disconnect stays visible when the caller requested close`() =
+        runTest {
+            val commands =
+                object : CgmPairingCommands {
+                    override suspend fun releaseOwnership() = Unit
+
+                    override suspend fun connect(code: String) = Unit
+
+                    override suspend fun unlink(): Boolean = false
+                }
+            val vm = SensorConnectionViewModel(commands, scope = backgroundScope)
+            vm.open()
+            vm.unlink(closePairing = true)
+            runCurrent()
+            vm.accessReady(checkNotNull(vm.state.value.effect).token)
+            runCurrent()
+            assertTrue(vm.state.value.unlinkFailed)
+            assertNotNull(vm.state.value.step)
+        }
+
     @Test fun `unlink is single flight and result is explicit`() =
         runTest {
             val commands = Commands()

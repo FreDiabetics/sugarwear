@@ -17,20 +17,12 @@ internal class AndroidCgmPairingCommands(
     internal var connectCommand: (String) -> Unit = { connectCgmSensorToThisWatch(app, it) }
     internal var unlinkCommand: () -> CgmUnlinkResult = { unlinkCgmSensor(app) }
     internal var executionOverride: (((() -> Unit)) -> Unit)? = null
-    private var lastUnlink: CgmUnlinkResult? = null
-    override val unlinkWarning: String?
-        get() =
-            if (lastUnlink?.let { it.detached && it.bondRemovalStatus == CgmBondRemovalStatus.FAILED } == true) {
-                "Sensor getrennt. Ein verbliebener Android-Bluetooth-Eintrag verhindert das Verbinden eines neuen Sensors nicht."
-            } else {
-                null
-            }
 
     override suspend fun releaseOwnership() = withContext(dispatcher) { releaseCgmCollectorOwnership(app) }
 
     override suspend fun connect(code: String) = execute { connectCommand(code) }
 
-    override suspend fun unlink(): Boolean = execute { unlinkCommand().also { lastUnlink = it }.detached }
+    override suspend fun unlink(): Boolean = execute { unlinkCommand().detached }
 
     private suspend fun <T> execute(block: () -> T): T =
         withContext(dispatcher) {
