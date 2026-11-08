@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmSensor
 import app.sugarlicious.sensor.protocol.CgmSessionManager
 import app.sugarlicious.sensor.protocol.CgmSetupPayload
@@ -16,6 +15,7 @@ import app.sugarlicious.sensor.protocol.CgmSetupPayload
 internal data class CgmUnlinkResult(
     val bondRemovalStatus: CgmBondRemovalStatus,
     val localAssociationCleared: Boolean = bondRemovalStatus != CgmBondRemovalStatus.FAILED,
+    val failureReason: String? = null,
 ) {
     val bondRemovalAttempted: Boolean get() = bondRemovalStatus != CgmBondRemovalStatus.NOT_REQUIRED
     val bondRemovalRequested: Boolean get() = bondRemovalStatus == CgmBondRemovalStatus.REMOVED
@@ -61,12 +61,13 @@ internal fun releaseCgmCollectorOwnership(context: Context) {
 internal fun moveCgmSensorToThisWatch(
     context: Context,
     pairingCode: String,
-    bondRemover: CgmBondRemover = CgmBondRemover(::removeCgmBond),
     saveSetup: (CgmSetupPayload) -> Unit = { CgmCredentialStore(context.applicationContext).saveSetup(it) },
 ): CgmSensor {
     val payload = CgmSetupPayload(pairingCode)
-    check(unlinkCgmSensor(context, bondRemover, permanentlyRetire = false).detached) {
-        "Der bisherige Sensor ist noch per Bluetooth gebondet"
+    // Explicit unlink must authorize and confirm the previous bond removal first.
+    val previous = CgmSensorStateStore(context.applicationContext).read()
+    check(previous.sensor == null && !CgmCredentialStore(context.applicationContext).hasSetupMaterial()) {
+        "Bitte den bisherigen Sensor zuerst über 'Sensor trennen' vollständig entkoppeln"
     }
     saveSetup(payload)
     val sensorId = "G7-${java.util.UUID.randomUUID().toString().take(8)}"
@@ -92,53 +93,40 @@ internal fun connectCgmSensorToThisWatch(
 internal fun unlinkCgmSensor(
     context: Context,
     bondRemover: CgmBondRemover = CgmBondRemover(::removeCgmBond),
-    bondedAddresses: (Context) -> Set<String> = { emptySet() },
-    permanentlyRetire: Boolean = true,
 ): CgmUnlinkResult {
     val app = context.applicationContext
     val stateStore = CgmSensorStateStore(app)
-    val beforeRelease = stateStore.read()
-    var bondEnumerationFailed = false
-    val addresses =
-        try {
-            cgmSensorUnlinkAddresses(app, bondedAddresses)
-                .filterNot {
-                    !permanentlyRetire && CgmRetiredSensors(app).contains(it)
-                }.toSet()
-        } catch (_: SecurityException) {
-            if (!permanentlyRetire) {
-                releaseCgmCollectorOwnership(app)
-                return CgmUnlinkResult(CgmBondRemovalStatus.FAILED)
-            }
-            bondEnumerationFailed = true
-            cgmSensorUnlinkAddresses(app, bondedAddresses = { emptySet() })
-        }
-    stateStore.save(beforeRelease.copy(health = CgmCollectorReliability.releasePending(beforeRelease.health, System.currentTimeMillis())))
-    // Cancel the live BLE owner before removing the Android bond. stopService() alone is
-    // asynchronous and previously allowed the old watch to remain connected during takeover.
+    val addresses = cgmRecordedSensorAddresses(app)
+    // Stop the live BLE owner before touching a bond. Failed removal never resumes it.
     releaseCgmCollectorOwnership(app)
     CgmCollectorDiagnosticStore(app).discardScheduledCycle()
-    val removals = if (addresses.isEmpty()) listOf(bondRemover.remove(app, null)) else addresses.map { bondRemover.remove(app, it) }
-    val bondRemovalStatus =
-        when {
-            bondEnumerationFailed || CgmBondRemovalStatus.FAILED in removals -> CgmBondRemovalStatus.FAILED
-            CgmBondRemovalStatus.REMOVED in removals -> CgmBondRemovalStatus.REMOVED
-            else -> CgmBondRemovalStatus.NOT_REQUIRED
-        }
-    // A disconnect is complete only after Android confirms the sensor is unpaired.
-    // Preserve identity/credentials when OS removal fails so the user can retry.
-    if (!shouldClearCgmAssociation(bondRemovalStatus)) return CgmUnlinkResult(bondRemovalStatus)
-    if (permanentlyRetire) CgmRetiredSensors(app).retire(addresses)
-    CgmExpectedWindowLedger(app).markSessionEnded(
-        beforeRelease.sensor?.sensorId,
-        beforeRelease.sensor?.sessionId ?: beforeRelease.sensor?.sensorId,
-        System.currentTimeMillis(),
-    )
+    if (addresses.size > 1) {
+        return CgmUnlinkResult(
+            CgmBondRemovalStatus.FAILED,
+            failureReason = "Widersprüchliche Sensoradressen: keine fremden Bluetooth-Bonds entfernt.",
+        )
+    }
+    val bondRemovalStatus = bondRemover.remove(app, addresses.singleOrNull())
+    // Preserve credentials only if the platform refuses to confirm removal,
+    // so explicit unlink can be retried without accidentally reconnecting.
+    if (!shouldClearCgmAssociation(bondRemovalStatus)) {
+        return CgmUnlinkResult(
+            bondRemovalStatus,
+            failureReason = "Android hat die G7-Bluetooth-Entkopplung nicht bestätigt. Collector pausiert; Entkopplung erneut versuchen.",
+        )
+    }
+
+    // Never touch g7_readings.db: history is retained across sensor changes.
     CgmCredentialStore(app).clearAll()
-    stateStore.save(CgmPersistedState())
-    CgmAlarmCoordinator.clearSuppressed(app)
-    // State changed but the retained reading rows did not. Explicitly invalidate both provider
-    // views so Vigil switches to its detached status without requiring a new glucose insert.
+    stateStore.reset()
+    CgmAlarmCoordinator.clearForSensorRemoval(app)
+    CgmCollectorDiagnosticStore(app).clearAll()
+    CgmExpectedWindowLedger(app).clearAll()
+    CgmRetiredSensors(app).clearAll()
+    check(app.getSharedPreferences("g7_runtime_recovery", Context.MODE_PRIVATE).edit().clear().commit()) {
+        "G7 runtime recovery cleanup failed"
+    }
+    // A detached sensor's retained readings must not be displayed as current.
     app.contentResolver.notifyChange(CgmReadingProvider.STATE_URI, null)
     app.contentResolver.notifyChange(CgmReadingProvider.CONTENT_URI, null)
     app.sendBroadcast(Intent(CgmReadingDatabase.ACTION_CGM_READING_UPDATED).setPackage("app.sugarlicious"))
@@ -158,18 +146,16 @@ internal fun cgmBondedSensorAddresses(context: Context): Set<String> =
 
 /** Only the recorded sensor identity is eligible for automatic Bluetooth unpairing. */
 internal fun cgmRecordedSensorAddresses(context: Context): Set<String> =
-    cgmSensorUnlinkAddresses(context, bondedAddresses = { emptySet() })
+    cgmSensorUnlinkAddresses(context)
 
-/** Include orphaned address metadata even if encrypted credentials can no longer be opened. */
-internal fun cgmSensorUnlinkAddresses(
-    context: Context,
-    bondedAddresses: (Context) -> Set<String> = ::cgmBondedSensorAddresses,
-): Set<String> =
-    bondedAddresses(context) +
-        listOfNotNull(
-            CgmSensorStateStore(context).read().sensor?.deviceAddress,
-            context.getSharedPreferences("g7_credentials", Context.MODE_PRIVATE).getString("shared_address", null),
-        ).filter(String::isNotBlank)
+/** Never unpair all G7 devices seen in the global Bluetooth bond list. */
+internal fun cgmSensorUnlinkAddresses(context: Context): Set<String> =
+    listOfNotNull(
+        CgmSensorStateStore(context).read().sensor?.deviceAddress,
+        context.getSharedPreferences(CGM_CREDENTIAL_PREFERENCES, Context.MODE_PRIVATE).getString("shared_address", null),
+    ).filter(String::isNotBlank)
+        .distinctBy { it.uppercase(java.util.Locale.ROOT) }
+        .toSet()
 
 @SuppressLint("MissingPermission", "DiscouragedPrivateApi")
 private fun removeCgmBond(
