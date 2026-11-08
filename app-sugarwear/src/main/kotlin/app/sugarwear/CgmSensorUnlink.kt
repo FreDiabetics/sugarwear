@@ -123,6 +123,11 @@ internal fun unlinkCgmSensor(
     CgmCollectorDiagnosticStore(app).clearAll()
     CgmExpectedWindowLedger(app).clearAll()
     CgmRetiredSensors(app).clearAll()
+    // The general diagnostic stream can also contain prior G7 session identifiers;
+    // it is not historical glucose data and must not survive explicit unlink.
+    kotlinx.coroutines.runBlocking {
+        app.sugarlicious.storage.DiagnosticEventStore(app).clear()
+    }
     val runtimePreferences = app.getSharedPreferences("g7_runtime_recovery", Context.MODE_PRIVATE)
     check(runtimePreferences.edit().clear().commit()) { "G7 runtime recovery cleanup failed" }
     // A detached sensor's retained readings must not be displayed as current.
