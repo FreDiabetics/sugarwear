@@ -42,6 +42,14 @@ internal class CgmCollectorDiagnosticStore(
         }
     }
 
+    /** The diagnostic attempt history is session state, not glucose history. */
+    fun clearAll() =
+        synchronized(lock) {
+            listOf(controlPreferences, historyPreferences, activePreferences, slotPreferences).forEach { preferences ->
+                check(preferences.edit().clear().commit()) { "G7 diagnostic cleanup failed" }
+            }
+        }
+
     fun begin(
         manual: Boolean,
         restart: Boolean,

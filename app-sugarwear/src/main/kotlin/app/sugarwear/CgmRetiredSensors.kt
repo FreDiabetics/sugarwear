@@ -18,6 +18,12 @@ internal class CgmRetiredSensors(
 ) {
     private val preferences = context.applicationContext.getSharedPreferences("g7_retired_addresses", Context.MODE_PRIVATE)
 
+    /** Old deny-list entries are not retained after explicit disconnection. */
+    fun clearAll() =
+        synchronized(lock) {
+            check(preferences.edit().clear().commit()) { "Old G7 exclusion list could not be removed" }
+        }
+
     fun contains(address: String?): Boolean =
         address != null && address.uppercase(Locale.ROOT) in preferences.getStringSet("addresses", emptySet()).orEmpty()
 

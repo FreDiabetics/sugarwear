@@ -95,8 +95,17 @@ internal class CgmCredentialStore(
     @Suppress("UseKtx")
     fun commitPendingWrites(): Boolean = preferences.edit().commit()
 
+    fun hasSetupMaterial(): Boolean = preferences.all.isNotEmpty()
+
+    /** Remove both the encrypted records and their Android Keystore key. */
     fun clearAll() {
-        preferences.edit { clear() }
+        // The provider is absent in host-side tests, but always present on Android devices.
+        if (java.security.Security.getProvider("AndroidKeyStore") != null) {
+            val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (store.containsAlias(KEY_ALIAS)) store.deleteEntry(KEY_ALIAS)
+            check(!store.containsAlias(KEY_ALIAS)) { "G7 encryption key could not be removed" }
+        }
+        check(preferences.edit().clear().commit()) { "G7 credentials could not be removed" }
     }
 
     private fun encrypt(value: ByteArray): String {

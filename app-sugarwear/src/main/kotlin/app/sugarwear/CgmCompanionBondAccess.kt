@@ -213,7 +213,7 @@ internal fun removeConfirmedCgmCompanionBond(
     return try {
         if (!alreadyGone) {
             if (owned.isEmpty()) return CgmBondRemovalStatus.FAILED
-            requestRemoval(owned.first().id)
+            if (!requestRemoval(owned.first().id)) return CgmBondRemovalStatus.FAILED
             if (!confirmGone()) return CgmBondRemovalStatus.FAILED
         }
         owned.forEach { disassociate(it.id) }
