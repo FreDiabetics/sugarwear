@@ -186,9 +186,8 @@ internal object CgmAlarmCoordinator {
 
     fun clearForSensorRemoval(context: Context) {
         clearSuppressed(context)
-        check(context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().clear().commit()) {
-            "G7 alarm runtime cleanup failed"
-        }
+        val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        check(preferences.edit().clear().commit()) { "G7 alarm runtime cleanup failed" }
     }
 
     /** Restores persistent alarm visibility and repeat scheduling after reboot/process restart. */

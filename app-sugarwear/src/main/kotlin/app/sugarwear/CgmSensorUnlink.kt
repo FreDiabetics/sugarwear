@@ -123,9 +123,8 @@ internal fun unlinkCgmSensor(
     CgmCollectorDiagnosticStore(app).clearAll()
     CgmExpectedWindowLedger(app).clearAll()
     CgmRetiredSensors(app).clearAll()
-    check(app.getSharedPreferences("g7_runtime_recovery", Context.MODE_PRIVATE).edit().clear().commit()) {
-        "G7 runtime recovery cleanup failed"
-    }
+    val runtimePreferences = app.getSharedPreferences("g7_runtime_recovery", Context.MODE_PRIVATE)
+    check(runtimePreferences.edit().clear().commit()) { "G7 runtime recovery cleanup failed" }
     // A detached sensor's retained readings must not be displayed as current.
     app.contentResolver.notifyChange(CgmReadingProvider.STATE_URI, null)
     app.contentResolver.notifyChange(CgmReadingProvider.CONTENT_URI, null)

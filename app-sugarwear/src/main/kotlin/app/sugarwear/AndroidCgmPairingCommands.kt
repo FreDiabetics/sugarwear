@@ -16,6 +16,7 @@ internal class AndroidCgmPairingCommands(
     private val app = context.applicationContext
     internal var connectCommand: (String) -> Unit = { connectCgmSensorToThisWatch(app, it) }
     internal var unlinkCommand: () -> CgmUnlinkResult = { unlinkCgmSensor(app) }
+
     @Volatile
     private var lastUnlinkFailure: String? = null
 
