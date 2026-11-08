@@ -11,6 +11,7 @@ import android.os.Build
 import app.sugarlicious.sensor.protocol.CgmSensor
 import app.sugarlicious.sensor.protocol.CgmSessionManager
 import app.sugarlicious.sensor.protocol.CgmSetupPayload
+import app.sugarlicious.storage.DiagnosticEventStore
 
 internal data class CgmUnlinkResult(
     val bondRemovalStatus: CgmBondRemovalStatus,
@@ -126,7 +127,7 @@ internal fun unlinkCgmSensor(
     // The general diagnostic stream can also contain prior G7 session identifiers;
     // it is not historical glucose data and must not survive explicit unlink.
     kotlinx.coroutines.runBlocking {
-        app.sugarlicious.storage.DiagnosticEventStore(app).clear()
+        DiagnosticEventStore(app).clear()
     }
     val runtimePreferences = app.getSharedPreferences("g7_runtime_recovery", Context.MODE_PRIVATE)
     check(runtimePreferences.edit().clear().commit()) { "G7 runtime recovery cleanup failed" }
