@@ -82,7 +82,11 @@ class CgmSensorUnlinkTest {
                 .buildContentProvider(CgmReadingProvider::class.java)
                 .create()
                 .get()
-        val latest = CgmReadingProvider.CONTENT_URI.buildUpon().appendPath("latest").build()
+        val latest =
+            CgmReadingProvider.CONTENT_URI
+                .buildUpon()
+                .appendPath("latest")
+                .build()
         provider.query(latest, null, null, null, null)!!.use { cursor ->
             assertEquals(0, cursor.count)
         }
