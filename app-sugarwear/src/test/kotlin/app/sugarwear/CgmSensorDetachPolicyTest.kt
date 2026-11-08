@@ -150,7 +150,6 @@ class CgmSensorDetachPolicyTest {
                     removed.add(candidate)
                     CgmBondRemovalStatus.REMOVED
                 },
-
             )
         assertTrue(result.detached)
         assertTrue(address in removed)
