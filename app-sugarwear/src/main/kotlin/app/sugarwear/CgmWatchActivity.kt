@@ -394,6 +394,16 @@ class CgmWatchActivity : ComponentActivity() {
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 content.addView(
+                    pill("Zum Menü", PillStyle.SECONDARY, palette) {
+                        pairingModel.close()
+                        refreshScreen()
+                    },
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = 6.dp
+                        gravity = Gravity.CENTER_HORIZONTAL
+                    },
+                )
+                content.addView(
                     pill("Abbrechen", PillStyle.SECONDARY, palette) {
                         if (pairingAccessPending) {
                             pairingModel.cancelPendingAccess()
@@ -741,17 +751,11 @@ class CgmWatchActivity : ComponentActivity() {
 
             statusHost.removeAllViews()
             if (unlinkFailed) {
-                statusHost.addView(label("Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
+                statusHost.addView(label("Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
                 unlinkFailureReason?.let { statusHost.addView(label(it, 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR))) }
                 statusHost.addView(
-                    pill("Bluetooth-Einstellungen", PillStyle.SECONDARY, palette) {
-                        CgmSystemAccess.open(
-                            this,
-                            listOf(
-                                Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
-                                Intent(android.provider.Settings.ACTION_SETTINGS),
-                            ),
-                        )
+                    pill("Entkopplung erneut versuchen", PillStyle.SECONDARY, palette) {
+                        performSensorUnlink()
                     },
                 )
             }
@@ -814,6 +818,10 @@ class CgmWatchActivity : ComponentActivity() {
 
     internal fun handleSystemBack() {
         if (pairingStep == CgmPairingScreenStep.ENTER_CODE) {
+            pairingModel.close()
+            refreshScreen()
+        } else if (pairingStep == CgmPairingScreenStep.CONNECTING) {
+            // Navigating away from a pending scan must not forcibly unpair the sensor.
             pairingModel.close()
             refreshScreen()
         } else {

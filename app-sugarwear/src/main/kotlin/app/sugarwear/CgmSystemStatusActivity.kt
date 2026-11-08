@@ -522,20 +522,14 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
         if (unlinkFailed) {
             target.addView(
                 label(
-                    "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.",
+                    "Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten.",
                     11f,
                     palette.argb(CgmAppearanceRole.GLUCOSE_ERROR),
                 ),
             )
             target.addView(
-                pill("Bluetooth-Einstellungen", palette) {
-                    CgmSystemAccess.open(
-                        this,
-                        listOf(
-                            Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS),
-                            Intent(android.provider.Settings.ACTION_SETTINGS),
-                        ),
-                    )
+                pill("Entkopplung erneut versuchen", palette) {
+                    status.recordUnlink { pairing.unlink() }
                 },
                 buttonParams(),
             )

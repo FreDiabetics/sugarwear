@@ -194,7 +194,7 @@ internal class SensorConnectionViewModel(
     }
 
     private fun finishUnlink(detached: Boolean) {
-        mutableState.update { it.copy(unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) commands.unlinkWarning else it.unlinkFailureReason) }
+        mutableState.update { it.copy(unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
         if (closeAfterUnlink && detached) close()
     }
 
