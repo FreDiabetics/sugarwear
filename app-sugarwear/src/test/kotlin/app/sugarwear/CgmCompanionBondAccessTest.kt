@@ -183,13 +183,14 @@ class CgmCompanionBondAccessTest {
 
     @Test fun `declined public unpair can never pass even if a stale callback reports gone`() {
         var disassociated = false
-        val result = removeConfirmedCgmCompanionBond(
-            first,
-            listOf(CgmOwnedCompanionAssociation(1, first)),
-            { false },
-            { true },
-            { disassociated = true },
-        )
+        val result =
+            removeConfirmedCgmCompanionBond(
+                first,
+                listOf(CgmOwnedCompanionAssociation(1, first)),
+                { false },
+                { true },
+                { disassociated = true },
+            )
         assertEquals(CgmBondRemovalStatus.FAILED, result)
         assertFalse(disassociated)
     }
