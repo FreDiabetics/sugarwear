@@ -95,12 +95,27 @@ class CgmReadingProvider : ContentProvider() {
                 "collector_enabled",
             )
         val cursor = MatrixCursor(columns)
-        val collectorEnabled = CgmSensorStateStore(requireNotNull(context)).read().collectorEnabled
-        val limit = if (uri.lastPathSegment == "latest") 1 else 300
+        val state = CgmSensorStateStore(requireNotNull(context)).read()
+        val collectorEnabled = state.collectorEnabled
         val readings =
             CgmReadingDatabase(requireNotNull(context)).let { database ->
                 try {
-                    database.query(limit = limit)
+                    if (uri.lastPathSegment == "latest") {
+                        // History remains queryable, but no orphaned reading may masquerade as
+                        // the live value after unlink or while pairing a replacement sensor.
+                        val sensor = state.sensor
+                        if (sensor == null) {
+                            emptyList()
+                        } else {
+                            database.query(
+                                selection = "sensor_id=? AND session_id=?",
+                                args = arrayOf(sensor.sensorId, sensor.sessionId ?: sensor.sensorId),
+                                limit = 1,
+                            )
+                        }
+                    } else {
+                        database.query(limit = 300)
+                    }
                 } finally {
                     database.close()
                 }
