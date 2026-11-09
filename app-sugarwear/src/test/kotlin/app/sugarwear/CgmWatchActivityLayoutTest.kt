@@ -462,7 +462,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `failed immediate unlink retains association and offers native cleanup`() {
+    fun `failed immediate unlink retains association and offers retry action`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
@@ -474,12 +474,12 @@ class CgmWatchActivityLayoutTest {
         activity.unlinkSensor = { CgmUnlinkResult(CgmBondRemovalStatus.FAILED) }
         try {
             activity.performSensorUnlink()
-            awaitCondition(activity) { findText(activity.window.decorView, "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten.") != null }
+            awaitCondition(activity) { findText(activity.window.decorView, "Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten.") != null }
             assertEquals(before.sensor, CgmSensorStateStore(context).read().sensor)
             assertNull(findText(activity.window.decorView, "Sensor trennen"))
             assertNull(findText(activity.window.decorView, "Sensor verbinden"))
-            assertNotNull(findText(activity.window.decorView, "Bluetooth-Einstellungen"))
-            assertNotNull(findText(activity.window.decorView, "Entkopplung nicht bestätigt. Der Collector ist gestoppt; die Sensorzuordnung bleibt für einen erneuten Versuch erhalten. Dexcom G7 in den Bluetooth-Einstellungen der Uhr entkoppeln, danach erneut Sensor trennen wählen. Der Glukoseverlauf bleibt erhalten."))
+            assertNotNull(findText(activity.window.decorView, "Entkopplung erneut versuchen"))
+            assertNotNull(findText(activity.window.decorView, "Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten."))
             assertNull(findEditor(activity.window.decorView))
         } finally {
             controller.pause().stop().destroy()
