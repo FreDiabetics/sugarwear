@@ -213,6 +213,12 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             addView(row("Sensor-ID", state.sensor?.sensorId ?: state.lastReading?.sensorId ?: "—", palette))
                             addView(row("Sequenz", state.lastReading?.sequenceNumber?.toString() ?: "—", palette))
                             addView(row("BLE-Name", state.sensor?.deviceName ?: "—", palette))
+                            addView(row("Bluetooth-Kopplung", snapshot.bluetooth.activeBondState, palette))
+                            addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCount.toString(), palette))
+                            snapshot.bluetooth.otherG7Devices.forEachIndexed { index, peer ->
+                                addView(row("Weiterer G7 ${index + 1}", peer, palette))
+                            }
+                            snapshot.bluetooth.warning?.let { addView(row("Bluetooth-Diagnose", it, palette)) }
                             addView(
                                 row(
                                     "Sensorstart · berechnet",
@@ -249,6 +255,10 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             addView(row("Protokoll", state.protocolState.name, palette))
                             addView(row("Letzter Connect", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
                             addView(row("Bekannte Adresse", state.sensor?.deviceAddress ?: "Nicht vorhanden", palette))
+                            addView(row("Bluetooth-Bond (OS)", snapshot.bluetooth.activeBondState, palette))
+                            addView(row("GATT-Verbindung", state.connectionState.name, palette))
+                            addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCount.toString(), palette))
+                            snapshot.bluetooth.warning?.let { addView(row("Bluetooth-Hinweis", it, palette)) }
                             addView(row("Reconnect-Strategie", snapshot.reconnectStrategy, palette))
                             addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
                             addView(row("Hinweis", userStatus.description, palette))
