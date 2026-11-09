@@ -17,7 +17,8 @@ class CgmBluetoothBondDiagnosticsTest {
 
     @Test
     fun `unrecorded G7 bonds are shown as read only masked diagnostic entries`() {
-        val inventory = cgmBondInventory(
+        val inventory =
+            cgmBondInventory(
             setOf("AA:BB:CC:DD:EE:01"),
             listOf(
                 "AA:BB:CC:DD:EE:01" to "DXCM1234",
@@ -36,7 +37,8 @@ class CgmBluetoothBondDiagnosticsTest {
 
     @Test
     fun `contradictory sensor identities are explicitly flagged`() {
-        val inventory = cgmBondInventory(
+        val inventory =
+            cgmBondInventory(
             setOf("AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"),
             emptyList(),
             null,
@@ -73,5 +75,4 @@ class CgmBluetoothBondDiagnosticsTest {
         assertTrue(inventory.inventoryAvailable)
         assertEquals("0", inventory.otherG7BondCountLabel())
     }
-
 }
