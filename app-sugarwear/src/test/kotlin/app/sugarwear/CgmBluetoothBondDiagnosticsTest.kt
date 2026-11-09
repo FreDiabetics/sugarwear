@@ -49,4 +49,29 @@ class CgmBluetoothBondDiagnosticsTest {
     fun `malformed addresses are never exposed`() {
         assertEquals("Adresse nicht darstellbar", cgmMaskedBluetoothAddress("invalid"))
     }
+
+    @Test
+    fun `unavailable bond inventory is unknown and never reported as zero devices`() {
+        val unavailable =
+            cgmBondInventory(
+                setOf("AA:BB:CC:DD:EE:01"),
+                emptyList(),
+                null,
+            ).copy(inventoryAvailable = false)
+        assertEquals("Nicht ermittelbar", unavailable.otherG7BondCountLabel())
+        assertEquals("0", unavailable.copy(inventoryAvailable = true).otherG7BondCountLabel())
+    }
+
+    @Test
+    fun `known bond inventory has a real zero when no other G7 is bonded`() {
+        val inventory =
+            cgmBondInventory(
+                setOf("AA:BB:CC:DD:EE:01"),
+                listOf("AA:BB:CC:DD:EE:01" to "DXCM1234"),
+                BluetoothDevice.BOND_BONDED,
+            )
+        assertTrue(inventory.inventoryAvailable)
+        assertEquals("0", inventory.otherG7BondCountLabel())
+    }
+
 }
