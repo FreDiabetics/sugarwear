@@ -214,7 +214,7 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             addView(row("Sequenz", state.lastReading?.sequenceNumber?.toString() ?: "—", palette))
                             addView(row("BLE-Name", state.sensor?.deviceName ?: "—", palette))
                             addView(row("Bluetooth-Kopplung", snapshot.bluetooth.activeBondState, palette))
-                            addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCount.toString(), palette))
+                            addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCountLabel(), palette))
                             snapshot.bluetooth.otherG7Devices.forEachIndexed { index, peer ->
                                 addView(row("Weiterer G7 ${index + 1}", peer, palette))
                             }
@@ -256,8 +256,8 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             addView(row("Letzter Connect", formatTimestamp(state.lastSuccessfulConnectionEpochMs), palette))
                             addView(row("Bekannte Adresse", state.sensor?.deviceAddress ?: "Nicht vorhanden", palette))
                             addView(row("Bluetooth-Bond (OS)", snapshot.bluetooth.activeBondState, palette))
-                            addView(row("GATT-Verbindung", state.connectionState.name, palette))
-                            addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCount.toString(), palette))
+                            addView(row("Letzter GATT-Zustand", state.connectionState.name, palette))
+                            addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCountLabel(), palette))
                             snapshot.bluetooth.warning?.let { addView(row("Bluetooth-Hinweis", it, palette)) }
                             addView(row("Reconnect-Strategie", snapshot.reconnectStrategy, palette))
                             addView(row("Letzter Fehler", state.lastError?.let { "${it.code} · ${it.safeMessage}" } ?: "—", palette))
@@ -314,8 +314,8 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                                 addView(row("Uhr-Modell", android.os.Build.MODEL ?: "—", palette))
                                 addView(row("Android API", android.os.Build.VERSION.SDK_INT.toString(), palette))
                                 addView(row("G7 Bluetooth-Bond", snapshot.bluetooth.activeBondState, palette))
-                                addView(row("GATT-Zustand", state.connectionState.name, palette))
-                                addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCount.toString(), palette))
+                                addView(row("Letzter GATT-Zustand", state.connectionState.name, palette))
+                                addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCountLabel(), palette))
                                 addCycleRows(this, cycle, palette)
                                 addView(row("Erwartete Fenster", hardwareMetrics.expectedWindows.toString(), palette))
                                 addView(row("Versuchte Fenster", hardwareMetrics.attemptedWindows.toString(), palette))
