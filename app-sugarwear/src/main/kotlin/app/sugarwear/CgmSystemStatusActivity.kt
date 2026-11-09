@@ -310,6 +310,12 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                                 },
                             )
                             if (hardwareExpanded) {
+                                addView(row("Uhr-Hersteller", android.os.Build.MANUFACTURER ?: "—", palette))
+                                addView(row("Uhr-Modell", android.os.Build.MODEL ?: "—", palette))
+                                addView(row("Android API", android.os.Build.VERSION.SDK_INT.toString(), palette))
+                                addView(row("G7 Bluetooth-Bond", snapshot.bluetooth.activeBondState, palette))
+                                addView(row("GATT-Zustand", state.connectionState.name, palette))
+                                addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCount.toString(), palette))
                                 addCycleRows(this, cycle, palette)
                                 addView(row("Erwartete Fenster", hardwareMetrics.expectedWindows.toString(), palette))
                                 addView(row("Versuchte Fenster", hardwareMetrics.attemptedWindows.toString(), palette))
