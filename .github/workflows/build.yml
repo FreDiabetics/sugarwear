@@ -89,6 +89,15 @@ jobs:
         run: ./gradlew :tools:maintenance:test
       - name: Enforce Kotlin static analysis and formatting
         run: ./gradlew detekt ktlintCheck
+      - name: Report Kotlin lint diagnostics when quality gate fails
+        if: failure()
+        shell: bash
+        run: |
+          report="app-sugarwear/build/reports/ktlint/ktlintMainSourceSetCheck/ktlintMainSourceSetCheck.txt"
+          if [[ -f "$report" ]]; then
+            cat "$report"
+          fi
+
       - name: Test and build SugarWear and Vigil
         run: ./gradlew test assembleDebug :watchfaces:vigil:assembleRelease
       - name: Lint Android modules
