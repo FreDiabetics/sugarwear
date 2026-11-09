@@ -78,10 +78,12 @@ internal fun readCgmBluetoothBondSnapshot(context: Context): CgmBluetoothBondSna
         )
     }
     return try {
-        val adapter =
-            app.getSystemService(BluetoothManager::class.java)?.adapter
-                ?: return cgmBondInventory(recorded, emptyList(), null)
-                    .copy(warning = "Bluetooth nicht verfügbar.")
+        val adapter = app.getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter == null) {
+            return cgmBondInventory(recorded, emptyList(), null).copy(
+                warning = "Bluetooth nicht verfügbar.",
+            )
+        }
         val bondState =
             recorded.singleOrNull()?.let { address ->
                 adapter.getRemoteDevice(address).bondState
