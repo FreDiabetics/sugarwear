@@ -28,7 +28,7 @@ internal data class CgmSystemStatusSnapshot(
     val reconnectStrategy: String,
     val access: CgmSystemAccessSnapshot,
     val serviceRunning: Boolean,
-    val bluetooth: CgmBluetoothBondSnapshot,
+    val bluetooth: CgmBluetoothBondSnapshot = CgmBluetoothBondSnapshot("Nicht ermittelbar", 0, 0, emptyList()),
 )
 
 internal data class CgmSystemStatusUiState(
