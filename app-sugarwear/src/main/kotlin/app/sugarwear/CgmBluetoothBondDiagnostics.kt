@@ -19,7 +19,12 @@ internal data class CgmBluetoothBondSnapshot(
     val otherG7BondCount: Int,
     val otherG7Devices: List<String>,
     val warning: String? = null,
+    val inventoryAvailable: Boolean = true,
 )
+
+/** An inaccessible OS bond list must not appear as an empty one. */
+internal fun CgmBluetoothBondSnapshot.otherG7BondCountLabel(): String =
+    if (inventoryAvailable) otherG7BondCount.toString() else "Nicht ermittelbar"
 
 internal fun cgmBondStateLabel(state: Int?): String =
     when (state) {
@@ -75,6 +80,7 @@ internal fun readCgmBluetoothBondSnapshot(context: Context): CgmBluetoothBondSna
     if (app.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
         return cgmBondInventory(recorded, emptyList(), null).copy(
             warning = "Bluetooth-Zugriff fehlt; Bond-Status nicht ermittelbar.",
+            inventoryAvailable = false,
         )
     }
     return try {
@@ -82,6 +88,13 @@ internal fun readCgmBluetoothBondSnapshot(context: Context): CgmBluetoothBondSna
         if (adapter == null) {
             return cgmBondInventory(recorded, emptyList(), null).copy(
                 warning = "Bluetooth nicht verfügbar.",
+                inventoryAvailable = false,
+            )
+        }
+        if (!adapter.isEnabled) {
+            return cgmBondInventory(recorded, emptyList(), null).copy(
+                warning = "Bluetooth ist deaktiviert; gespeicherte Bonds können nicht zuverlässig abgefragt werden.",
+                inventoryAvailable = false,
             )
         }
         val bondState =
@@ -91,8 +104,14 @@ internal fun readCgmBluetoothBondSnapshot(context: Context): CgmBluetoothBondSna
         val devices = adapter.bondedDevices.orEmpty().map { it.address to it.name }
         cgmBondInventory(recorded, devices, bondState)
     } catch (_: SecurityException) {
-        cgmBondInventory(recorded, emptyList(), null).copy(warning = "Android verweigert die Bluetooth-Bond-Abfrage.")
+        cgmBondInventory(recorded, emptyList(), null).copy(
+            warning = "Android verweigert die Bluetooth-Bond-Abfrage.",
+            inventoryAvailable = false,
+        )
     } catch (_: IllegalArgumentException) {
-        cgmBondInventory(recorded, emptyList(), null).copy(warning = "Gespeicherte Sensoradresse ist ungültig.")
+        cgmBondInventory(recorded, emptyList(), null).copy(
+            warning = "Gespeicherte Sensoradresse ist ungültig.",
+            inventoryAvailable = false,
+        )
     }
 }
