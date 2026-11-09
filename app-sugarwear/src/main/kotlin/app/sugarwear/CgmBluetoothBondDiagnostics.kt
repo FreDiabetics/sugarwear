@@ -50,11 +50,21 @@ internal fun cgmBondInventory(
             .filter { (address, name) -> address.uppercase(Locale.ROOT) !in normalized && isCgmAdvertisedName(name) }
             .distinctBy { it.first.uppercase(Locale.ROOT) }
     return CgmBluetoothBondSnapshot(
-        activeBondState = if (normalized.size > 1) "Widersprüchliche Sensoradressen" else cgmBondStateLabel(activeBondState),
+        activeBondState =
+            if (normalized.size > 1) {
+                "Widersprüchliche Sensoradressen"
+            } else {
+                cgmBondStateLabel(activeBondState)
+            },
         knownSensorCount = normalized.size,
         otherG7BondCount = otherG7.size,
         otherG7Devices = otherG7.map { (address, name) -> "${name ?: "G7"} · ${cgmMaskedBluetoothAddress(address)}" },
-        warning = if (normalized.size > 1) "Sensoridentität widersprüchlich: keine automatische Entkopplung zulässig." else null,
+        warning =
+            if (normalized.size > 1) {
+                "Sensoridentität widersprüchlich: keine automatische Entkopplung zulässig."
+            } else {
+                null
+            },
     )
 }
 
@@ -63,12 +73,15 @@ internal fun readCgmBluetoothBondSnapshot(context: Context): CgmBluetoothBondSna
     val app = context.applicationContext
     val recorded = cgmRecordedSensorAddresses(app)
     if (app.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-        return cgmBondInventory(recorded, emptyList(), null)
-            .copy(warning = "Bluetooth-Zugriff fehlt; Bond-Status nicht ermittelbar.")
+        return cgmBondInventory(recorded, emptyList(), null).copy(
+            warning = "Bluetooth-Zugriff fehlt; Bond-Status nicht ermittelbar.",
+        )
     }
     return try {
-        val adapter = app.getSystemService(BluetoothManager::class.java)?.adapter
-            ?: return cgmBondInventory(recorded, emptyList(), null).copy(warning = "Bluetooth nicht verfügbar.")
+        val adapter =
+            app.getSystemService(BluetoothManager::class.java)?.adapter
+                ?: return cgmBondInventory(recorded, emptyList(), null)
+                    .copy(warning = "Bluetooth nicht verfügbar.")
         val bondState =
             recorded.singleOrNull()?.let { address ->
                 adapter.getRemoteDevice(address).bondState
