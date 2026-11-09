@@ -93,7 +93,10 @@ internal class CgmCompanionBondAccess(
         // Android 16+ needs an app-owned association before removeBond can unpair
         // even a previously bonded sensor. Explicit disconnect may not bypass consent.
         ensure(onReady, onFailure) {
-            unlinkAddresses().filter { backend.isBonded(it) }
+            val addresses = unlinkAddresses()
+            // Never request consent for two identities just because stale metadata differs.
+            require(addresses.size <= 1) { "Ambiguous G7 unlink target" }
+            addresses.filter { backend.isBonded(it) }
         }
     }
 
@@ -213,7 +216,7 @@ internal fun removeConfirmedCgmCompanionBond(
     return try {
         if (!alreadyGone) {
             if (owned.isEmpty()) return CgmBondRemovalStatus.FAILED
-            requestRemoval(owned.first().id)
+            if (!requestRemoval(owned.first().id)) return CgmBondRemovalStatus.FAILED
             if (!confirmGone()) return CgmBondRemovalStatus.FAILED
         }
         owned.forEach { disassociate(it.id) }

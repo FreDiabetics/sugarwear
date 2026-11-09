@@ -52,7 +52,7 @@ class CgmSensorDetachPolicyTest {
         assertEquals(0, starts)
     }
 
-    @Test fun `new sensor preparation clears old association and waits for explicit reception start`() {
+    @Test fun `explicit unlink before new sensor preparation preserves history and defers reception`() {
         val context = ApplicationProvider.getApplicationContext<Application>()
         val stateStore = CgmSensorStateStore(context)
         val oldAddress = "AA:BB:CC:DD:EE:41"
@@ -87,16 +87,16 @@ class CgmSensorDetachPolicyTest {
         val application = shadowOf(context)
         assertNull(application.nextStartedService)
 
-        val sensor =
-            moveCgmSensorToThisWatch(
+        val detached =
+            unlinkCgmSensor(
                 context,
-                "1234",
                 CgmBondRemover { _, address ->
                     removed.add(address)
                     CgmBondRemovalStatus.REMOVED
                 },
-                saveSetup = { savedCode = it.pairingCode },
             )
+        assertTrue(detached.detached)
+        val sensor = moveCgmSensorToThisWatch(context, "1234", saveSetup = { savedCode = it.pairingCode })
 
         assertTrue(oldAddress in removed)
         assertEquals("1234", savedCode)
@@ -114,7 +114,7 @@ class CgmSensorDetachPolicyTest {
         }
     }
 
-    @Test fun `takeover cleanup removes existing bond without permanently excluding its target`() {
+    @Test fun `explicit unlink removes exact bond and clears stale exclusion state`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val target = "AA:BB:CC:DD:EE:11"
         val alreadyRetired = "AA:BB:CC:DD:EE:12"
@@ -123,16 +123,17 @@ class CgmSensorDetachPolicyTest {
         val result =
             unlinkCgmSensor(
                 context,
-                CgmBondRemover { _, _ -> CgmBondRemovalStatus.REMOVED },
-                bondedAddresses = { setOf(target) },
-                permanentlyRetire = false,
+                CgmBondRemover { _, address ->
+                    assertEquals(target, address)
+                    CgmBondRemovalStatus.REMOVED
+                },
             )
         assertTrue(result.detached)
         assertFalse(CgmRetiredSensors(context).contains(target))
-        assertTrue(CgmRetiredSensors(context).contains(alreadyRetired))
+        assertFalse(CgmRetiredSensors(context).contains(alreadyRetired))
     }
 
-    @Test fun `fully detached sensor stays excluded across store recreation`() {
+    @Test fun `fully detached sensor leaves no address denylist and cannot remove unrelated G7`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val address = "AA:BB:CC:DD:EE:01"
         CgmSensorStateStore(context).save(CgmPersistedState(sensor = CgmSensor("old", "old", deviceAddress = address), collectorEnabled = true))
@@ -149,13 +150,12 @@ class CgmSensorDetachPolicyTest {
                     removed.add(candidate)
                     CgmBondRemovalStatus.REMOVED
                 },
-                bondedAddresses = { setOf(legacy) },
             )
         assertTrue(result.detached)
         assertTrue(address in removed)
-        assertTrue(legacy in removed)
-        assertTrue(CgmRetiredSensors(context).contains(address.lowercase()))
-        assertTrue(CgmRetiredSensors(context).contains(legacy))
+        assertFalse(legacy in removed)
+        assertFalse(CgmRetiredSensors(context).contains(address.lowercase()))
+        assertFalse(CgmRetiredSensors(context).contains(legacy))
         assertFalse(CgmRetiredSensors(context).contains("AA:BB:CC:DD:EE:02"))
         assertNull(CgmSensorStateStore(context).read().sensor)
         assertNull(CgmCollectorDiagnosticStore(context).pendingScheduledCycle())
@@ -222,7 +222,7 @@ class CgmSensorDetachPolicyTest {
         assertFalse(CgmRetiredSensors(context).contains(address))
     }
 
-    @Test fun `denied Bluetooth enumeration cannot silently clear sensor or credentials`() {
+    @Test fun `denied Bluetooth removal cannot silently clear sensor or credentials`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val address = "AA:BB:CC:DD:EE:88"
         CgmSensorStateStore(context).save(CgmPersistedState(sensor = CgmSensor("permission-old", "permission-session", deviceAddress = address), collectorEnabled = true))
@@ -237,7 +237,6 @@ class CgmSensorDetachPolicyTest {
             unlinkCgmSensor(
                 context,
                 CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED },
-                bondedAddresses = { throw SecurityException("Bluetooth permission revoked") },
             )
 
         assertFalse(result.detached)
@@ -255,25 +254,12 @@ class CgmSensorDetachPolicyTest {
             .edit()
             .clear()
             .commit()
-        val removed = mutableListOf<String?>()
-
-        val sensor =
-            moveCgmSensorToThisWatch(
-                context,
-                "1234",
-                CgmBondRemover { _, address ->
-                    removed += address
-                    if (address == null) CgmBondRemovalStatus.NOT_REQUIRED else CgmBondRemovalStatus.FAILED
-                },
-                saveSetup = { },
-            )
-
-        assertEquals(listOf(null), removed)
+        val sensor = moveCgmSensorToThisWatch(context, "1234", saveSetup = {})
         assertEquals(sensor, CgmSensorStateStore(context).read().sensor)
         assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
     }
 
-    @Test fun `retired system bond cannot block preparing a different sensor`() {
+    @Test fun `retired sensor metadata is removed on explicit unlink and cannot block fresh setup`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val address = "AA:BB:CC:DD:EE:99"
         CgmRetiredSensors(context).retire(setOf(address))
@@ -286,11 +272,11 @@ class CgmSensorDetachPolicyTest {
                     removedAddress = candidate
                     if (candidate == null) CgmBondRemovalStatus.NOT_REQUIRED else CgmBondRemovalStatus.FAILED
                 },
-                bondedAddresses = { setOf(address) },
-                permanentlyRetire = false,
             )
         assertTrue(result.detached)
         assertNull(removedAddress)
+        assertFalse(CgmRetiredSensors(context).contains(address))
+        assertNull(moveCgmSensorToThisWatch(context, "1234", saveSetup = {}).deviceAddress)
     }
 
     @Test fun `bond removal wait confirms transition and times out without it`() {
@@ -318,7 +304,7 @@ class CgmSensorDetachPolicyTest {
         )
 
         try {
-            moveCgmSensorToThisWatch(context, "1234", CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED })
+            moveCgmSensorToThisWatch(context, "1234")
             fail("replacement must stop when the previous Bluetooth bond still exists")
         } catch (_: IllegalStateException) {
             assertEquals("sensor-old", stateStore.read().sensor?.sensorId)

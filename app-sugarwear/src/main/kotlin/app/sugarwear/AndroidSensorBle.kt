@@ -941,13 +941,18 @@ internal class CgmGattConnection(
 
     @SuppressLint("MissingPermission")
     private suspend fun ensureBonded(device: BluetoothDevice) {
-        if (device.bondState == BluetoothDevice.BOND_BONDED) return
-        if (!device.createBond()) throw CgmBleException("G7-AUTH-206", "Bluetooth-Verbindung konnte nicht gestartet werden", false)
+        val initialBondState = device.bondState
+        if (initialBondState == BluetoothDevice.BOND_BONDED) return
+        // An existing asynchronous pairing must be observed, not restarted. Samsung's
+        // stack can return false for a second createBond() while it is already BONDING.
+        if (initialBondState != BluetoothDevice.BOND_BONDING && !device.createBond()) {
+            throw CgmBleException("G7-AUTH-206", "Bluetooth-Verbindung konnte nicht gestartet werden", false)
+        }
 
         // createBond() is asynchronous. On real Wear OS hardware it can return true a few
         // milliseconds before bondState changes from NONE to BONDING. Treating that initial NONE
         // as a terminal failure closes the GATT client while Android is only just starting SMP.
-        var observedBonding = false
+        var observedBonding = initialBondState == BluetoothDevice.BOND_BONDING
         try {
             withTimeout(BOND_TIMEOUT_MS) {
                 while (true) {

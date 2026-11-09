@@ -33,6 +33,12 @@ internal class CgmExpectedWindowLedger(
         }
     private val serializer = ListSerializer(CollectorExpectedWindow.serializer())
 
+    /** Remove scheduled-window metadata; never touch stored glucose readings. */
+    fun clearAll() =
+        synchronized(lock) {
+            check(preferences.edit().clear().commit()) { "G7 window ledger cleanup failed" }
+        }
+
     fun create(
         expectedAt: Long,
         primaryAlarmScheduledAt: Long,

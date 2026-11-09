@@ -76,23 +76,14 @@ class CgmCompanionBondAccessTest {
         assertTrue(backend.requested.isEmpty())
     }
 
-    @Test fun `old bonded peers require sequential exact associations and skip existing ownership`() {
-        val backend =
-            Backend().apply {
-                bonded.addAll(listOf(first, second))
-                owned.add(CgmOwnedCompanionAssociation(7, first.lowercase()))
-            }
+    @Test fun `unlink never requests multiple bonded sensor associations`() {
+        val backend = Backend().apply { bonded.addAll(listOf(first, second)) }
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
-        val access = CgmCompanionBondAccess(activity, backend, sdkInt = 36, unlinkAddresses = { linkedSetOf(first, second) })
-        var ready = 0
-
-        access.ensureForUnlink({ ready++ }, { error(it) })
-        assertEquals(listOf(second), backend.requested)
-        assertEquals(0, ready)
-        backend.created!!.invoke(second.lowercase())
-
-        assertEquals(1, ready)
-        assertEquals(setOf(first, second), backend.bonded)
+        val access = CgmCompanionBondAccess(activity, backend, sdkInt = 36, unlinkAddresses = { setOf(first, second) })
+        var failed = 0
+        access.ensureForUnlink({ error("ambiguous target must fail") }, { failed++ })
+        assertEquals(1, failed)
+        assertTrue(backend.requested.isEmpty())
     }
 
     @Test fun `mismatched association cannot authorize unlink`() {
@@ -190,6 +181,20 @@ class CgmCompanionBondAccessTest {
         }
     }
 
+    @Test fun `declined public unpair can never pass even if a stale callback reports gone`() {
+        var disassociated = false
+        val result =
+            removeConfirmedCgmCompanionBond(
+                first,
+                listOf(CgmOwnedCompanionAssociation(1, first)),
+                { false },
+                { true },
+                { disassociated = true },
+            )
+        assertEquals(CgmBondRemovalStatus.FAILED, result)
+        assertFalse(disassociated)
+    }
+
     @Test fun `already gone bond cleans only matching associations without another removal request`() {
         val removed = mutableListOf<Int>()
         val result =
@@ -233,6 +238,6 @@ class CgmCompanionBondAccessTest {
             .putString("shared_address", second)
             .commit()
 
-        assertEquals(setOf(first, second), cgmSensorUnlinkAddresses(context, bondedAddresses = { emptySet() }))
+        assertEquals(setOf(first, second), cgmSensorUnlinkAddresses(context))
     }
 }

@@ -30,6 +30,13 @@ internal class CgmSensorStateStore(
             preferences.edit { putString(KEY_STATE, json.encodeToString(CgmPersistedState.serializer(), state)) }
         }
 
+    /** Durably forget every sensor identity and reject stale collector writes. */
+    fun reset() =
+        synchronized(lifecycleLock) {
+            lifecycleGeneration++
+            check(preferences.edit().clear().commit()) { "G7 sensor state could not be removed" }
+        }
+
     /** Reject an in-flight cycle's snapshot after an intentional pause. */
     fun collectorGeneration(): Long = synchronized(lifecycleLock) { lifecycleGeneration }
 
