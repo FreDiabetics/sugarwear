@@ -3,6 +3,7 @@ package app.sugarwear
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -310,9 +311,9 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                                 },
                             )
                             if (hardwareExpanded) {
-                                addView(row("Uhr-Hersteller", android.os.Build.MANUFACTURER ?: "—", palette))
-                                addView(row("Uhr-Modell", android.os.Build.MODEL ?: "—", palette))
-                                val apiLevel = android.os.Build.VERSION.SDK_INT.toString()
+                                addView(row("Uhr-Hersteller", Build.MANUFACTURER ?: "—", palette))
+                                addView(row("Uhr-Modell", Build.MODEL ?: "—", palette))
+                                val apiLevel = Build.VERSION.SDK_INT.toString()
                                 addView(row("Android API", apiLevel, palette))
                                 addView(row("G7 Bluetooth-Bond", snapshot.bluetooth.activeBondState, palette))
                                 addView(row("Letzter GATT-Zustand", state.connectionState.name, palette))
