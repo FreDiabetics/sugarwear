@@ -28,6 +28,7 @@ internal data class CgmSystemStatusSnapshot(
     val reconnectStrategy: String,
     val access: CgmSystemAccessSnapshot,
     val serviceRunning: Boolean,
+    val bluetooth: CgmBluetoothBondSnapshot,
 )
 
 internal data class CgmSystemStatusUiState(
@@ -56,6 +57,7 @@ internal class CgmSystemStatusRepository(
             CgmReconnectStrategyStore.read(app).name,
             CgmSystemAccess.snapshot(app),
             CgmCollectorService.isServiceRunning(),
+            readCgmBluetoothBondSnapshot(app),
         )
     }
 
