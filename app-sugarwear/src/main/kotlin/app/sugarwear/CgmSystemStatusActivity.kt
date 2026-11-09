@@ -312,7 +312,8 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             if (hardwareExpanded) {
                                 addView(row("Uhr-Hersteller", android.os.Build.MANUFACTURER ?: "—", palette))
                                 addView(row("Uhr-Modell", android.os.Build.MODEL ?: "—", palette))
-                                addView(row("Android API", android.os.Build.VERSION.SDK_INT.toString(), palette))
+                                val apiLevel = android.os.Build.VERSION.SDK_INT.toString()
+                                addView(row("Android API", apiLevel, palette))
                                 addView(row("G7 Bluetooth-Bond", snapshot.bluetooth.activeBondState, palette))
                                 addView(row("Letzter GATT-Zustand", state.connectionState.name, palette))
                                 addView(row("Andere G7-Bonds", snapshot.bluetooth.otherG7BondCountLabel(), palette))
