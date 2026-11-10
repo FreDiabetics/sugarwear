@@ -217,8 +217,8 @@ internal fun removeConfirmedCgmCompanionBond(
         if (!alreadyGone) {
             if (owned.isEmpty()) return CgmBondRemovalStatus.FAILED
             if (!requestRemoval(owned.first().id)) return CgmBondRemovalStatus.FAILED
-            if (!confirmGone()) return CgmBondRemovalStatus.FAILED
         }
+        if (!confirmGone()) return CgmBondRemovalStatus.FAILED
         owned.forEach { disassociate(it.id) }
         CgmBondRemovalStatus.REMOVED
     } catch (_: Exception) {
@@ -229,12 +229,15 @@ internal fun removeConfirmedCgmCompanionBond(
 @SuppressLint("NewApi", "MissingPermission")
 internal fun removeCgmBondThroughCompanion(context: Context, address: String, device: BluetoothDevice): CgmBondRemovalStatus {
     val manager = context.getSystemService(CompanionDeviceManager::class.java) ?: return CgmBondRemovalStatus.FAILED
+    val adapter = context.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter ?: return CgmBondRemovalStatus.FAILED
+    val readState = { readableCgmBondState({ adapter.state }, { device.bondState }) }
+    val initialState = readState() ?: return CgmBondRemovalStatus.FAILED
     return removeConfirmedCgmCompanionBond(
         address,
         manager.myAssociations.map { CgmOwnedCompanionAssociation(it.id, it.deviceMacAddress?.toString()) },
         manager::removeBond,
-        { awaitCgmBondRemoval(readBondState = { device.bondState }) },
+        { awaitCgmBondRemoval(readBondState = readState) },
         manager::disassociate,
-        alreadyGone = device.bondState == BluetoothDevice.BOND_NONE,
+        alreadyGone = initialState == BluetoothDevice.BOND_NONE,
     )
 }

@@ -566,13 +566,11 @@ class CgmCollectorService : Service() {
                                     when (telemetry) {
                                         is CgmDiscoveryCandidateDeferred -> telemetry.errorCode
                                         is CgmDiscoveryCandidateRejected -> telemetry.errorCode
-                                        else -> error("Unexpected discovery telemetry")
                                     }
                                 val occurredAt =
                                     when (telemetry) {
                                         is CgmDiscoveryCandidateDeferred -> telemetry.timestampEpochMs
                                         is CgmDiscoveryCandidateRejected -> telemetry.timestampEpochMs
-                                        else -> error("Unexpected discovery telemetry")
                                     }
                                 persist(
                                     store.read().copy(
