@@ -2,6 +2,7 @@ package app.sugarwear
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.Context
@@ -173,23 +174,26 @@ private fun removeCgmBond(
     }
     return runCatching {
         val adapter = context.getSystemService(BluetoothManager::class.java).adapter ?: return@runCatching CgmBondRemovalStatus.FAILED
-        val device = adapter.bondedDevices.firstOrNull { it.address.equals(address, ignoreCase = true) } ?: adapter.getRemoteDevice(address)
+        if (adapter.state != BluetoothAdapter.STATE_ON) return@runCatching CgmBondRemovalStatus.FAILED
+        val bonded = adapter.bondedDevices ?: return@runCatching CgmBondRemovalStatus.FAILED
+        val device = bonded.firstOrNull { it.address.equals(address, ignoreCase = true) } ?: adapter.getRemoteDevice(address)
+        val initialBondState = readableCgmBondState({ adapter.state }, { device.bondState }) ?: return@runCatching CgmBondRemovalStatus.FAILED
         if (Build.VERSION.SDK_INT >= 36) {
             // Android's pairing hardening requires the public, app-owned companion path.
             // Do not fall back to hidden privileged Bluetooth APIs on these releases.
             return@runCatching removeCgmBondThroughCompanion(context, address, device)
         }
-        if (device.bondState == BluetoothDevice.BOND_NONE) return@runCatching CgmBondRemovalStatus.REMOVED
+        if (initialBondState == BluetoothDevice.BOND_NONE) return@runCatching CgmBondRemovalStatus.REMOVED
         val method = device.javaClass.getMethod("removeBond")
-        val before = device.bondState
+        val before = initialBondState
         val requested = method.invoke(device) as? Boolean ?: false
         android.util.Log.i("G7BondRemoval", "remove_requested=$requested adapter=${adapter.state} state_before=$before")
         if (!requested) {
-            val after = device.bondState
+            val after = readableCgmBondState({ adapter.state }, { device.bondState })
             android.util.Log.w("G7BondRemoval", "request_declined state_after=$after")
             return@runCatching if (after == BluetoothDevice.BOND_NONE) CgmBondRemovalStatus.REMOVED else CgmBondRemovalStatus.FAILED
         }
-        if (awaitCgmBondRemoval(readBondState = { device.bondState })) {
+        if (awaitCgmBondRemoval(readBondState = { readableCgmBondState({ adapter.state }, { device.bondState }) })) {
             CgmBondRemovalStatus.REMOVED
         } else {
             android.util.Log.w("G7BondRemoval", "confirmation_timeout state_after=${device.bondState}")
@@ -203,17 +207,25 @@ private fun removeCgmBond(
     }
 }
 
+/** Android can return BOND_NONE merely because its radio service is unavailable. */
+internal fun readableCgmBondState(readAdapterState: () -> Int, readBondState: () -> Int): Int? {
+    if (readAdapterState() != BluetoothAdapter.STATE_ON) return null
+    val state = readBondState()
+    return state.takeIf { readAdapterState() == BluetoothAdapter.STATE_ON }
+}
+
 internal fun awaitCgmBondRemoval(
     timeoutMs: Long = 5_000L,
     pollMs: Long = 100L,
-    readBondState: () -> Int,
+    readBondState: () -> Int?,
     sleep: (Long) -> Unit = Thread::sleep,
 ): Boolean {
     require(timeoutMs >= 0L)
     require(pollMs > 0L)
     var elapsed = 0L
     while (true) {
-        if (readBondState() == BluetoothDevice.BOND_NONE) return true
+        val state = readBondState() ?: return false
+        if (state == BluetoothDevice.BOND_NONE) return true
         if (elapsed >= timeoutMs) return false
         val delay = minOf(pollMs, timeoutMs - elapsed)
         sleep(delay)

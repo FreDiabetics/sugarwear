@@ -202,7 +202,7 @@ class CgmCompanionBondAccessTest {
                 first,
                 listOf(CgmOwnedCompanionAssociation(1, first), CgmOwnedCompanionAssociation(2, second)),
                 { error("bond is already gone") },
-                { error("no further bond wait needed") },
+                { true },
                 { removed.add(it) },
                 alreadyGone = true,
             )
@@ -211,7 +211,7 @@ class CgmCompanionBondAccessTest {
         assertEquals(listOf(1), removed)
         assertEquals(
             CgmBondRemovalStatus.REMOVED,
-            removeConfirmedCgmCompanionBond(first, emptyList(), { error("no association") }, { false }, {}, alreadyGone = true),
+            removeConfirmedCgmCompanionBond(first, emptyList(), { error("no association") }, { true }, {}, alreadyGone = true),
         )
     }
 

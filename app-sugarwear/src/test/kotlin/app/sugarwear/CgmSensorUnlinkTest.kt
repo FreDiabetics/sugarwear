@@ -17,6 +17,27 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class CgmSensorUnlinkTest {
+    @Test
+    @Config(sdk = [35, 36])
+    fun `disabled Bluetooth cannot confirm removal or erase the retry session`() {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        setup(context)
+        org.robolectric.Shadows
+            .shadowOf(context)
+            .grantPermissions(android.Manifest.permission.BLUETOOTH_CONNECT)
+        val adapter = context.getSystemService(android.bluetooth.BluetoothManager::class.java).adapter
+        org.robolectric.Shadows
+            .shadowOf(adapter)
+            .setState(android.bluetooth.BluetoothAdapter.STATE_OFF)
+
+        val result = unlinkCgmSensor(context)
+
+        assertFalse(result.detached)
+        assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
+        assertEquals(target, CgmSensorStateStore(context).read().sensor?.deviceAddress)
+        assertTrue(CgmCredentialStore(context).hasSetupMaterial())
+    }
+
     private val target = "AA:BB:CC:DD:EE:11"
     private val unrelated = "AA:BB:CC:DD:EE:22"
 
@@ -87,10 +108,10 @@ class CgmSensorUnlinkTest {
                 .buildUpon()
                 .appendPath("latest")
                 .build()
-        provider.query(latest, null, null, null, null)!!.use { cursor ->
+        provider.query(latest, null, null, null, null).use { cursor ->
             assertEquals(0, cursor.count)
         }
-        provider.query(CgmReadingProvider.CONTENT_URI, null, null, null, null)!!.use { cursor ->
+        provider.query(CgmReadingProvider.CONTENT_URI, null, null, null, null).use { cursor ->
             assertEquals(1, cursor.count)
         }
     }
