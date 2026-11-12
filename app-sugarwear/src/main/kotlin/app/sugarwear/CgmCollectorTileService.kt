@@ -133,7 +133,7 @@ internal fun cgmTilePresentation(
     return CgmTilePresentation(
         glucoseValue = boundary?.label ?: shared.value,
         meta = if (boundary == null) shared.primaryMeta else "",
-        age = shared.secondaryMeta,
+        age = cgmCompactAgeText(shared.secondaryMeta),
         cardBackground = palette?.argb(CgmAppearanceRole.MENU_SURFACE) ?: CGM_TILE_CARD_BACKGROUND,
         cardForeground = valueColor,
         trend = shared.trend.takeIf { boundary == null },
@@ -231,6 +231,70 @@ class CgmCollectorTileService : TileService() {
         val cardHeight = if (warning != null) square.sideDp else square.sideDp - TILE_HEADER_LANE_DP
         val valueTextSize = (visualSpec.glucoseTextSize * square.sideDp / 146f).coerceIn(30f, 46f)
         val trendHeight = (visualSpec.trendHeight * square.sideDp / 146f).coerceIn(24f, 40f)
+        val metadataPalette = appearanceStore.load()
+        val metadataWidth = square.sideDp - 2f * square.innerPaddingDp
+        val metadataSize = minOf(SugarWearTypography.spec(SugarWearTypographyRole.META).sizeSp, ((cardHeight - 2f * square.innerPaddingDp - valueTextSize - 18f) / 2.4f).coerceAtLeast(14f))
+
+        fun metadataRow(value: String, icon: Int): LayoutElementBuilders.LayoutElement =
+            Row
+                .Builder()
+                .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+                .addContent(
+                    Image
+                        .Builder(requestParams.scope)
+                        .setImageResource(ImageResource.Builder().setAndroidResourceByResId(AndroidImageResourceByResId.Builder().setResourceId(icon).build()).build(), "metadata-$icon")
+                        .setWidth(dp(metadataSize))
+                        .setHeight(dp(metadataSize))
+                        .setColorFilter(ColorFilter.Builder().setTint(argb(CGM_TILE_TEXT_SECONDARY)).build())
+                        .build(),
+                ).addContent(Spacer.Builder().setWidth(dp(4f)).build())
+                .addContent(metadataText(requestParams.scope, value, metadataSize, metadataPalette.argb(CgmAppearanceRole.METADATA_PILL_VALUE), bold = true))
+                .build()
+
+        val metadataRows =
+            Column
+                .Builder()
+                .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+                .apply {
+                    if (presentation.meta.isNotBlank()) addContent(metadataRow(presentation.meta, app.sugarlicious.uishared.R.drawable.ic_metadata_delta))
+                    if (presentation.meta.isNotBlank() && presentation.age.isNotBlank()) {
+                        addContent(Spacer.Builder().setHeight(dp(2f)).build())
+                        addContent(
+                            Box
+                                .Builder()
+                                .setWidth(dp(metadataWidth - 16f))
+                                .setHeight(dp(1f))
+                                .setModifiers(Modifiers.Builder().setBackground(Background.Builder().setColor(argb(metadataPalette.argb(CgmAppearanceRole.METADATA_PILL_DIVIDER))).build()).build())
+                                .build(),
+                        )
+                        addContent(Spacer.Builder().setHeight(dp(2f)).build())
+                    }
+                    if (presentation.age.isNotBlank()) addContent(metadataRow(presentation.age, app.sugarlicious.uishared.R.drawable.ic_metadata_age))
+                }.build()
+        val metadataPill =
+            Box
+                .Builder()
+                .setWidth(dp(metadataWidth))
+                .setModifiers(
+                    Modifiers
+                        .Builder()
+                        .setBackground(
+                            Background
+                                .Builder()
+                                .setColor(argb(metadataPalette.argb(CgmAppearanceRole.METADATA_PILL_BACKGROUND)))
+                                .setCorner(Corner.Builder().setRadius(dp(36f)).build())
+                                .build(),
+                        ).setPadding(
+                            Padding
+                                .Builder()
+                                .setStart(dp(8f))
+                                .setEnd(dp(8f))
+                                .setTop(dp(4f))
+                                .setBottom(dp(4f))
+                                .build(),
+                        ).build(),
+                ).addContent(metadataRows)
+                .build()
 
         val primaryRow =
             Row
@@ -251,27 +315,9 @@ class CgmCollectorTileService : TileService() {
                 .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
                 .addContent(primaryRow)
                 .apply {
-                    if (presentation.meta.isNotBlank()) {
-                        addContent(
-                            metadataText(
-                                requestParams.scope,
-                                presentation.meta,
-                                SugarWearTypography.spec(SugarWearTypographyRole.META).sizeSp,
-                                android.graphics.Color.WHITE,
-                                bold = true,
-                            ),
-                        )
-                    }
-                    if (presentation.age.isNotBlank()) {
-                        addContent(
-                            metadataText(
-                                requestParams.scope,
-                                presentation.age,
-                                SugarWearTypography.spec(SugarWearTypographyRole.META).sizeSp,
-                                android.graphics.Color.WHITE,
-                                bold = true,
-                            ),
-                        )
+                    if (presentation.meta.isNotBlank() || presentation.age.isNotBlank()) {
+                        addContent(Spacer.Builder().setHeight(dp(5f)).build())
+                        addContent(metadataPill)
                     }
                 }.build()
 
@@ -494,7 +540,7 @@ class CgmCollectorTileService : TileService() {
             ).build()
 
     companion object {
-        private const val RESOURCES_VERSION = "g7-collector-23-white-metadata-values"
+        private const val RESOURCES_VERSION = "g7-collector-24-metadata-pill"
         private const val OPEN_COLLECTOR_CLICK_ID = "open_g7_watch_collector"
         private const val TILE_HEADER_LANE_DP = 21f
         private const val TILE_HEADER_GAP_DP = 4f

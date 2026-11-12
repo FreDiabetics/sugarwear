@@ -97,6 +97,35 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
+    @Config(shadows = [PausedOverviewCredentialShadow::class])
+    fun `paused overview offers direct resume and preserves sensor and last reading`() {
+        val context =
+            androidx.test.core.app.ApplicationProvider
+                .getApplicationContext<android.content.Context>()
+        val store = CgmSensorStateStore(context)
+        val before = store.read().copy(collectorEnabled = false)
+        store.save(before)
+        val activity =
+            Robolectric
+                .buildActivity(CgmWatchActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .visible()
+                .get()
+                .awaitUi()
+        val root = activity.window.decorView
+        val resume = root.findViewWithTag<View>("overview-resume-collector")
+        assertEquals(View.VISIBLE, resume.visibility)
+        val warning = root.findViewWithTag<ViewGroup>("signal-loss-warning")
+        assertEquals(R.drawable.ic_reception_paused, Shadows.shadowOf((warning.getChildAt(0) as ImageView).drawable).createdFromResId)
+        resume.performClick()
+        awaitCondition(activity) { store.read().collectorEnabled && resume.visibility == View.GONE }
+        assertEquals(before.sensor, store.read().sensor)
+        assertEquals(before.lastReading, store.read().lastReading)
+        assertEquals(CgmUiSensorAction.RESUME, CgmCollectorUiTransitionStore.read(context)?.action)
+    }
+
+    @Test
     fun `appearance exposes a complete independent WearOS tile graph section`() {
         val activity =
             Robolectric

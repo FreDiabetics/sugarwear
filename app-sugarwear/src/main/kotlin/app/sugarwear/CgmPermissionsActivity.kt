@@ -67,7 +67,7 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
         root.addView(cgmSettingsHeader("Berechtigungen", palette))
         val state = checkNotNull(access.state.value.snapshot).access
 
-        fun card(title: String, status: String, detail: String, action: String, click: () -> Unit) {
+        fun card(title: String, status: String, detail: String, action: String?, click: () -> Unit) {
             val content =
                 LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
@@ -90,18 +90,20 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
             content.addView(label(title, true))
             content.addView(label(status, true))
             content.addView(label(detail, false))
-            content.addView(
-                Button(this).apply {
-                    text = action
-                    isAllCaps = false
-                    textSize = 13f
-                    minimumHeight = 48.dp
-                    setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
-                    app.sugarlicious.uishared.WearSettingsUi
-                        .actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
-                    setOnClickListener { click() }
-                },
-            )
+            if (action != null) {
+                content.addView(
+                    Button(this).apply {
+                        text = action
+                        isAllCaps = false
+                        textSize = 13f
+                        minimumHeight = 48.dp
+                        setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+                        app.sugarlicious.uishared.WearSettingsUi
+                            .actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+                        setOnClickListener { click() }
+                    },
+                )
+            }
             root.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = 7.dp })
         }
 
@@ -135,8 +137,9 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
         card("Genaue Alarme", status(state.exactAlarmsGranted), "Für zeitgenaue Wiederverbindung, Sensorfenster und Alarmwiederholung.", "Alarmzugriff öffnen") {
             open(CgmSystemAccess.exactAlarmSettingsIntents(packageName))
         }
-        card("Nicht stören", cgmAlarmAudioPolicyLabel(checkNotNull(access.state.value.snapshot).alarmAccess), "Systemzugriff: ${status(state.dndAccessGranted)}. Eigene Töne benötigen die Systemausnahme Alarme im Ruhemodus. Die Kanal-Ausnahme allein gibt den Ton nicht frei.", "Systemfreigabe öffnen") {
-            if (CgmAlarmSystemAccess.openPolicySettings(this) != CgmSettingsOpenResult.OPENED) unavailable()
+        val alarm = checkNotNull(access.state.value.snapshot).alarmAccess
+        card("Nicht stören", cgmAlarmAccessLabel(alarm), "${cgmAlarmAudioPolicyLabel(alarm)}. ${cgmAlarmAccessGuidance(alarm)}", cgmAlarmSettingsAction(alarm)?.label) {
+            if (CgmAlarmSystemAccess.openRecommendedSettings(this, alarm) != CgmSettingsOpenResult.OPENED) unavailable()
         }
         val ready = state.alarmChannels.count { it.importance != null && it.importance > NotificationManager.IMPORTANCE_NONE && it.bypassDnd }
         card("Alarmkanäle", "$ready von ${state.alarmChannels.size} mit Nicht-Stören-Ausnahme", "Alle Alarmkanäle gemeinsam verwalten. SugarWear spielt die eigenen Alarmtöne direkt ab.", "Alarmkanäle öffnen") {

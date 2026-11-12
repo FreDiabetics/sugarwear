@@ -12,6 +12,8 @@ internal object CgmCollectorBackfillProtocol {
     const val MAX_WINDOW_SECONDS = 24L * 60L * 60L
     const val MAX_WINDOW_MS = MAX_WINDOW_SECONDS * 1_000L
     const val EXPECTED_INTERVAL_SECONDS = 5L * 60L
+    const val CADENCE_TOLERANCE_SECONDS = 90L
+    private const val SENSOR_CLOCK_TICK_SECONDS = 1L
     const val REQUEST_OPCODE: Byte = 0x59
 
     fun request(
@@ -34,17 +36,20 @@ internal object CgmCollectorBackfillProtocol {
         liveSensorClock: Long,
     ): Long? {
         if (liveSensorClock <= 0) return null
+        if (lastStoredSensorClock != null && liveSensorClock - lastStoredSensorClock <= EXPECTED_INTERVAL_SECONDS + CADENCE_TOLERANCE_SECONDS) return null
         // The sensor stores at most 24 hours and its history is addressed on five-minute
         // cadence slots. Real firmware rejects a bootstrap range starting at second 1.
         val oldestAllowed =
             (liveSensorClock - MAX_WINDOW_SECONDS).coerceAtLeast(EXPECTED_INTERVAL_SECONDS)
-        val start = lastStoredSensorClock?.plus(EXPECTED_INTERVAL_SECONDS) ?: oldestAllowed
+        // The measured sensor cadence drifts by seconds. Adding exactly 300 seconds
+        // skips an earlier missing record forever; start strictly after the known sample.
+        val start = lastStoredSensorClock?.plus(SENSOR_CLOCK_TICK_SECONDS) ?: oldestAllowed
         return start
             .coerceAtLeast(oldestAllowed)
-            .takeIf { liveSensorClock - it >= EXPECTED_INTERVAL_SECONDS }
+            .takeIf { it < liveSensorClock }
     }
 
-    fun requestedEnd(liveSensorClock: Long): Long? = (liveSensorClock - EXPECTED_INTERVAL_SECONDS).takeIf { it > 0L }
+    fun requestedEnd(liveSensorClock: Long): Long? = (liveSensorClock - SENSOR_CLOCK_TICK_SECONDS).takeIf { it > 0L }
 
     fun parseRecord(
         packet: ByteArray,

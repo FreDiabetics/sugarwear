@@ -570,13 +570,34 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
 
     internal fun pauseCollectorWithExitOffer() {
         status.pause()
-        android.app.AlertDialog
-            .Builder(this)
-            .setTitle("SugarWear beenden?")
-            .setMessage("Der Datenempfang ist pausiert. SugarWear jetzt schließen?")
-            .setPositiveButton("Beenden") { _, _ -> finishAffinity() }
-            .setNegativeButton("Geöffnet lassen", null)
-            .show()
+        val palette = CgmAppearanceStore(this).load()
+        val dialog = android.app.Dialog(this)
+        val content =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(20.dp, 30.dp, 20.dp, 30.dp)
+                setBackgroundColor(palette.settingsArgb(CgmAppearanceRole.MENU_BACKGROUND))
+                addView(
+                    group("SugarWear beenden?", palette).apply {
+                        addView(label("Der Datenempfang ist pausiert. SugarWear jetzt schließen?", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY)))
+                    },
+                )
+                addView(
+                    pill("Beenden", palette) {
+                        dialog.dismiss()
+                        finishAffinity()
+                    }.apply { tag = "pause-exit-confirm" },
+                    buttonParams(),
+                )
+                addView(pill("Geöffnet lassen", palette) { dialog.dismiss() }.apply { tag = "pause-exit-cancel" }, buttonParams())
+            }
+        dialog.setContentView(CgmEdgeFadeScrollView(this).apply { addView(content) }.applyCgmEdgeFade())
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawableResource(android.R.color.black)
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        }
     }
 
     private fun hasNearbyPermission(): Boolean =

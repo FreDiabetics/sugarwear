@@ -132,7 +132,7 @@ class CgmCollectorTilePresentationTest {
         assertEquals("123 ↗", up.value)
         assertEquals("98 ⇊", doubleDown.value)
         assertEquals("+5 mg/dL", up.meta)
-        assertEquals("vor 0 Min", up.age)
+        assertEquals("vor 0 Min.", up.age)
         assertEquals(up.cardBackground, up.background)
         assertEquals(up.cardForeground, up.foreground)
     }

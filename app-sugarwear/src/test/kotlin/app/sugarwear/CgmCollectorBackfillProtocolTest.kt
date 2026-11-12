@@ -39,8 +39,8 @@ class CgmCollectorBackfillProtocolTest {
     }
 
     @Test
-    fun `history request ends at the slot before the already received live value`() {
-        assertEquals(9_700L, CgmCollectorBackfillProtocol.requestedEnd(10_000))
+    fun `history request excludes live without truncating a drifting preceding slot`() {
+        assertEquals(9_999L, CgmCollectorBackfillProtocol.requestedEnd(10_000))
         assertArrayEquals(
             byteArrayOf(0x59, 0xE4.toByte(), 0x25, 0, 0, 0xE4.toByte(), 0x25, 0, 0),
             CgmCollectorBackfillProtocol.request(9_700, 9_700),

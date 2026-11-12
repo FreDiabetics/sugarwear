@@ -16,6 +16,24 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class CgmCompanionBondAccessTest {
+    @Test fun `watch unlink never requests an association forbidden by Wear OS`() {
+        val backend = Backend().apply { bonded.add(first) }
+        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val activity = controller.get()
+        org.robolectric.Shadows
+            .shadowOf(activity.packageManager)
+            .setSystemFeature(android.content.pm.PackageManager.FEATURE_WATCH, true)
+        val access = CgmCompanionBondAccess(activity, backend, sdkInt = 36, unlinkAddresses = { setOf(first) })
+        var ready = 0
+        try {
+            access.ensureForUnlink({ ready++ }, { error(it) })
+            assertTrue(backend.requested.isEmpty())
+            assertEquals(1, ready)
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
     @Test fun `successful sensor bond does not require an extra companion association`() {
         val backend = Backend().apply { bonded.add(first) }
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()

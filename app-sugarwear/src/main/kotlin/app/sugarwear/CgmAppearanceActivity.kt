@@ -238,7 +238,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         )
         content = tileGlucoseCard
         CgmAppearanceRole.entries
-            .filter { it.section == CgmAppearanceSection.GLUCOSE && it != CgmAppearanceRole.GLUCOSE_TREND }
+            .filter { it.section == CgmAppearanceSection.GLUCOSE && it !in setOf(CgmAppearanceRole.GLUCOSE_TREND, CgmAppearanceRole.METADATA_PILL_BACKGROUND, CgmAppearanceRole.METADATA_PILL_VALUE, CgmAppearanceRole.METADATA_PILL_DIVIDER) }
             .forEach { role ->
                 content.addView(
                     simpleColorRow(role.label, store.tileGlucosePalette(selectedMode).argb(role), palette) {
@@ -393,10 +393,12 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
             val roles = CgmAppearanceRole.entries.filter { it.section == section && it != CgmAppearanceRole.GLUCOSE_TREND && it != CgmAppearanceRole.MENU_SURFACE }
             when (section) {
                 CgmAppearanceSection.GLUCOSE -> {
-                    roles.filter { it != CgmAppearanceRole.GLUCOSE_DELTA }.forEach { role ->
+                    val metadataRoles = setOf(CgmAppearanceRole.GLUCOSE_DELTA, CgmAppearanceRole.METADATA_PILL_BACKGROUND, CgmAppearanceRole.METADATA_PILL_VALUE, CgmAppearanceRole.METADATA_PILL_DIVIDER)
+                    roles.filter { it !in metadataRoles }.forEach { role ->
                         glucoseCard.addView(colorRow(role, palette), params(top = 5))
                     }
-                    card("Delta und Einheit").addView(colorRow(CgmAppearanceRole.GLUCOSE_DELTA, palette), params(top = 5))
+                    val metadataCard = card("Delta und Alter")
+                    metadataRoles.forEach { role -> metadataCard.addView(colorRow(role, palette), params(top = 5)) }
                 }
                 CgmAppearanceSection.GRAPH -> roles.forEach { role -> graphCard.addView(colorRow(role, palette), params(top = 5)) }
                 else -> {

@@ -81,7 +81,11 @@ class CgmAlarmAudioService : Service() {
             next.prepare()
             CgmAlarmVolume.beforeSound(this)
             next.start()
-            android.util.Log.i("G7AlarmAudio", "Playing bundled ${type.name} test=$test")
+            val policy = CgmAlarmSystemAccess.snapshot(this)
+            android.util.Log.i("G7AlarmAudio", "Bundled playback started ${type.name} test=$test systemAllowsAlarmAudio=${policy.dndAllowsAlarmAudio}")
+            cgmAlarmAudioWarning(policy)?.let { warning ->
+                android.util.Log.w("G7AlarmAudio", warning)
+            }
             handler.removeCallbacks(timeout)
             handler.postDelayed(timeout, 60_000L)
         }.onFailure {

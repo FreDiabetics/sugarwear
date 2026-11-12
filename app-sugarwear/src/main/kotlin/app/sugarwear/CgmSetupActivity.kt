@@ -115,6 +115,8 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
             text(
                 if (step == steps.lastIndex) {
                     "Lautstärke prüfen"
+                } else if (step == 4 && !checkNotNull(access.state.value.snapshot).alarmAccess.policySettingsAvailable) {
+                    cgmAlarmAccessLabel(checkNotNull(access.state.value.snapshot).alarmAccess)
                 } else if (granted()) {
                     "Erlaubt"
                 } else {
@@ -123,7 +125,13 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
                 true,
             ),
         )
-        card.addView(button(if (step == steps.lastIndex) "Alarme öffnen" else "Systemeinstellung öffnen") { openStep() })
+        val actionLabel =
+            when (step) {
+                4 -> cgmAlarmSettingsAction(checkNotNull(access.state.value.snapshot).alarmAccess)?.label
+                steps.lastIndex -> "Alarme öffnen"
+                else -> "Systemeinstellung öffnen"
+            }
+        if (actionLabel != null) card.addView(button(actionLabel) { openStep() })
         root.addView(
             button(
                 if (step == steps.lastIndex) {
@@ -152,7 +160,7 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
             }
             2 -> if (!CgmBackgroundAccess.openBatterySettings(this)) unavailable()
             3 -> if (!CgmSystemAccess.open(this, CgmSystemAccess.exactAlarmSettingsIntents(packageName))) unavailable()
-            4 -> if (CgmAlarmSystemAccess.openPolicySettings(this) != CgmSettingsOpenResult.OPENED) unavailable()
+            4 -> if (CgmAlarmSystemAccess.openRecommendedSettings(this, checkNotNull(access.state.value.snapshot).alarmAccess) != CgmSettingsOpenResult.OPENED) unavailable()
             5 -> if (!CgmSystemAccess.open(this, CgmSystemAccess.notificationSettingsIntents(packageName))) unavailable()
             else -> startActivity(Intent(this, CgmAlarmSettingsActivity::class.java))
         }
