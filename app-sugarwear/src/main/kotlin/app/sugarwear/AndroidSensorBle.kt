@@ -436,6 +436,7 @@ internal class CgmHardwareCollector(
         attemptId: Long = 0L,
         lastStoredSensorClock: Long? = null,
         onLiveReading: suspend (SensorProtocolReading) -> Unit = {},
+        historyAnchor: suspend (CgmSensor, SensorProtocolReading) -> Long? = { _, _ -> null },
         allowFallbackScan: Boolean = true,
     ): CgmCollectionResult {
         var sensor = initialSensor
@@ -547,6 +548,7 @@ internal class CgmHardwareCollector(
                             },
                             lastStoredSensorClock = lastStoredSensorClock,
                             onLiveReading = onLiveReading,
+                            historyAnchor = { live -> historyAnchor(sensor, live) },
                         )
                     }
                 return CgmCollectionResult(sensor, outcome.first, outcome.second, sharedKey)
@@ -750,6 +752,7 @@ internal class CgmGattConnection(
         onSharedKey: (ByteArray) -> Unit,
         lastStoredSensorClock: Long?,
         onLiveReading: suspend (SensorProtocolReading) -> Unit,
+        historyAnchor: suspend (SensorProtocolReading) -> Long? = { null },
     ): Pair<SensorProtocolReading, List<SensorProtocolReading>> {
         requirePermission(Manifest.permission.BLUETOOTH_CONNECT, "G7-BLE-108")
         val address =
@@ -874,13 +877,15 @@ internal class CgmGattConnection(
                             .getOrElse { throw CgmBleException("G7-DATA-301", "Ungültiges Glukosepaket empfangen", true, it) }
                     // Publish the validated live packet before optional history transfer. Pairing
                     // success and the current dashboard must never wait for backfill completion.
+                    val knownClock = historyAnchor(live) ?: lastStoredSensorClock
                     onLiveReading(live)
-                    val start = CgmCollectorBackfillProtocol.requestedStart(lastStoredSensorClock, live.sensorClockSeconds ?: 0L)
+                    val start = CgmCollectorBackfillProtocol.requestedStart(knownClock, live.sensorClockSeconds ?: 0L)
                     if (start == null || backfillCharacteristic == null) return live to emptyList()
 
                     onState(CgmProtocolState.BACKFILL)
                     // The live sample has already arrived on the control characteristic. G7's
-                    // history range ends at the preceding five-minute slot; including the live
+                    // history range ends strictly before LIVE; assuming an exact five-minute
+                    // cadence excludes preceding records when the sensor clock drifts. Including LIVE
                     // clock makes affected firmware finish without returning the missing records.
                     val end =
                         CgmCollectorBackfillProtocol.requestedEnd(requireNotNull(live.sensorClockSeconds))

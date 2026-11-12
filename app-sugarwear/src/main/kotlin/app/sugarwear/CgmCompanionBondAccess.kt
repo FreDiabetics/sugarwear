@@ -90,8 +90,8 @@ internal class CgmCompanionBondAccess(
     private var activeRequestCode: Int? = null
 
     fun ensureForUnlink(onReady: () -> Unit, onFailure: (String) -> Unit) {
-        // Android 16+ needs an app-owned association before removeBond can unpair
-        // even a previously bonded sensor. Explicit disconnect may not bypass consent.
+        // CDM can authorize public removal on supported platforms. Wear OS rejects
+        // creating these associations; the exact-peer remover must check its own result.
         ensure(onReady, onFailure) {
             val addresses = unlinkAddresses()
             // Never request consent for two identities just because stale metadata differs.
@@ -139,7 +139,7 @@ internal class CgmCompanionBondAccess(
             return
         }
         val address = addresses[index]
-        if (!backend.isBonded(address) || backend.ownedAssociations().any { it.address.equals(address, ignoreCase = true) }) {
+        if (!backend.isBonded(address) || backend.ownedAssociations().any { it.address.equals(address, ignoreCase = true) } || activity.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH)) {
             next(token, addresses, index + 1, onReady)
             return
         }

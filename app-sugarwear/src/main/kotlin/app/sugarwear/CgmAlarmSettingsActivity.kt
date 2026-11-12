@@ -71,6 +71,20 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 .pagePadding(this)
             setBackgroundColor(background)
             addView(topBar(palette), fullWidth())
+            val alarmAccess = checkNotNull(access.state.value.snapshot).alarmAccess
+            val warning = if (settings.soundEnabled) cgmAlarmAudioWarning(alarmAccess) else null
+            if (warning != null && alarmPage != "Systemzugriff") {
+                addView(
+                    card(palette).apply {
+                        addView(label("Alarmton blockiert", 12f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                        addView(label(warning, 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                        cgmAlarmSettingsAction(alarmAccess)?.let { target ->
+                            addView(actionButton(target.label, palette) { CgmAlarmSystemAccess.openRecommendedSettings(this@CgmAlarmSettingsActivity, alarmAccess) })
+                        }
+                    },
+                    cardParams(7),
+                )
+            }
             val selected = selectedAlarm
             if (selected != null) {
                 addView(alarmCard(selected, settings, palette), cardParams(7))
@@ -117,20 +131,23 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             addView(label("NICHT STÖREN", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
             addView(
                 label(
-                    if (granted) "Nicht-Stören-Zugriff erlaubt" else "Nicht-Stören-Zugriff fehlt",
+                    cgmAlarmAccessLabel(status),
                     12f,
-                    if (granted) palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY) else palette.argb(CgmAppearanceRole.GLUCOSE_STALE),
+                    if (granted && status.dndAllowsAlarmAudio == true) palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY) else palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
                     true,
                 ),
             )
             addView(
                 label(
-                    "Eigene SugarWear-Töne verwenden die System-Alarmausgabe. Im Ruhemodus muss dort Alarme erlaubt sein. Die Kanal-Ausnahme allein gibt den eigenen Ton nicht frei. Lautstärke 0 bleibt ohne eigene Lautstärke stumm.",
+                    cgmAlarmAccessGuidance(status),
                     8.5f,
                     palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
                 ),
             )
             addView(label(cgmAlarmAudioPolicyLabel(status), 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+            cgmAlarmSettingsAction(status)?.let { target ->
+                addView(actionButton(target.label, palette) { CgmAlarmSystemAccess.openRecommendedSettings(this@CgmAlarmSettingsActivity, status) })
+            }
             addView(label(if (checkNotNull(access.state.value.snapshot).access.batteryUnrestricted) "Doze-Akkuexemption erlaubt" else "Doze-Akkuexemption fehlt", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
             addView(
                 actionButton("Berechtigungen und Alarmkan\u00e4le", palette) {

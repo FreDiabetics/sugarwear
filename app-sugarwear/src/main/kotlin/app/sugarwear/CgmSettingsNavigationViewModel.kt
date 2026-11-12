@@ -57,8 +57,8 @@ internal class CgmSetupViewModel
                 1 -> state.notificationsGranted
                 2 -> state.batteryUnrestricted
                 3 -> state.exactAlarmsGranted
-                4 -> state.dndAccessGranted && alarm.dndAllowsAlarmAudio == true
-                5 -> state.alarmChannels.all { it.importance != null && it.importance > 0 && it.bypassDnd }
+                4 -> alarm.dndAllowsAlarmAudio == true && (state.dndAccessGranted || !alarm.policySettingsAvailable)
+                5 -> state.alarmChannels.all { it.importance != null && it.importance > 0 && (it.bypassDnd || !alarm.policySettingsAvailable) }
                 else -> true
             }
 
@@ -68,8 +68,8 @@ internal class CgmSetupViewModel
                 1 -> "Erlaubt Glukosealarme und den laufenden Collectorstatus."
                 2 -> "Die Akkuausnahme schützt den zeitkritischen Sensorempfang vor Doze-Einschränkungen."
                 3 -> "Erlaubt zeitgenaue Sensorfenster und Alarmwiederholungen."
-                4 -> "Der Systemzugriff erlaubt Kanal-Ausnahmen. Eigene Alarmtöne benötigen zusätzlich die Systemausnahme Alarme im Ruhemodus; Kanal-Ausnahmen allein reichen dafür nicht. Aktueller Tonstatus: ${cgmAlarmAudioPolicyLabel(alarm)}."
-                5 -> "Alle SugarWear-Alarmkanäle gemeinsam prüfen. Ihre Ausnahme betrifft die Meldungen. Eigene Töne verwenden die System-Alarmausgabe und benötigen deren Freigabe im Ruhemodus."
+                4 -> "${cgmAlarmAccessGuidance(alarm)} Aktueller Tonstatus: ${cgmAlarmAudioPolicyLabel(alarm)}."
+                5 -> if (!alarm.policySettingsAvailable) "Alle SugarWear-Alarmkanäle gemeinsam prüfen. App-Ausnahmen sind auf dieser Uhr nicht einstellbar; der Ruhemodus kann Meldungen ausblenden. Eigene Töne benötigen zugelassene System-Alarme." else "Alle SugarWear-Alarmkanäle gemeinsam prüfen. Ihre Ausnahme betrifft die Meldungen. Eigene Töne verwenden die System-Alarmausgabe und benötigen deren Freigabe im Ruhemodus."
                 else -> "Standard ist die System-Alarmlautstärke. Unter Alarme lässt sich optional eine eigene Lautstärke wählen und jeder eigene SugarWear-Ton testen. Lautstärke 0 bleibt ohne Überschreibung stumm."
             }
 

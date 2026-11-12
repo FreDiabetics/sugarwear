@@ -23,6 +23,7 @@ internal class CgmReadingDatabase(
 ) : SQLiteOpenHelper(context, "g7_readings.db", null, 7),
     CgmReadingRepository {
     private val appContext = context.applicationContext
+    private val historyIdentity = CgmHistoryIdentityStore(context)
     private val mutableLatest = MutableStateFlow<CgmReading?>(null)
     private var publishSuppressionDepth = 0
     private var publishPending = false
@@ -125,7 +126,9 @@ internal class CgmReadingDatabase(
         }
     }
 
-    override suspend fun insert(reading: CgmReading): Boolean {
+    override suspend fun insert(reading: CgmReading): Boolean = insertCanonical(historyIdentity.canonical(reading))
+
+    private suspend fun insertCanonical(reading: CgmReading): Boolean {
         if (reading.status == CgmReadingStatus.SENSOR_ERROR && hasSameSensorError(reading)) {
             return false
         }
@@ -236,7 +239,9 @@ internal class CgmReadingDatabase(
     }
 
     /** Replaces only values derived from the temporal predecessor after history was backfilled. */
-    fun updateDerivedFields(reading: CgmReading): Boolean {
+    fun updateDerivedFields(reading: CgmReading): Boolean = updateCanonicalDerivedFields(historyIdentity.canonical(reading))
+
+    private fun updateCanonicalDerivedFields(reading: CgmReading): Boolean {
         val values =
             ContentValues().apply {
                 if (reading.deltaMgDl == null) putNull("delta") else put("delta", reading.deltaMgDl)
@@ -349,15 +354,20 @@ internal class CgmReadingDatabase(
             limit = 1,
         ).firstOrNull()
 
+    private fun identityArguments(sensorId: String, sessionId: String): Array<String> {
+        val canonical = historyIdentity.canonical(sensorId, sessionId)
+        return arrayOf(CgmReadingStatus.VALID.name, canonical.first, canonical.second)
+    }
+
     suspend fun getLatestValidForSession(
         sensorId: String,
         sessionId: String,
     ): CgmReading? =
         query(
             selection = "status=? AND sensor_id=? AND session_id=?",
-            args = arrayOf(CgmReadingStatus.VALID.name, sensorId, sessionId),
+            args = identityArguments(sensorId, sessionId),
             limit = 1,
-        ).firstOrNull()
+        ).firstOrNull()?.copy(sensorId = sensorId, sessionId = sessionId)
 
     /**
      * Returns the sensor-clock immediately before the oldest unresolved cadence gap. Falling back
@@ -372,7 +382,7 @@ internal class CgmReadingDatabase(
         backfillAnchorSensorClock(
             query(
                 selection = "status=? AND sensor_id=? AND session_id=? AND sensor_clock IS NOT NULL",
-                args = arrayOf(CgmReadingStatus.VALID.name, sensorId, sessionId),
+                args = identityArguments(sensorId, sessionId),
                 limit = 300,
                 // Read the current 24-hour-sized tail. ASC + LIMIT selected the oldest retained
                 // rows and therefore could not see a recent multi-hour gap at all.
@@ -387,7 +397,7 @@ internal class CgmReadingDatabase(
     ): Long? =
         query(
             selection = "status=? AND sensor_id=? AND session_id=? AND measured_at<? AND sensor_clock IS NOT NULL",
-            args = arrayOf(CgmReadingStatus.VALID.name, sensorId, sessionId, (expectedAt + IDENTITY_TOLERANCE_MS).toString()),
+            args = identityArguments(sensorId, sessionId) + (expectedAt + IDENTITY_TOLERANCE_MS).toString(),
             limit = 1,
         ).firstOrNull()?.rawSourceTimestamp
 
@@ -399,13 +409,11 @@ internal class CgmReadingDatabase(
         query(
             selection = "status=? AND sensor_id=? AND session_id=? AND measured_at BETWEEN ? AND ?",
             args =
-                arrayOf(
-                    CgmReadingStatus.VALID.name,
-                    sensorId,
-                    sessionId,
-                    (expectedAt - IDENTITY_TOLERANCE_MS).toString(),
-                    (expectedAt + IDENTITY_TOLERANCE_MS).toString(),
-                ),
+                identityArguments(sensorId, sessionId) +
+                    arrayOf(
+                        (expectedAt - IDENTITY_TOLERANCE_MS).toString(),
+                        (expectedAt + IDENTITY_TOLERANCE_MS).toString(),
+                    ),
             limit = 1,
         ).firstOrNull()?.timestampEpochMs
 
@@ -421,14 +429,12 @@ internal class CgmReadingDatabase(
         query(
             selection = "status=? AND sensor_id=? AND session_id=? AND measured_at<?",
             args =
-                arrayOf(
-                    CgmReadingStatus.VALID.name,
-                    sensorId,
-                    sessionId,
-                    beforeEpochMs.toString(),
-                ),
+                identityArguments(sensorId, sessionId) +
+                    arrayOf(
+                        beforeEpochMs.toString(),
+                    ),
             limit = 1,
-        ).firstOrNull()
+        ).firstOrNull()?.copy(sensorId = sensorId, sessionId = sessionId)
 
     override suspend fun getPrevious(): CgmReading? = query(limit = 2).getOrNull(1)
 
@@ -564,5 +570,5 @@ internal fun backfillAnchorSensorClock(readings: List<CgmReading>): Long? {
 }
 
 private const val BACKFILL_CADENCE_SECONDS = 5L * 60L
-private const val BACKFILL_GAP_TOLERANCE_SECONDS = 90L
+private const val BACKFILL_GAP_TOLERANCE_SECONDS = CgmCollectorBackfillProtocol.CADENCE_TOLERANCE_SECONDS
 private const val INITIAL_HISTORY_GRACE_SECONDS = 45L * 60L

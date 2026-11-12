@@ -328,7 +328,7 @@ internal object CgmAlarmNotifier {
                 .setSmallIcon(R.drawable.ic_cgm_notification)
                 .setColor(color(alarm.type))
                 .setContentTitle(title(alarm.type))
-                .setContentText(body(alarm.type))
+                .setContentText(audioAwareBody(context, body(alarm.type), settings))
                 .setContentIntent(open)
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setSilent(true)
@@ -366,7 +366,7 @@ internal object CgmAlarmNotifier {
                 .setSmallIcon(R.drawable.ic_cgm_notification)
                 .setColor(color(type))
                 .setContentTitle("Test · ${title(type)}")
-                .setContentText("Sound, Vibration und Nicht-stören-Verhalten dieses Alarms werden geprüft.")
+                .setContentText(audioAwareBody(context, "Sound, Vibration und Nicht-stören-Verhalten dieses Alarms werden geprüft.", settings))
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setSilent(true)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -374,6 +374,11 @@ internal object CgmAlarmNotifier {
                 .setTimeoutAfter(10_000L)
                 .build(),
         )
+    }
+
+    private fun audioAwareBody(context: Context, body: String, settings: CgmAlarmSettings): String {
+        val warning = if (settings.soundEnabled) cgmAlarmAudioWarning(CgmAlarmSystemAccess.snapshot(context)) else null
+        return if (warning == null) body else "$warning $body"
     }
 
     /** Prepares native settings before the first alarm; never posts, cancels, or prunes channels. */

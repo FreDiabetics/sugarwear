@@ -7,7 +7,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowAlertDialog
+import org.robolectric.shadows.ShadowDialog
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -22,14 +22,17 @@ class CgmPauseExitDialogTest {
             awaitCgmSettingsUi(activity) { vm.state.value.snapshot != null && !vm.state.value.loading }
             val before = CgmSensorStateStore(activity).read()
             activity.pauseCollectorWithExitOffer()
-            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            val dialog = ShadowDialog.getLatestDialog()
             assertTrue(dialog.isShowing)
-            assertEquals("SugarWear beenden?", Shadows.shadowOf(dialog).title)
+            assertNotNull(dialog.window!!.decorView.findViewWithTag<android.view.View>("pause-exit-confirm"))
             awaitCgmSettingsUi(activity) { !vm.state.value.loading && !CgmSensorStateStore(activity).read().collectorEnabled }
             assertFalse(CgmSensorStateStore(activity).read().collectorEnabled)
             assertEquals(before.sensor, CgmSensorStateStore(activity).read().sensor)
             assertEquals(before.lastReading, CgmSensorStateStore(activity).read().lastReading)
-            dialog.getButton(android.content.DialogInterface.BUTTON_NEGATIVE).performClick()
+            dialog.window!!
+                .decorView
+                .findViewWithTag<android.view.View>("pause-exit-cancel")
+                .performClick()
         } finally {
             controller.pause().stop().destroy()
             Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
@@ -38,7 +41,7 @@ class CgmPauseExitDialogTest {
         try {
             val reopenedVm = androidx.lifecycle.ViewModelProvider(reopened.get())[CgmSystemStatusViewModel::class.java]
             awaitCgmSettingsUi(reopened.get()) { reopenedVm.state.value.snapshot != null && !reopenedVm.state.value.loading }
-            assertFalse(ShadowAlertDialog.getLatestAlertDialog().isShowing)
+            assertFalse(ShadowDialog.getLatestDialog().isShowing)
             assertFalse(CgmSensorStateStore(reopened.get()).read().collectorEnabled)
         } finally {
             reopened.pause().stop().destroy()

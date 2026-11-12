@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import app.sugarlicious.sensor.protocol.CgmSensor
 import app.sugarlicious.sensor.protocol.CgmSessionManager
 import app.sugarlicious.sensor.protocol.CgmSetupPayload
@@ -99,6 +100,14 @@ internal fun unlinkCgmSensor(
     val app = context.applicationContext
     val stateStore = CgmSensorStateStore(app)
     val addresses = cgmRecordedSensorAddresses(app)
+    val historical = stateStore.read()
+    val historicalSensor = historical.sensor
+    val historicalReading = historical.lastReading
+    val historicalAddress = historicalSensor?.deviceAddress
+    val historicalStart = historicalReading?.sensorStartEpochMs
+    if (historicalAddress != null && historicalStart != null && historicalReading.status == CgmReadingStatus.VALID) {
+        CgmHistoryIdentityStore(app).rememberAuthenticated(historicalAddress, historicalStart, historicalReading.sensorId, historicalReading.sessionId)
+    }
     // Stop the live BLE owner before touching a bond. Failed removal never resumes it.
     releaseCgmCollectorOwnership(app)
     CgmCollectorDiagnosticStore(app).discardScheduledCycle()
@@ -179,9 +188,18 @@ private fun removeCgmBond(
         val device = bonded.firstOrNull { it.address.equals(address, ignoreCase = true) } ?: adapter.getRemoteDevice(address)
         val initialBondState = readableCgmBondState({ adapter.state }, { device.bondState }) ?: return@runCatching CgmBondRemovalStatus.FAILED
         if (Build.VERSION.SDK_INT >= 36) {
-            // Android's pairing hardening requires the public, app-owned companion path.
-            // Do not fall back to hidden privileged Bluetooth APIs on these releases.
-            return@runCatching removeCgmBondThroughCompanion(context, address, device)
+            val ownsAssociation =
+                context
+                    .getSystemService(android.companion.CompanionDeviceManager::class.java)
+                    ?.myAssociations
+                    .orEmpty()
+                    .any { it.deviceMacAddress?.toString().equals(address, ignoreCase = true) }
+            if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) || ownsAssociation) {
+                return@runCatching removeCgmBondThroughCompanion(context, address, device)
+            }
+            // Wear OS forbids creating third-party CDM associations. Reuse the existing
+            // exact-peer removal, under the app's normal permissions, and require BOND_NONE.
+            android.util.Log.i("G7BondRemoval", "watch_without_companion_association exact_peer_removal")
         }
         if (initialBondState == BluetoothDevice.BOND_NONE) return@runCatching CgmBondRemovalStatus.REMOVED
         val method = device.javaClass.getMethod("removeBond")

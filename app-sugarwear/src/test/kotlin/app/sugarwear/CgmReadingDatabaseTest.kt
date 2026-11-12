@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.sugarlicious.model.DataSourceId
 import app.sugarlicious.model.Trend
+import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingOrigin
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
@@ -20,6 +21,49 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class CgmReadingDatabaseTest {
+    @Test
+    fun `verified historical identity prevents backfill replay across local sessions`() =
+        runBlocking {
+            val now = System.currentTimeMillis()
+            val start = now - 900_000L
+            val original = CgmReading(id = "protected-original", source = DataSourceId.DEXCOM_G7_WATCH, sensorId = "old", sessionId = "old-session", glucoseMgDl = 123.0, timestampEpochMs = now, receivedAtEpochMs = now, rawSourceTimestamp = 900, sensorStartEpochMs = start, status = CgmReadingStatus.VALID)
+            database.insert(original)
+            context
+                .getSharedPreferences("g7_history_identity", Context.MODE_PRIVATE)
+                .edit()
+                .putString("bindings", """[{"sensorId":"new","sessionId":"new-session","canonicalSensorId":"old","canonicalSessionId":"old-session","addressHash":"verified","sensorStartEpochMs":$start}]""")
+                .commit()
+            val replay = original.copy(id = "new-backfill-copy", sensorId = "new", sessionId = "new-session", timestampEpochMs = now + 1_000, origin = CgmReadingOrigin.BACKFILL)
+            org.junit.Assert.assertFalse(database.insert(replay))
+            assertEquals(listOf(original.id), database.query().map { it.id })
+            assertEquals(900L, database.getBackfillAnchorSensorClock("new", "new-session"))
+            val previous = database.getLatestValidBefore("new", "new-session", now + 300_000)!!
+            assertEquals("new", previous.sensorId)
+            assertEquals(original.id, previous.id)
+            CgmSensorStateStore(context).save(
+                CgmPersistedState(
+                    sensor =
+                        app.sugarlicious.sensor.protocol
+                            .CgmSensor("new", "new-session"),
+                ),
+            )
+            val provider =
+                org.robolectric.Robolectric
+                    .buildContentProvider(CgmReadingProvider::class.java)
+                    .create()
+                    .get()
+            provider.query(android.net.Uri.parse("content://app.sugarwear.cgm/latest"), null, null, null, null).use { cursor ->
+                org.junit.Assert.assertTrue(cursor.moveToFirst())
+                assertEquals("old", cursor.getString(cursor.getColumnIndexOrThrow("sensor_id")))
+                assertEquals(original.id, cursor.getString(cursor.getColumnIndexOrThrow("id")))
+            }
+            provider.query(android.net.Uri.parse("content://app.sugarwear.cgm/state"), null, null, null, null).use { cursor ->
+                org.junit.Assert.assertTrue(cursor.moveToFirst())
+                assertEquals("old", cursor.getString(cursor.getColumnIndexOrThrow("sensor_id")))
+                assertEquals("old-session", cursor.getString(cursor.getColumnIndexOrThrow("session_id")))
+            }
+        }
+
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private lateinit var database: CgmReadingDatabase
 
@@ -171,6 +215,46 @@ class CgmReadingDatabaseTest {
             assertEquals(true, database.updateDerivedFields(recomputed))
             assertEquals(recomputed, database.getLatest())
             assertEquals(recomputed, database.latestReading.value)
+        }
+
+    @Test
+    fun `drifting pause gap is filled once and immediately repairs current delta`() =
+        runBlocking {
+            val now = System.currentTimeMillis()
+            val liveClock = 391_069L
+            val startAt = now - liveClock * 1_000L
+
+            fun packet(clock: Long, glucose: Double, origin: CgmReadingOrigin = CgmReadingOrigin.LIVE) =
+                SensorProtocolReading(
+                    sensorId = "sensor",
+                    sessionId = "session",
+                    sequenceNumber = null,
+                    glucoseMgDl = glucose,
+                    sensorTimestampEpochMs = startAt + clock * 1_000L,
+                    receivedAtEpochMs = now,
+                    sensorClockSeconds = clock,
+                    sensorStartEpochMs = startAt,
+                    origin = origin,
+                )
+            val knownPacket = packet(390_474L, 119.0)
+            val known = knownPacket.toCgm()
+            database.insert(known)
+            val livePacket = packet(liveClock, 127.0)
+            val live = livePacket.toCgm(known)
+            assertNull(live.deltaMgDl)
+            database.insert(live)
+            val start = requireNotNull(CgmCollectorBackfillProtocol.requestedStart(390_474L, liveClock))
+            val end = requireNotNull(CgmCollectorBackfillProtocol.requestedEnd(liveClock))
+            val missing = packet(390_771L, 123.0, CgmReadingOrigin.BACKFILL)
+            val selected = listOf(knownPacket, missing, livePacket).filter { requireNotNull(it.sensorClockSeconds) in start..end }
+            assertEquals(listOf(missing), selected)
+            val historical = missing.toCgm(known)
+            assertEquals(true, database.insertOrIgnore(historical))
+            assertEquals(false, database.insertOrIgnore(historical))
+            val repaired = livePacket.toCgm(database.getLatestValidBefore("sensor", "session", now)).copy(id = live.id)
+            assertEquals(true, database.updateDerivedFields(repaired))
+            assertEquals(4.0, database.getLatest()?.deltaMgDl ?: Double.NaN, 0.0)
+            assertEquals(3, database.query(limit = 10).size)
         }
 
     @Test

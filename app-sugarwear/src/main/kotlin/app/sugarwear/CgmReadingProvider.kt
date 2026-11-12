@@ -22,14 +22,15 @@ class CgmReadingProvider : ContentProvider() {
     ): Cursor {
         if (uri.lastPathSegment == "state") {
             val state = CgmSensorStateStore(requireNotNull(context)).read()
+            val identity = state.sensor?.let { CgmHistoryIdentityStore(requireNotNull(context)).canonical(it.sensorId, it.sessionId ?: it.sensorId) }
             return MatrixCursor(arrayOf("sensor_state", "session_state", "collector_enabled", "sensor_id", "session_id")).apply {
                 addRow(
                     arrayOf<Any?>(
                         state.sensor?.state?.name ?: "NOT_ACTIVE",
                         state.sessionState.name,
                         if (state.collectorEnabled) 1 else 0,
-                        state.sensor?.sensorId,
-                        state.sensor?.sessionId,
+                        identity?.first,
+                        identity?.second,
                     ),
                 )
             }
@@ -107,9 +108,10 @@ class CgmReadingProvider : ContentProvider() {
                         if (sensor == null) {
                             emptyList()
                         } else {
+                            val identity = CgmHistoryIdentityStore(requireNotNull(context)).canonical(sensor.sensorId, sensor.sessionId ?: sensor.sensorId)
                             database.query(
                                 selection = "sensor_id=? AND session_id=?",
-                                args = arrayOf(sensor.sensorId, sensor.sessionId ?: sensor.sensorId),
+                                args = arrayOf(identity.first, identity.second),
                                 limit = 1,
                             )
                         }

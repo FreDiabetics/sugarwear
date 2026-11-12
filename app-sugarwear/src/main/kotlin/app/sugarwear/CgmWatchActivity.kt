@@ -69,6 +69,7 @@ class CgmWatchActivity : ComponentActivity() {
             refreshScreen()
         }
     private val overviewModel by viewModels<CollectorViewModel>()
+    private val sensorStatusModel by viewModels<CgmSystemStatusViewModel>()
     private val screenHost by lazy { FrameLayout(this) }
     private var overviewState = CgmOverviewState()
     private val systemBackCallback = android.window.OnBackInvokedCallback { handleSystemBack() }
@@ -129,6 +130,7 @@ class CgmWatchActivity : ComponentActivity() {
     private lateinit var signalLossHeader: app.sugarlicious.uishared.SignalLossWarningView
     private lateinit var collectorStatusTitle: TextView
     private lateinit var collectorAttemptLabel: TextView
+    private lateinit var resumeButton: View
     private lateinit var glucoseHost: LinearLayout
     private lateinit var graphView: CgmCollectorGraphView
     private lateinit var graphPeriodPill: TextView
@@ -546,11 +548,29 @@ class CgmWatchActivity : ComponentActivity() {
             app.sugarlicious.uishared
                 .SignalLossWarningView(this)
                 .apply { visibility = View.GONE }
-        content.addView(signalLossHeader, cardParams(top = 4))
+        content.addView(signalLossHeader, cardParams(top = 12))
         collectorStatusTitle = label("", 16f, android.graphics.Color.WHITE, true).apply { gravity = Gravity.CENTER }
         collectorAttemptLabel = label("", 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)).apply { gravity = Gravity.CENTER }
-        content.addView(collectorStatusTitle, cardParams(top = 2))
+        content.addView(collectorStatusTitle, cardParams(top = 12))
         content.addView(collectorAttemptLabel, cardParams(top = 2))
+        resumeButton =
+            android.widget.Button(this).apply {
+                text = "Fortsetzen"
+                app.sugarlicious.uishared.WearSettingsUi.actionButton(
+                    this,
+                    palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE),
+                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                )
+                setOnClickListener {
+                    if (overviewState.snapshot?.persisted?.collectorEnabled == false) {
+                        isEnabled = false
+                        sensorStatusModel.resumeCollector()
+                    }
+                }
+                tag = "overview-resume-collector"
+                visibility = View.GONE
+            }
+        content.addView(resumeButton, cardParams(top = 6))
         glucoseHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(glucoseHost, cardParams(top = 4))
         val graphReadings = overviewState.snapshot?.graphReadings.orEmpty()
@@ -685,7 +705,7 @@ class CgmWatchActivity : ComponentActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL or Gravity.START
                 isBaselineAligned = false
-                val iconSide = (18 * resources.configuration.fontScale * resources.displayMetrics.density).toInt()
+                val iconSide = (20 * resources.configuration.fontScale * resources.displayMetrics.density).toInt()
                 addView(
                     android.widget.ImageView(this@CgmWatchActivity).apply {
                         setImageResource(icon)
@@ -697,14 +717,20 @@ class CgmWatchActivity : ComponentActivity() {
                     LinearLayout.LayoutParams(iconSide, iconSide).apply { marginEnd = 5.dp },
                 )
                 addView(
-                    label(value, app.sugarlicious.model.SugarWearTypography.GLUCOSE_METADATA_SP, android.graphics.Color.WHITE, true).apply {
+                    label(value, app.sugarlicious.model.SugarWearTypography.GLUCOSE_METADATA_SP, palette.argb(CgmAppearanceRole.METADATA_PILL_VALUE), true).apply {
                         text = app.sugarlicious.uishared.glucoseMetadataText(value)
                     },
                 )
             }
-        // Size the centered block to its widest row, then share its left-hand icon column.
-        // Centering each row separately shifts the icons whenever the text widths differ.
-        val metadata = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // Both rows share the same left-hand icon column inside the full-width pill.
+        val metadata =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(18.dp, 10.dp, 18.dp, 10.dp)
+                background = rounded(palette.argb(CgmAppearanceRole.METADATA_PILL_BACKGROUND), android.graphics.Color.TRANSPARENT, 36f)
+                tag = "glucose-metadata-pill"
+            }
 
         fun addMetadata(value: String, icon: Int) {
             metadata.addView(
@@ -714,18 +740,22 @@ class CgmWatchActivity : ComponentActivity() {
         }
         addMetadata(presentation.primaryMeta, app.sugarlicious.uishared.R.drawable.ic_metadata_delta)
         if (presentation.secondaryMeta.isNotBlank()) {
-            val age =
-                presentation.secondaryMeta.replace(
-                    Regex("\\b(\\d+) Min\\b"),
-                ) { match ->
-                    val minutes = match.groupValues[1]
-                    "$minutes ${if (minutes == "1") "Minute" else "Minuten"}"
-                }
+            metadata.addView(
+                View(this).apply {
+                    setBackgroundColor(palette.argb(CgmAppearanceRole.METADATA_PILL_DIVIDER))
+                    tag = "metadata-pill-divider"
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1.dp.coerceAtLeast(1)).apply {
+                    topMargin = 6.dp
+                    bottomMargin = 6.dp
+                },
+            )
+            val age = cgmCompactAgeText(presentation.secondaryMeta)
             addMetadata(age, app.sugarlicious.uishared.R.drawable.ic_metadata_age)
         }
         tile.addView(
             metadata,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
         return tile
     }
@@ -762,6 +792,11 @@ class CgmWatchActivity : ComponentActivity() {
             val warning = if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden" else cgmSensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)
             signalLossHeader.visibility = if (warning == null) View.GONE else View.VISIBLE
             warning?.let(signalLossHeader::setMessage)
+            (signalLossHeader.getChildAt(0) as ImageView).setImageResource(
+                if (pillState == CgmStatusPillState.PAUSED) R.drawable.ic_reception_paused else app.sugarlicious.uishared.R.drawable.ic_alert,
+            )
+            resumeButton.visibility = if (!overviewState.failed && pillState == CgmStatusPillState.PAUSED) View.VISIBLE else View.GONE
+            resumeButton.isEnabled = true
             signalLossHeader.setOnClickListener(if (overviewState.failed) View.OnClickListener { overviewModel.retry() } else null)
             val attempt = collectorAttemptPresentation(state, snapshot.transition, overviewState.now)
             collectorStatusTitle.text = if (pillState == CgmStatusPillState.PAUSED) "Datenempfang pausiert" else attempt?.title.orEmpty()

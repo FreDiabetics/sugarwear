@@ -603,6 +603,16 @@ class CgmCollectorService : Service() {
                         },
                         attemptId = attemptId,
                         lastStoredSensorClock = lastStoredSensorClock,
+                        historyAnchor = { authenticatedSensor, live ->
+                            val address = authenticatedSensor.deviceAddress
+                            val started = live.sensorStartEpochMs
+                            if (address != null && started != null && live.toCgm().status == CgmReadingStatus.VALID) {
+                                CgmHistoryIdentityStore(this).rememberAuthenticated(address, started, live.sensorId, live.sessionId)
+                                CgmReadingDatabase(this).use { it.getBackfillAnchorSensorClock(live.sensorId, live.sessionId) }
+                            } else {
+                                lastStoredSensorClock
+                            }
+                        },
                         allowFallbackScan = CgmCollectorReliability.shouldRunPresenceScan(store.read().health),
                         onLiveReading = { live ->
                             cycleContext.ensureActive()
