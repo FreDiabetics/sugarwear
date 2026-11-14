@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Spacing -->
-    <dimen name="space_xxs">2dp</dimen>
-    <dimen name="space_md">12dp</dimen>
-    <!-- Typography for legacy Views -->
-    <dimen name="text_app_title">21sp</dimen>
-</resources>

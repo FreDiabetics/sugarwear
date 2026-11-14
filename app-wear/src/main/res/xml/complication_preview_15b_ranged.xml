@@ -1,2 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<complications><complication type="RANGED_VALUE" value="15" min="0" max="150" monochromaticImage="@drawable/ic_cob"><text><plain value="15g"/></text></complication></complications>

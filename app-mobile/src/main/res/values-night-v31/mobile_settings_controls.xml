@@ -1,7 +1,0 @@
-<resources>
-    <color name="mobile_settings_accent">@color/sugarlicious_brand_green</color>
-    <style name="MobileSettingsControls">
-        <item name="android:colorAccent">@color/sugarlicious_brand_green</item>
-        <item name="android:colorControlActivated">@color/sugarlicious_brand_green</item>
-    </style>
-</resources>
