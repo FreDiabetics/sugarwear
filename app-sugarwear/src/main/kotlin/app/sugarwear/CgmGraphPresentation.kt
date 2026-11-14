@@ -77,7 +77,11 @@ internal fun cgmSharedGraphInput(
                 targetText = colors.targetValue,
                 emptyText = colors.signalLoss,
             ),
-        style = styleOverride ?: settings.graphStyle(),
+        style = (styleOverride ?: settings.graphStyle()).copy(
+            dotOutlineWidthDp = 0.95f,
+            historicalDotOutlineWidthDp = 0.95f,
+            currentDotOutlineWidthDp = 0.95f,
+        ),
         emptyLabel = emptyLabel,
         topLeftLabel = topLeftLabel,
         outsideClipColor = outsideClipColor ?: colors.graphBackground,
