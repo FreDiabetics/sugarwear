@@ -21,6 +21,7 @@ internal fun cgmSharedGraphInput(
     styleOverride: SharedWearCgmGraphStyle? = null,
     outsideClipColor: Int? = null,
     topLeftLabel: String = "",
+    activeIdentity: app.sugarlicious.model.CgmGraphSensorIdentity? = null,
 ): SharedWearCgmGraphInput {
     val colors =
         settings.graphColors().copy(
@@ -42,13 +43,12 @@ internal fun cgmSharedGraphInput(
             outline = palette.argb(CgmAppearanceRole.GRAPH_DOT_OUTLINE),
         )
     val hours = graphHours.takeIf { it in CgmDirectToWatchSettingsStore.HOUR_OPTIONS } ?: 3
+    val history = CanonicalCgmHistory.merge(normalizeCgmGraphHistory(readings).map(CgmReading::toCgmGraphSample), nowEpochMs, windowMs = hours * 60L * 60_000L, maxPoints = 2000)
     return SharedWearCgmGraphInput(
-        history =
-            CanonicalCgmHistory.merge(
-                samples = normalizeCgmLocalHistory(readings).map(CgmReading::toCgmGraphSample),
-                nowEpochMs = nowEpochMs,
-                windowMs = hours * 60L * 60_000L,
-            ),
+        history = history,
+        activeIdentity =
+            activeIdentity ?: app.sugarlicious.model.CgmGraphHistoryPresentation
+                .latestIdentity(history),
         timeWindow = cgmCollectorGraphWindow(nowEpochMs, hours),
         nowEpochMs = nowEpochMs,
         thresholds = settings.thresholds(),
@@ -103,6 +103,13 @@ internal fun normalizeCgmLocalHistory(source: List<CgmReading>): List<CgmReading
             ) ?: duplicates.first()
         }.sortedBy(CgmReading::timestampEpochMs)
 }
+
+internal fun normalizeCgmGraphHistory(readings: List<CgmReading>): List<CgmReading> =
+    readings
+        .groupBy { it.sensorId to it.sessionId }
+        .values
+        .flatMap(::normalizeCgmLocalHistory)
+        .sortedBy(CgmReading::timestampEpochMs)
 
 private fun CgmReading.toCgmGraphSample() =
     GlucoseSample(

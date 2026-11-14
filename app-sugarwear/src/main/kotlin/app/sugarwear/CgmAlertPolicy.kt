@@ -23,10 +23,12 @@ internal object CgmAlertPolicyStore {
     fun alarmsEnabled(
         context: Context,
         nowEpochMs: Long = System.currentTimeMillis(),
-    ): Boolean {
-        if (!CgmSensorStateStore(context).read().collectorEnabled) return false
+    ): Boolean = CgmSensorStateStore(context).read().collectorEnabled && configuredEnabled(context, nowEpochMs)
+
+    fun configuredEnabled(context: Context, nowEpochMs: Long = System.currentTimeMillis()): Boolean {
         val preferences =
             context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (preferences.contains("local_alarms_enabled")) return preferences.getBoolean("local_alarms_enabled", false)
         return preferences.getBoolean(KEY_ALARMS_ENABLED, false) ||
             preferences.getLong(KEY_AUTOMATIC_ENABLE_AT, 0L).let { it > 0L && nowEpochMs >= it }
     }
@@ -49,6 +51,10 @@ internal object CgmAlertPolicyStore {
             putBoolean(KEY_ALARMS_ENABLED, enabled)
             putLong(KEY_AUTOMATIC_ENABLE_AT, automaticEnableAtEpochMs?.takeIf { it > 0L } ?: 0L)
         }
+    }
+
+    fun setLocalEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("local_alarms_enabled", enabled) }
     }
 }
 
@@ -180,7 +186,9 @@ class CgmSignalLossReceiver : BroadcastReceiver() {
             .dispatcher { app, _ ->
                 try {
                     val state = CgmSensorStateStore(app).read()
-                    if (!state.collectorEnabled) return@dispatcher
+                    if (!state.collectorEnabled) {
+                        return@dispatcher
+                    }
 
                     val lastReadingAt = state.lastReading?.timestampEpochMs
                     val now = System.currentTimeMillis()

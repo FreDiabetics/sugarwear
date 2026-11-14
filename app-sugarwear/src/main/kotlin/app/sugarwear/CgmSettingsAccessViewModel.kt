@@ -19,6 +19,10 @@ internal data class CgmSettingsAccessState(
     val volumePercent: Int,
     val sensor: app.sugarlicious.sensor.protocol.CgmPersistedState,
     val requestedPermissions: Set<String>,
+    val silentOverride: Boolean = false,
+    val localAlarmsEnabled: Boolean = false,
+    val pauseUntilEpochMs: Long? = null,
+    val lastPauseDurationMinutes: Int = 60,
 )
 
 /** Adapts canonical preference and system-access stores; never launches permission UI. */
@@ -35,6 +39,10 @@ internal class CgmSettingsAccessRepository(
             CgmAlarmVolume.percent(app),
             CgmSensorStateStore(app).read(),
             requested(),
+            CgmAlarmVolume.silentOverrideEnabled(app),
+            CgmAlertPolicyStore.configuredEnabled(app),
+            CgmAlarmPauseStore.pausedUntil(app),
+            CgmAlarmPauseStore.lastPauseDurationMinutes(app),
         )
 
     fun prepareChannels() = CgmAlarmNotifier.prepareCurrentChannels(app)
@@ -49,7 +57,33 @@ internal class CgmSettingsAccessRepository(
 
     fun volume(enabled: Boolean, percent: Int?) = CgmAlarmVolume.configure(app, enabled, percent ?: CgmAlarmVolume.percent(app))
 
-    fun adjustVolume(delta: Int) = CgmAlarmVolume.configure(app, true, CgmAlarmVolume.percent(app) + delta)
+    fun adjustVolume(delta: Int) = CgmAlarmVolume.configure(app, CgmAlarmVolume.enabled(app), CgmAlarmVolume.percent(app) + delta)
+
+    fun silentOverride(enabled: Boolean) = CgmAlarmVolume.configureSilentOverride(app, enabled)
+
+    fun localAlarms(enabled: Boolean) {
+        CgmAlertPolicyStore.setLocalEnabled(app, enabled)
+        if (enabled) {
+            CgmAlarmCoordinator.onSignalLoss(app, CgmSensorStateStore(app).read().lastReading)
+            CgmAlarmCoordinator.restore(app)
+        } else {
+            CgmAlarmCoordinator.clearSuppressed(app)
+        }
+    }
+
+    fun pauseAlarms(durationMinutes: Int) {
+        CgmAlarmPauseStore.setPause(app, durationMinutes)
+        CgmSensorStateStore(app).read().lastReading?.let {
+            CgmAlarmCoordinator.onReading(app, it)
+        }
+    }
+
+    fun clearAlarmPause() {
+        CgmAlarmPauseStore.clearPause(app)
+        CgmSensorStateStore(app).read().lastReading?.let {
+            CgmAlarmCoordinator.onReading(app, it)
+        }
+    }
 
     fun completeSetup() = app.getSharedPreferences("g7_setup", Context.MODE_PRIVATE).edit { putBoolean("complete", true) }
 
@@ -111,6 +145,22 @@ internal class CgmSettingsAccessViewModel(
 
     fun adjustVolume(delta: Int) {
         worker.submit({ repository.adjustVolume(delta) })
+    }
+
+    fun silentOverride(enabled: Boolean) {
+        worker.submit({ repository.silentOverride(enabled) })
+    }
+
+    fun localAlarms(enabled: Boolean) {
+        worker.submit({ repository.localAlarms(enabled) })
+    }
+
+    fun pauseAlarms(durationMinutes: Int) {
+        worker.submit({ repository.pauseAlarms(durationMinutes) })
+    }
+
+    fun clearAlarmPause() {
+        worker.submit({ repository.clearAlarmPause() })
     }
 
     fun completeSetup() {

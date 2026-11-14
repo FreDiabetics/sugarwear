@@ -104,6 +104,7 @@ internal object CgmAlarmSettingsStore {
 internal object CgmAlarmCoordinator {
     private const val PREFERENCES = "g7_cgm_alarm_state"
     private const val KEY_STATE = "state_v1"
+    private const val KEY_NOTICES = "pending_notices_v1"
     private val json =
         Json {
             ignoreUnknownKeys = true
@@ -141,7 +142,8 @@ internal object CgmAlarmCoordinator {
         context: Context,
         type: CgmAlarmType,
         nowEpochMs: Long = System.currentTimeMillis(),
-    ) {
+    ) = synchronized(CgmSensorStateStore.lifecycleLock) {
+        dismissNotice(context, type)
         val snapshot = read(context)
         val next =
             snapshot.alarms.map { alarm ->
@@ -156,18 +158,71 @@ internal object CgmAlarmCoordinator {
         CgmAlarmRepeatScheduler.cancel(context, type)
     }
 
+    fun isActive(context: Context, type: CgmAlarmType): Boolean =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            read(context).alarms.any { it.type == type && it.state == CgmAlarmState.ACTIVE }
+        }
+
+    fun pendingNotices(context: Context): List<CgmAlarm> =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+            val saved =
+                preferences
+                    .getString(KEY_NOTICES, null)
+                    ?.let {
+                        try {
+                            json.decodeFromString<List<CgmAlarm>>(it)
+                        } catch (error: kotlinx.serialization.SerializationException) {
+                            android.util.Log.e("CgmAlarmNotices", "Cannot restore pending alarm notices", error)
+                            emptyList()
+                        }
+                    }.orEmpty()
+            val list = (saved + read(context).alarms.filter { it.state == CgmAlarmState.ACTIVE }).distinctBy { it.type }.sortedByDescending { it.triggeredAtEpochMs }
+            list.filterNot { CgmAlarmPauseStore.isPaused(context, it.type) }
+        }
+
+    fun isVisible(context: Context, type: CgmAlarmType): Boolean = pendingNotices(context).any { it.type == type }
+
+    private fun saveNotices(context: Context, notices: List<CgmAlarm>) {
+        context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit { putString(KEY_NOTICES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(CgmAlarm.serializer()), notices)) }
+    }
+
+    private fun dismissNotice(context: Context, type: CgmAlarmType) = saveNotices(context, pendingNotices(context).filterNot { it.type == type })
+
+    fun refreshNotification(context: Context, type: CgmAlarmType) =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            if (CgmAlarmPauseStore.isPaused(context, type)) return@synchronized
+            val alarm = read(context).alarms.firstOrNull { it.type == type && it.state == CgmAlarmState.ACTIVE } ?: return@synchronized
+            CgmAlarmNotifier.show(context, alarm, CgmAlarmSettingsStore.read(context), onlyAlertOnce = true)
+        }
+
+    fun snooze(context: Context, type: CgmAlarmType, now: Long = System.currentTimeMillis()) =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            val snapshot = read(context)
+            dismissNotice(context, type)
+            val until = now + CgmAlarmDelivery.snoozeMinutes(context, type) * 60_000L
+            save(context, snapshot.copy(alarms = snapshot.alarms.map { if (it.type == type) CgmAlarmEngine.snooze(it, until) else it }))
+            CgmAlarmNotifier.cancel(context, type)
+            CgmAlarmRepeatScheduler.scheduleAt(context, type, until)
+        }
+
     fun repeatActive(
         context: Context,
         type: CgmAlarmType,
         nowEpochMs: Long = System.currentTimeMillis(),
     ) = synchronized(CgmSensorStateStore.lifecycleLock) {
-        if (!CgmAlertPolicyStore.alarmsEnabled(context)) {
-            clearSuppressed(context)
+        if (!CgmAlertPolicyStore.alarmsEnabled(context) || CgmAlarmPauseStore.isPaused(context, type, nowEpochMs)) {
+            CgmAlarmNotifier.cancel(context, type)
+            CgmAlarmRepeatScheduler.cancel(context, type)
             return@synchronized
         }
         val settings = CgmAlarmSettingsStore.read(context)
         val snapshot = read(context)
         val alarm = snapshot.alarms.firstOrNull { it.type == type } ?: return@synchronized
+        if (alarm.state == CgmAlarmState.SNOOZED && alarm.snoozedUntilEpochMs?.let { nowEpochMs >= it } == true) {
+            evaluate(context, CgmSensorStateStore(context).read().lastReading, nowEpochMs)
+            return@synchronized
+        }
         if (!CgmAlarmEngine.shouldRepeat(alarm, settings, nowEpochMs)) return@synchronized
         CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
         val updated =
@@ -178,11 +233,14 @@ internal object CgmAlarmCoordinator {
         CgmAlarmRepeatScheduler.schedule(context, type, settings.repeatIntervalMinutes)
     }
 
-    fun clearSuppressed(context: Context) {
-        save(context, CgmAlarmSnapshot())
-        CgmAlarmNotifier.cancelAll(context)
-        CgmAlarmRepeatScheduler.cancelAll(context)
-    }
+    fun clearSuppressed(context: Context) =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            val notices = pendingNotices(context)
+            save(context, CgmAlarmSnapshot())
+            saveNotices(context, notices)
+            CgmAlarmNotifier.cancelAll(context)
+            CgmAlarmRepeatScheduler.cancelAll(context)
+        }
 
     fun clearForSensorRemoval(context: Context) {
         clearSuppressed(context)
@@ -202,8 +260,15 @@ internal object CgmAlarmCoordinator {
         val settings = CgmAlarmSettingsStore.read(context)
         val snapshot = read(context)
         CgmAlarmType.entries.forEach { type ->
+            if (CgmAlarmPauseStore.isPaused(context, type, nowEpochMs)) {
+                CgmAlarmNotifier.cancel(context, type)
+                CgmAlarmRepeatScheduler.cancel(context, type)
+                return@forEach
+            }
             val alarm = snapshot.alarms.firstOrNull { it.type == type }
-            if (alarm?.state == CgmAlarmState.ACTIVE) {
+            if (alarm?.state == CgmAlarmState.SNOOZED) {
+                alarm.snoozedUntilEpochMs?.let { CgmAlarmRepeatScheduler.scheduleAt(context, type, it) }
+            } else if (alarm?.state == CgmAlarmState.ACTIVE) {
                 // Re-create the ongoing card silently; only a new transition or scheduled repeat
                 // may play the configured alarm sound again.
                 CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
@@ -236,28 +301,54 @@ internal object CgmAlarmCoordinator {
             CgmAlarmNotifier.cancelAll(context)
             CgmAlarmRepeatScheduler.cancelAll(context)
         }
-        val oldMap = if (sameSession) previous.alarms.associateBy(CgmAlarm::type) else emptyMap()
+        val oldMap =
+            if (sameSession) {
+                previous.alarms.associateBy(CgmAlarm::type).mapValues { (_, alarm) ->
+                    if (alarm.state == CgmAlarmState.SNOOZED && alarm.snoozedUntilEpochMs?.let { nowEpochMs >= it } == true) alarm.copy(state = CgmAlarmState.INACTIVE) else alarm
+                }
+            } else {
+                emptyMap()
+            }
         val normalizedReading =
             reading?.takeIf {
                 it.status == CgmReadingStatus.VALID || it.status == CgmReadingStatus.SENSOR_ERROR
             }
         val evaluated = CgmAlarmEngine.evaluate(normalizedReading, oldMap, settings, nowEpochMs)
         val withNotifications = evaluated.toMutableMap()
+        val notices = pendingNotices(context).associateBy { it.type }.toMutableMap()
 
         CgmAlarmType.entries.forEach { type ->
             val old = oldMap[type]
             val current = evaluated[type]
+            val isPaused = CgmAlarmPauseStore.isPaused(context, type, nowEpochMs)
             when {
+                isPaused -> {
+                    dismissNotice(context, type)
+                    CgmAlarmDelivery.reset(context, type)
+                    CgmAlarmNotifier.cancel(context, type)
+                    CgmAlarmRepeatScheduler.cancel(context, type)
+                    if (old != null) {
+                        withNotifications[type] = old.copy(state = CgmAlarmState.INACTIVE)
+                    } else {
+                        withNotifications.remove(type)
+                    }
+                }
                 current?.state == CgmAlarmState.ACTIVE && old?.state != CgmAlarmState.ACTIVE -> {
-                    CgmAlarmNotifier.show(context, current, settings, onlyAlertOnce = false)
+                    notices[type] = current
+                    CgmAlarmDelivery.reset(context, type)
+                    CgmAlarmNotifier.show(context, current, settings, onlyAlertOnce = false, reading = reading)
                     withNotifications[type] = CgmAlarmEngine.markNotified(current, nowEpochMs)
                     if (settings.repeatEnabled) {
                         CgmAlarmRepeatScheduler.schedule(context, type, settings.repeatIntervalMinutes)
                     }
                 }
                 current?.state == CgmAlarmState.RESOLVED -> {
+                    CgmAlarmDelivery.reset(context, type)
                     CgmAlarmNotifier.cancel(context, type)
                     CgmAlarmRepeatScheduler.cancel(context, type)
+                }
+                current?.state == CgmAlarmState.ACTIVE -> {
+                    CgmAlarmNotifier.show(context, current, settings, onlyAlertOnce = true, reading = reading)
                 }
             }
         }
@@ -269,6 +360,7 @@ internal object CgmAlarmCoordinator {
                 alarms = withNotifications.values.sortedBy(CgmAlarm::type),
             ),
         )
+        saveNotices(context, notices.values.toList())
     }
 
     private fun read(context: Context): CgmAlarmSnapshot =
@@ -289,7 +381,7 @@ internal object CgmAlarmCoordinator {
 }
 
 internal object CgmAlarmNotifier {
-    private const val CHANNEL_PREFIX = "g7_cgm_alarm_v7_"
+    private const val CHANNEL_PREFIX = "g7_cgm_alarm_v8_"
     private const val CHANNEL_FAMILY_PREFIX = "g7_cgm_alarm_"
     private const val NOTIFICATION_BASE = 7_100
 
@@ -298,6 +390,7 @@ internal object CgmAlarmNotifier {
         alarm: CgmAlarm,
         settings: CgmAlarmSettings,
         onlyAlertOnce: Boolean,
+        reading: CgmReading? = null,
     ) {
         // Channel sound/vibration are immutable after creation. Route a changed app setting to a
         // distinct channel while preserving any system-level customization of an existing one.
@@ -307,36 +400,29 @@ internal object CgmAlarmNotifier {
             PendingIntent.getActivity(
                 context,
                 NOTIFICATION_BASE + alarm.type.ordinal,
-                cgmOpenAppIntent(context),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-        val acknowledge =
-            PendingIntent.getBroadcast(
-                context,
-                NOTIFICATION_BASE + alarm.type.ordinal,
-                Intent(context, CgmAlarmAcknowledgeReceiver::class.java)
-                    .setAction(CgmAlarmAcknowledgeReceiver.ACTION_ACKNOWLEDGE)
-                    .putExtra(CgmAlarmAcknowledgeReceiver.EXTRA_TYPE, alarm.type.name),
+                CgmAlarmActivity.intent(context, alarm.type),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
         if (!onlyAlertOnce) playAlarm(context, alarm.type, settings)
-        val icon = Icon.createWithResource(context, R.drawable.ic_cgm_notification)
+        val icon = Icon.createWithResource(context, app.sugarlicious.uishared.R.drawable.ic_alert)
         context.getSystemService(NotificationManager::class.java).notify(
             notificationId(alarm.type),
             Notification
                 .Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_cgm_notification)
+                .setSmallIcon(app.sugarlicious.uishared.R.drawable.ic_alert)
                 .setColor(color(alarm.type))
-                .setContentTitle(title(alarm.type))
-                .setContentText(audioAwareBody(context, body(alarm.type), settings))
+                .setContentTitle(cgmAlarmHeadline(alarm.type))
+                .setContentText(audioAwareBody(context, reading?.let { cgmAlarmValue(it) } ?: cgmAlarmReadingText(context), settings))
                 .setContentIntent(open)
                 .setCategory(Notification.CATEGORY_ALARM)
-                .setSilent(true)
+                .setFullScreenIntent(if (onlyAlertOnce) null else open, true)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setOnlyAlertOnce(onlyAlertOnce)
-                .addAction(Notification.Action.Builder(icon, "Quittieren", acknowledge).build())
+                .addAction(Notification.Action.Builder(icon, "Schlummerzeit · ${CgmAlarmDelivery.snoozeMinutes(context, alarm.type)} Min.", open).build())
+                .addAction(Notification.Action.Builder(icon, "Stumm", CgmAlarmDelivery.pending(context, alarm.type, "mute")).build())
+                .addAction(Notification.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate")).build())
                 .build(),
         )
     }
@@ -363,7 +449,7 @@ internal object CgmAlarmNotifier {
             testNotificationId(type),
             Notification
                 .Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_cgm_notification)
+                .setSmallIcon(app.sugarlicious.uishared.R.drawable.ic_alert)
                 .setColor(color(type))
                 .setContentTitle("Test · ${title(type)}")
                 .setContentText(audioAwareBody(context, "Sound, Vibration und Nicht-stören-Verhalten dieses Alarms werden geprüft.", settings))
@@ -401,8 +487,9 @@ internal object CgmAlarmNotifier {
     }
 
     private fun playAlarm(context: Context, type: CgmAlarmType, settings: CgmAlarmSettings, test: Boolean = false) {
-        if (settings.soundEnabled) CgmAlarmAudioService.play(context, type, test)
-        if (settings.vibrationEnabled) {
+        val mode = if (test) null else CgmAlarmDelivery.mode(context, type)
+        if (settings.soundEnabled && mode == null) CgmAlarmAudioService.play(context, type, test)
+        if ((settings.vibrationEnabled || mode == "vibrate") && mode != "mute") {
             context.getSystemService(android.os.Vibrator::class.java)?.vibrate(
                 android.os.VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1),
                 android.os.VibrationAttributes
@@ -420,9 +507,9 @@ internal object CgmAlarmNotifier {
         settings: CgmAlarmSettings,
     ) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(channelId, title(type), NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(channelId, title(type), NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Eigenständiger SugarWear-Alarm: ${title(type)}"
-                enableVibration(settings.vibrationEnabled)
+                enableVibration(false)
                 val alarmAudio =
                     AudioAttributes
                         .Builder()
@@ -573,6 +660,15 @@ class CgmAlarmAcknowledgeReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
+        if (intent.action == CgmAlarmDelivery.ACTION) {
+            val type = intent.getStringExtra(EXTRA_TYPE)?.let { runCatching { CgmAlarmType.valueOf(it) }.getOrNull() } ?: return
+            val operation = intent.getStringExtra("operation") ?: return
+            val pending = goAsync()
+            CgmReceiverWork
+                .dispatcher { app, _ -> CgmAlarmDelivery.perform(app, type, operation) }
+                .dispatch(context, intent.action, onFinished = pending::finish)
+            return
+        }
         if (intent.action != ACTION_ACKNOWLEDGE) return
         val type = intent.getStringExtra(EXTRA_TYPE)?.let { runCatching { CgmAlarmType.valueOf(it) }.getOrNull() } ?: return
         CgmAlarmCoordinator.acknowledge(context, type)

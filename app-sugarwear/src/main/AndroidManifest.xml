@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -46,6 +47,7 @@
         <provider android:name=".ProductMigrationProvider" android:authorities="${applicationId}.product-migration" android:exported="true" android:initOrder="1000" tools:ignore="ExportedContentProvider" />
 
         <service android:name=".CgmAlarmAudioService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <activity android:name=".CgmAlarmActivity" android:exported="false" android:excludeFromRecents="true" android:noHistory="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" android:taskAffinity="" />
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
         <activity
             android:name=".CgmWatchActivity"

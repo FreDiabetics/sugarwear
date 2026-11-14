@@ -127,6 +127,7 @@ class CgmWatchActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var scrollView: ScrollView
     private lateinit var statusHost: LinearLayout
+    private lateinit var alarmHost: LinearLayout
     private lateinit var signalLossHeader: app.sugarlicious.uishared.SignalLossWarningView
     private lateinit var collectorStatusTitle: TextView
     private lateinit var collectorAttemptLabel: TextView
@@ -544,6 +545,8 @@ class CgmWatchActivity : ComponentActivity() {
                 setBackgroundColor(background)
             }
 
+        alarmHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(alarmHost, cardParams(top = 4))
         signalLossHeader =
             app.sugarlicious.uishared
                 .SignalLossWarningView(this)
@@ -779,6 +782,42 @@ class CgmWatchActivity : ComponentActivity() {
             val state = snapshot.persisted
             val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent)
 
+            alarmHost.removeAllViews()
+            alarmHost.visibility = if (snapshot.pendingAlarms.isEmpty()) View.GONE else View.VISIBLE
+            snapshot.pendingAlarms.forEach { alarm ->
+                val accent = if (alarm.type in setOf(app.sugarlicious.sensor.protocol.CgmAlarmType.HIGH, app.sugarlicious.sensor.protocol.CgmAlarmType.VERY_HIGH, app.sugarlicious.sensor.protocol.CgmAlarmType.RAPID_RISE)) 0xFFFFD040.toInt() else 0xFFFF5C69.toInt()
+                alarmHost.addView(
+                    LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(16.dp, 16.dp, 16.dp, 16.dp)
+                        background =
+                            android.graphics.drawable.GradientDrawable().apply {
+                                setColor(palette.argb(CgmAppearanceRole.MENU_SURFACE))
+                                cornerRadius = 24.dp.toFloat()
+                            }
+                        // 1. Icon oben groß
+                        addView(
+                            ImageView(this@CgmWatchActivity).apply {
+                                setImageResource(app.sugarlicious.uishared.R.drawable.ic_alert)
+                                imageTintList =
+                                    android.content.res.ColorStateList
+                                        .valueOf(accent)
+                            },
+                            LinearLayout.LayoutParams(54.dp, 54.dp).apply { bottomMargin = 4.dp },
+                        )
+
+                        // 2. Alarmtyp groß
+                        addView(label(cgmAlarmHeadline(alarm.type), 18f, accent, true).apply { gravity = Gravity.CENTER })
+
+                        // Details
+                        addView(label("Tippen: Quittieren oder Schlummern", 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY)).apply { gravity = Gravity.CENTER })
+                        setOnClickListener { startActivity(CgmAlarmActivity.intent(this@CgmWatchActivity, alarm.type)) }
+                    },
+                    cardParams(top = 6),
+                )
+            }
+
             statusHost.removeAllViews()
             if (unlinkFailed) {
                 statusHost.addView(label("Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
@@ -885,6 +924,7 @@ class CgmWatchActivity : ComponentActivity() {
                 readings = readings,
                 palette = palette,
                 graphHours = hours,
+                activeHistoryIdentity = overviewState.snapshot?.activeHistoryIdentity,
             )
         }
     }
@@ -914,6 +954,7 @@ class CgmWatchActivity : ComponentActivity() {
                         readings = readings,
                         palette = palette,
                         graphHours = hours,
+                        activeHistoryIdentity = overviewState.snapshot?.activeHistoryIdentity,
                     )
                 }
             addView(graphView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 150.dp))

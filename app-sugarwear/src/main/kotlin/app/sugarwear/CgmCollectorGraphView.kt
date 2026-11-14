@@ -39,6 +39,7 @@ internal class CgmCollectorGraphView
         private var nowOverrideEpochMs: Long? = null
         private var boundGraphHours: Int = 3
         private var boundPalette: CgmAppearancePalette? = null
+        private var activeHistoryIdentity: Pair<String, String>? = null
 
         init {
             outlineProvider =
@@ -76,12 +77,14 @@ internal class CgmCollectorGraphView
             palette: CgmAppearancePalette,
             graphHours: Int,
             nowEpochMs: Long? = null,
+            activeHistoryIdentity: Pair<String, String>? = null,
         ) {
             // The in-app graph belongs to SugarWear and therefore follows SugarWear's appearance
             // palette. Direct-to-Watch settings remain exclusive to Vigil.
             boundPalette = palette
             boundGraphHours = graphHours.takeIf { it in CgmDirectToWatchSettingsStore.HOUR_OPTIONS } ?: 3
             this.readings = readings
+            this.activeHistoryIdentity = activeHistoryIdentity
             this.nowOverrideEpochMs = nowEpochMs
             invalidateOutline()
             invalidate()
@@ -100,6 +103,7 @@ internal class CgmCollectorGraphView
                     graphHours,
                     now,
                     styleOverride = appearanceStore.inAppGraphStyle(),
+                    activeIdentity = activeHistoryIdentity?.let { app.sugarlicious.model.CgmGraphSensorIdentity(app.sugarlicious.model.DataSourceId.DEXCOM_G7_WATCH, it.first, it.second) },
                 )
             val metrics =
                 SharedWearCgmGraphRenderer.render(
@@ -114,7 +118,9 @@ internal class CgmCollectorGraphView
             val labelY = 20f * density
             val visibleHistory =
                 input.history.filter {
-                    it.measuredAtEpochMs in input.timeWindow.startEpochMs..input.timeWindow.endEpochMs
+                    it.measuredAtEpochMs in input.timeWindow.startEpochMs..input.timeWindow.endEpochMs &&
+                        !app.sugarlicious.model.CgmGraphHistoryPresentation
+                            .isRetired(it, input.activeIdentity)
                 }
             val area =
                 when {

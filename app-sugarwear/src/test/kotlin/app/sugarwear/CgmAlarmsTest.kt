@@ -105,12 +105,12 @@ class CgmAlarmsTest {
         CgmAlarmType.entries.forEach { type ->
             val channel = notificationManager.getNotificationChannel(CgmAlarmNotifier.channelId(context, type, settings))
             assertNotNull(channel)
-            assertEquals(NotificationManager.IMPORTANCE_LOW, channel.importance)
-            assertTrue(channel.shouldVibrate())
+            assertEquals(NotificationManager.IMPORTANCE_HIGH, channel.importance)
+            assertFalse(channel.shouldVibrate())
             assertNull(channel.sound)
             assertEquals(AudioAttributes.USAGE_ALARM, channel.audioAttributes.usage)
         }
-        assertEquals(8, notificationManager.notificationChannels.count { it.id.startsWith("g7_cgm_alarm_v7_") })
+        assertEquals(8, notificationManager.notificationChannels.count { it.id.startsWith("g7_cgm_alarm_v8_") })
     }
 
     @Test
@@ -351,6 +351,119 @@ class CgmAlarmsTest {
         applySourceControl(context, cgmSelected = true, alarmsEnabled = true, automaticEnableAt = null)
         assertNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
         assertEquals(false, CgmSensorStateStore(context).read().collectorEnabled)
+    }
+
+    @Test
+    fun `local alarm opt in survives a mobile source suppression signal`() {
+        CgmAlertPolicyStore.setLocalEnabled(context, true)
+        CgmAlertPolicyStore.setPolicy(context, false)
+        assertTrue(CgmAlertPolicyStore.alarmsEnabled(context))
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(notification.fullScreenIntent)
+        assertEquals(listOf("Schlummerzeit · 10 Min.", "Stumm", "Vibrieren"), notification.actions.map { it.title.toString() })
+        CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = false))
+        assertFalse(CgmAlertPolicyStore.alarmsEnabled(context))
+    }
+
+    @Test
+    fun `snoozed low alarm resumes only after ten minutes with a fresh reading`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        CgmAlarmCoordinator.snooze(context, CgmAlarmType.LOW, NOW)
+        assertNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+        val next = reading("sensor-a", "session-a", 65.0).copy(timestampEpochMs = NOW + 9 * 60_000L)
+        CgmAlarmCoordinator.onReading(context, next, NOW + 9 * 60_000L)
+        assertFalse(CgmAlarmCoordinator.isActive(context, CgmAlarmType.LOW))
+        CgmAlarmCoordinator.onReading(context, next.copy(timestampEpochMs = NOW + 10 * 60_000L), NOW + 10 * 60_000L)
+        assertTrue(CgmAlarmCoordinator.isActive(context, CgmAlarmType.LOW))
+        assertNotNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+    }
+
+    @Test
+    fun `muting one alarm keeps its notification and does not suppress another alarm type`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        CgmAlarmDelivery.perform(context, CgmAlarmType.LOW, "mute")
+        assertEquals("mute", CgmAlarmDelivery.mode(context, CgmAlarmType.LOW))
+        assertNull(CgmAlarmDelivery.mode(context, CgmAlarmType.HIGH))
+        assertNotNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 120.0), NOW)
+        assertNull(CgmAlarmDelivery.mode(context, CgmAlarmType.LOW))
+    }
+
+    @Test
+    fun `selected snooze duration updates notification and controls actual wake time`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        CgmAlarmDelivery.setSnoozeMinutes(context, CgmAlarmType.LOW, 20)
+        val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertEquals(
+            "Schlummerzeit · 20 Min.",
+            notification.actions
+                .first()
+                .title
+                .toString(),
+        )
+        assertEquals(notification.contentIntent, notification.actions.first().actionIntent)
+        CgmAlarmCoordinator.snooze(context, CgmAlarmType.LOW, NOW)
+        val snapshot = context.getSharedPreferences("g7_cgm_alarm_state", Context.MODE_PRIVATE).getString("state_v1", "")!!
+        assertTrue(snapshot.contains("\"snoozedUntilEpochMs\":${NOW + 20 * 60_000L}"))
+        CgmAlarmDelivery.reset(context, CgmAlarmType.LOW)
+        assertEquals(20, CgmAlarmDelivery.snoozeMinutes(context, CgmAlarmType.LOW))
+        assertEquals(10, CgmAlarmDelivery.snoozeMinutes(context, CgmAlarmType.HIGH))
+    }
+
+    @Test
+    fun `snooze duration stays within selectable limits`() {
+        CgmAlarmDelivery.setSnoozeMinutes(context, CgmAlarmType.LOW, -5)
+        assertEquals(5, CgmAlarmDelivery.snoozeMinutes(context, CgmAlarmType.LOW))
+        CgmAlarmDelivery.setSnoozeMinutes(context, CgmAlarmType.LOW, 200)
+        assertEquals(120, CgmAlarmDelivery.snoozeMinutes(context, CgmAlarmType.LOW))
+    }
+
+    @Test
+    fun `unacknowledged notice survives recovery until explicitly acknowledged`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 120.0), NOW)
+        assertFalse(CgmAlarmCoordinator.isActive(context, CgmAlarmType.LOW))
+        assertTrue(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+        CgmAlarmCoordinator.restore(context, NOW)
+        assertTrue(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+        CgmAlarmDelivery.perform(context, CgmAlarmType.LOW, "ack")
+        assertFalse(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 120.0), NOW)
+        assertFalse(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+    }
+
+    @Test
+    fun `muting preserves the overview notice while snoozing removes it`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        CgmAlarmDelivery.perform(context, CgmAlarmType.LOW, "mute")
+        assertTrue(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+        CgmAlarmCoordinator.snooze(context, CgmAlarmType.LOW, NOW)
+        assertFalse(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+    }
+
+    @Test
+    fun `pausing alarms suppresses non-VERY_LOW alarms but NEVER suppresses VERY_LOW alarm`() {
+        CgmAlarmPauseStore.setPause(context, 60, NOW)
+        assertTrue(CgmAlarmPauseStore.isPaused(context, CgmAlarmType.HIGH, NOW))
+        assertTrue(CgmAlarmPauseStore.isPaused(context, CgmAlarmType.LOW, NOW))
+        assertFalse(CgmAlarmPauseStore.isPaused(context, CgmAlarmType.VERY_LOW, NOW))
+
+        // Trigger LOW alarm (65 mg/dL) while pause is active -> suppressed
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        assertFalse(CgmAlarmCoordinator.isActive(context, CgmAlarmType.LOW))
+        assertFalse(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.LOW))
+
+        // Trigger VERY_LOW alarm (45 mg/dL) while pause is active -> MUST NOT BE SUPPRESSED!
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 45.0), NOW)
+        assertTrue(CgmAlarmCoordinator.isActive(context, CgmAlarmType.VERY_LOW))
+        assertTrue(CgmAlarmCoordinator.isVisible(context, CgmAlarmType.VERY_LOW))
+
+        // Clear pause -> normal operation restored for LOW
+        CgmAlarmPauseStore.clearPause(context)
+        assertFalse(CgmAlarmPauseStore.isPaused(context, CgmAlarmType.LOW, NOW))
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        assertTrue(CgmAlarmCoordinator.isActive(context, CgmAlarmType.LOW))
     }
 
     private fun reading(

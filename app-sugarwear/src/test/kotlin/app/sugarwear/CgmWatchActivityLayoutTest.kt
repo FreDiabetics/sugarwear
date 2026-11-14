@@ -97,6 +97,24 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
+    fun `overview keeps pending alarm until acknowledgement and updates immediately`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = true))
+        CgmAlertPolicyStore.setLocalEnabled(context, true)
+        val now = System.currentTimeMillis()
+        CgmAlarmCoordinator.onReading(context, CgmReading("layout-alarm", DataSourceId.DEXCOM_G7_WATCH, "layout-sensor", "layout-session", 65.0, now, now), now)
+        val activity = Robolectric.buildActivity(CgmWatchActivity::class.java).also { activeControllers += it }.setup().visible().get().awaitUi()
+        fun hasAlarm(): Boolean {
+            val labels = mutableListOf<String>()
+            collectText(activity.window.decorView, labels)
+            return "Tief Alarm!" in labels
+        }
+        awaitCondition(activity) { hasAlarm() }
+        CgmAlarmCoordinator.acknowledge(context, app.sugarlicious.sensor.protocol.CgmAlarmType.LOW, now)
+        awaitCondition(activity) { !hasAlarm() }
+    }
+
+    @Test
     @Config(shadows = [PausedOverviewCredentialShadow::class])
     fun `paused overview offers direct resume and preserves sensor and last reading`() {
         val context =

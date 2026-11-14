@@ -23,6 +23,8 @@ internal data class CgmOverviewSnapshot(
     val credentialsPresent: Boolean,
     val graphReadings: List<CgmReading>,
     val transition: CgmUiSensorTransition?,
+    val activeHistoryIdentity: Pair<String, String>? = null,
+    val pendingAlarms: List<app.sugarlicious.sensor.protocol.CgmAlarm> = emptyList(),
 )
 
 internal data class CgmOverviewState(
@@ -54,7 +56,7 @@ internal class AndroidCgmOverviewRepository(
                 }
             val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(Unit) }
             val preferences =
-                listOf("g7_collector_state", CGM_CREDENTIAL_PREFERENCES, "g7_ui_sensor_transition")
+                listOf("g7_collector_state", CGM_CREDENTIAL_PREFERENCES, "g7_ui_sensor_transition", "g7_cgm_alarm_state")
                     .map { app.getSharedPreferences(it, Context.MODE_PRIVATE) }
             app.contentResolver.registerContentObserver(CgmReadingProvider.CONTENT_URI, true, observer)
             preferences.forEach { it.registerOnSharedPreferenceChangeListener(listener) }
@@ -65,11 +67,14 @@ internal class AndroidCgmOverviewRepository(
             }
         }.conflate()
             .map {
+                val persisted = CgmSensorStateStore(app).read()
                 CgmOverviewSnapshot(
-                    persisted = CgmSensorStateStore(app).read(),
+                    persisted = persisted,
                     credentialsPresent = CgmCredentialStore(app).read() != null,
-                    graphReadings = CgmReadingDatabase(app).use { it.query(limit = 300).toList() },
+                    graphReadings = CgmReadingDatabase(app).use { it.getGraphHistory(System.currentTimeMillis()) },
                     transition = CgmCollectorUiTransitionStore.read(app),
+                    activeHistoryIdentity = persisted.sensor?.let { CgmHistoryIdentityStore(app).canonical(it.sensorId, it.sessionId ?: it.sensorId) },
+                    pendingAlarms = CgmAlarmCoordinator.pendingNotices(app),
                 )
             }.distinctUntilChanged()
             .flowOn(io)

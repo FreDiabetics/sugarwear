@@ -59,7 +59,8 @@ class CgmSensorUnlinkTest {
     private fun addHistory(context: Context) {
         CgmReadingDatabase(context).use { database ->
             database.writableDatabase.execSQL(
-                "INSERT INTO readings (id, sensor_id, session_id, glucose, measured_at, received_at, trend, status) VALUES ('historical', 'sensor-11', 'session-11', 123, 1000, 1100, 'UNKNOWN', 'VALID')",
+                "INSERT INTO readings (id, sensor_id, session_id, glucose, measured_at, received_at, trend, status) VALUES ('historical', 'sensor-11', 'session-11', 123, ?, ?, 'UNKNOWN', 'VALID')",
+                arrayOf(System.currentTimeMillis() - 300_000L, System.currentTimeMillis()),
             )
         }
     }

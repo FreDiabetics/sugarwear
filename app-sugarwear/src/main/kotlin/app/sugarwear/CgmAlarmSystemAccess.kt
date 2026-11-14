@@ -22,6 +22,7 @@ internal data class CgmAlarmSystemSnapshot(
     val priorityAllowsAlarms: Boolean? = null,
     val policySettingsAvailable: Boolean = false,
     val watchSettingsAvailable: Boolean = false,
+    val fullScreenAllowed: Boolean = true,
 ) {
     val dndAllowsAlarmAudio: Boolean? get() = cgmDndAllowsAlarmAudio(interruptionFilter, priorityAllowsAlarms)
 }
@@ -115,6 +116,7 @@ internal object CgmAlarmSystemAccess {
                 }.getOrNull(),
             policySettingsAvailable = settingsAvailable(context, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS),
             watchSettingsAvailable = settingsAvailable(context, Settings.ACTION_SETTINGS),
+            fullScreenAllowed = android.os.Build.VERSION.SDK_INT < 34 || notifications.canUseFullScreenIntent(),
         )
     }
 

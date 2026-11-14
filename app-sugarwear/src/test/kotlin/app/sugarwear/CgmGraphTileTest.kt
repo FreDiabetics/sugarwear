@@ -23,6 +23,30 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [35])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class CgmGraphTileTest {
+    @Test fun `in app graph retains retired sensor dots as hollow contours`() {
+        val palette = CgmAppearanceStore(context).load()
+        val retired = reading("old", "old-session", 1, now - 40 * 60_000L, CgmReadingOrigin.LIVE)
+        val active = reading("new", "new-session", 2, now - 2 * 60_000L, CgmReadingOrigin.LIVE)
+        val view = CgmCollectorGraphView(context)
+        view.bind(listOf(retired, active), palette, 3, now)
+        view.layout(0, 0, 454, 220)
+        val bitmap = android.graphics.Bitmap.createBitmap(454, 220, android.graphics.Bitmap.Config.ARGB_8888)
+        try {
+            view.draw(android.graphics.Canvas(bitmap))
+            val input = cgmSharedGraphInput(listOf(active), palette, CgmDirectToWatchSettingsStore(context), 3, now, styleOverride = CgmAppearanceStore(context).inAppGraphStyle())
+            val density = context.resources.displayMetrics.density
+            val metrics = SharedWearCgmGraphRenderer.metrics(454, 220, density, input.thresholds, input.style)
+            val x = metrics.sampleXFor(input.timeWindow, retired.timestampEpochMs).toInt()
+            val y = metrics.yFor(retired.glucoseMgDl).toInt()
+            val radius = (input.style.dotRadiusDp.coerceIn(1.5f, 6f) * density).toInt()
+            val background = bitmap.getPixel(x - radius - 4, y)
+            assertEquals("Retired dots have no fill", background, bitmap.getPixel(x, y))
+            assertTrue("Retired contour remains visible", (-1..1).any { dx -> bitmap.getPixel(x + radius + dx, y) != background })
+        } finally {
+            bitmap.recycle()
+        }
+    }
+
     @Test fun `graph tile header contains scale and latest CGM age`() {
         assertEquals("Verlauf 2h · 3m", cgmGraphTileHeaderLabel(2, now - 3 * 60_000L, now))
         assertEquals("Verlauf 2h", cgmGraphTileHeaderLabel(2, null, now))
@@ -43,7 +67,7 @@ class CgmGraphTileTest {
         }
     }
 
-    @Test fun `graph tile uses measured time and keeps only the newest sensor session`() {
+    @Test fun `graph tile uses measured time and preserves overlapping sensor sessions`() {
         val oldSession = reading("sensor-old", "session-old", 1, now - 40 * 60_000L, CgmReadingOrigin.LIVE)
         val backfill = reading("sensor-new", "session-new", 2, now - 20 * 60_000L, CgmReadingOrigin.BACKFILL)
         val live = reading("sensor-new", "session-new", 3, now - 2 * 60_000L, CgmReadingOrigin.LIVE)
@@ -56,7 +80,7 @@ class CgmGraphTileTest {
                 nowEpochMs = now,
             )
 
-        assertEquals(listOf(backfill.timestampEpochMs, live.timestampEpochMs), input.history.map { it.measuredAtEpochMs })
+        assertEquals(listOf(oldSession.timestampEpochMs, backfill.timestampEpochMs, live.timestampEpochMs), input.history.map { it.measuredAtEpochMs })
         assertTrue(input.timeWindow.plotX(backfill.timestampEpochMs, 0f, 100f) < input.timeWindow.plotX(live.timestampEpochMs, 0f, 100f))
         assertEquals(cgmCollectorGraphWindow(now, 3), input.timeWindow)
     }
@@ -137,7 +161,7 @@ class CgmGraphTileTest {
         val tile = service.onTileRequest(request).get()
         val resources = request.scope.collectResources()
 
-        assertTrue(tile.resourcesVersion.startsWith("g7-graph-13-system-font-700-"))
+        assertTrue(tile.resourcesVersion.startsWith("g7-graph-14-retired-"))
         assertTrue(request.scope.hasResources())
         val inline = resources.idToImageMapping.getValue("sugarwear_graph").inlineResource!!
         val content = cgmGraphTileContentSpec(192, 192)

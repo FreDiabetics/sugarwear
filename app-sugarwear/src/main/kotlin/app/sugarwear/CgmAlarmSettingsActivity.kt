@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.viewModels
+import androidx.core.net.toUri
 import app.sugarlicious.sensor.protocol.CgmAlarmSettings
 import app.sugarlicious.sensor.protocol.CgmAlarmType
 import app.sugarlicious.uishared.SharedNumberEditor
@@ -86,6 +87,23 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 )
             }
             val selected = selectedAlarm
+            if (selected == null && alarmPage == null) {
+                addView(
+                    card(palette).apply {
+                        addView(toggle("SugarWear-Alarme", checkNotNull(access.state.value.snapshot).localAlarmsEnabled, palette) { access.localAlarms(it) })
+                        addView(label("Unabhängig von der Glukosequelle in Sugarlicious. Bei pausiertem Sensor bleiben Alarme aus.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                        if (!alarmAccess.fullScreenAllowed && android.os.Build.VERSION.SDK_INT >= 34) {
+                            addView(
+                                actionButton("Vollbildalarme erlauben", palette) {
+                                    CgmSystemAccess.open(this@CgmAlarmSettingsActivity, listOf(Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:$packageName".toUri())))
+                                },
+                            )
+                        }
+                    },
+                    cardParams(7),
+                )
+                addView(pauseAlarmsCard(palette), cardParams(7))
+            }
             if (selected != null) {
                 addView(alarmCard(selected, settings, palette), cardParams(7))
             } else if (alarmPage == "Systemzugriff") {
@@ -165,6 +183,13 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             addView(label("ALARMVERHALTEN", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
             addView(toggle("Sound", settings.soundEnabled, palette) { edit(CgmAlarmSettingsEdit.Sound(it)) })
             val volumeOverride = checkNotNull(access.state.value.snapshot).volumeOverride
+            val silentOverride = checkNotNull(access.state.value.snapshot).silentOverride
+            addView(
+                toggle("Lautlos überschreiben", silentOverride, palette) {
+                    access.silentOverride(it)
+                    render()
+                },
+            )
             addView(
                 toggle("Eigene Alarmlautstärke", volumeOverride, palette) {
                     access.volume(it)
@@ -173,7 +198,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             )
             val audio = getSystemService(android.media.AudioManager::class.java)
             addView(label("System · ${audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM)}/${audio.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM)}", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-            if (volumeOverride) {
+            if (volumeOverride || silentOverride) {
                 addView(
                     stepper("Alarmlautstärke", "${checkNotNull(access.state.value.snapshot).volumePercent} %", palette, {
                         access.adjustVolume(-10)
@@ -184,7 +209,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                     }),
                 )
             }
-            addView(label("Ohne eigene Lautstärke gilt die System-Alarmlautstärke. Mit eigener Lautstärke wird sie für 30 Sekunden überschrieben und anschließend wiederhergestellt. Eigene SugarWear-Töne bleiben aktiv.", 8.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+            addView(label("Lautlos überschreiben verwendet bei Lautlos, Vibration oder stummer Alarmlautstärke den eigenen SugarWear-Ton mit der eingestellten Lautstärke. Tonmodus und Alarmlautstärke werden nach der Wiedergabe, spätestens nach 30 Sekunden, wiederhergestellt. Manuelle Änderungen bleiben erhalten. Nicht stören und vollständige Ruhe können die Wiedergabe weiterhin blockieren.", 8.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
 
             addView(toggle("Vibration", settings.vibrationEnabled, palette) { edit(CgmAlarmSettingsEdit.Vibration(it)) })
             addView(toggle("Wiederholen", settings.repeatEnabled, palette) { edit(CgmAlarmSettingsEdit.Repeat(it)) })
@@ -196,6 +221,67 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 }),
             )
         }
+
+    private var pauseDurationMinutes = 60
+
+    private fun pauseAlarmsCard(palette: CgmAppearancePalette): LinearLayout {
+        val snapshot = checkNotNull(access.state.value.snapshot)
+        val pauseUntil = snapshot.pauseUntilEpochMs
+        val now = System.currentTimeMillis()
+        val isPaused = pauseUntil != null && pauseUntil > now
+
+        return card(palette).apply {
+            addView(label("ALARME PAUSIEREN (AUSSER SEHR TIEF)", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
+            if (isPaused) {
+                val pauseUntilTime = checkNotNull(pauseUntil)
+                val remainingMs = maxOf(0L, pauseUntilTime - now)
+                val remainingMinutes = (remainingMs + 59_999L) / 60_000L
+                val timeFormat = java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(pauseUntilTime))
+                addView(label("Alarme pausiert bis $timeFormat Uhr", 13f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                addView(label("Verbleibend: $remainingMinutes Min.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                addView(label("Sehr niedriger Alarm (Sehr tief) bleibt aktiv!", 11f, 0xFFFF5C69.toInt(), true))
+                addView(
+                    actionButton("Pausierung aufheben", palette) {
+                        access.clearAlarmPause()
+                        render()
+                    },
+                )
+            } else {
+                if (pauseDurationMinutes !in 15..720) pauseDurationMinutes = snapshot.lastPauseDurationMinutes
+                addView(label("Schlummert alle Alarme außer Sehr tief für die gewählte Dauer.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                val durationText = if (pauseDurationMinutes >= 60 && pauseDurationMinutes % 60 == 0) {
+                    "${pauseDurationMinutes / 60} Std."
+                } else {
+                    "$pauseDurationMinutes Min."
+                }
+                addView(
+                    stepper("Pausendauer", durationText, palette, {
+                        pauseDurationMinutes = when {
+                            pauseDurationMinutes > 240 -> pauseDurationMinutes - 120
+                            pauseDurationMinutes > 60 -> pauseDurationMinutes - 60
+                            pauseDurationMinutes > 30 -> pauseDurationMinutes - 15
+                            else -> maxOf(15, pauseDurationMinutes - 5)
+                        }
+                        render()
+                    }, {
+                        pauseDurationMinutes = when {
+                            pauseDurationMinutes >= 240 -> minOf(720, pauseDurationMinutes + 120)
+                            pauseDurationMinutes >= 60 -> pauseDurationMinutes + 60
+                            pauseDurationMinutes >= 30 -> pauseDurationMinutes + 15
+                            else -> pauseDurationMinutes + 5
+                        }
+                        render()
+                    }),
+                )
+                addView(
+                    actionButton("Alarme pausieren ($durationText)", palette) {
+                        access.pauseAlarms(pauseDurationMinutes)
+                        render()
+                    },
+                )
+            }
+        }
+    }
 
     private fun alarmCard(
         type: CgmAlarmType,

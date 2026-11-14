@@ -50,7 +50,7 @@ internal fun applySourceControl(
     CgmAlertPolicyStore.setPolicy(context, alarmsEnabled, automaticEnableAt)
     val state = CgmSensorStateStore(context).read()
 
-    if (!alarmsEnabled) {
+    if (!CgmAlertPolicyStore.alarmsEnabled(context)) {
         CgmErrorNotifier.clearActive(context)
         CgmAlarmCoordinator.clearSuppressed(context)
     } else {

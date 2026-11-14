@@ -46,6 +46,10 @@ class CgmAlarmAudioService : Service() {
                 .build(),
         )
         val test = intent.getBooleanExtra("test", false)
+        if (!test && CgmAlarmDelivery.mode(this, type) != null) {
+            if (activeType == null || activeType == type) stopSelf()
+            return START_NOT_STICKY
+        }
         val current = activeType
         if (current != null && !activeTest && (test || priority(type) < priority(current))) return START_NOT_STICKY
         releasePlayer()
@@ -79,7 +83,20 @@ class CgmAlarmAudioService : Service() {
                 true
             }
             next.prepare()
-            CgmAlarmVolume.beforeSound(this)
+            val overrideResult = CgmAlarmVolume.beforeSound(this)
+            if (overrideResult == CgmAlarmVolumeResult.SYSTEM_BLOCKED) {
+                manager.notify(
+                    7_490,
+                    Notification
+                        .Builder(this, CHANNEL)
+                        .setSmallIcon(R.drawable.ic_cgm_notification)
+                        .setContentTitle("SugarWear · Alarmton")
+                        .setContentText("System blockiert die Alarmüberschreibung")
+                        .setSilent(true)
+                        .build(),
+                )
+                android.util.Log.w("G7AlarmAudio", "System blocked requested alarm override")
+            }
             next.start()
             val policy = CgmAlarmSystemAccess.snapshot(this)
             android.util.Log.i("G7AlarmAudio", "Bundled playback started ${type.name} test=$test systemAllowsAlarmAudio=${policy.dndAllowsAlarmAudio}")
