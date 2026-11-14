@@ -13,18 +13,15 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.core.net.toUri
-import app.sugarlicious.sensor.protocol.CgmAlarmSettings
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import app.sugarlicious.uishared.SharedNumberEditor
 import java.util.Locale
 
-/** Immediate-save alarm configuration. Test notifications never touch the real alarm state. */
 @dagger.hilt.android.AndroidEntryPoint
 class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
     private lateinit var root: LinearLayout
     private lateinit var scrollView: ScrollView
     private val access by viewModels<CgmSettingsAccessViewModel>()
-    private var selectedAlarm: CgmAlarmType?
+    private var selectedAlarm: SugarWearAlarmType?
         get() = access.navigation.value.selectedAlarm
         set(value) = access.selectAlarm(value)
     private var alarmPage: String?
@@ -68,12 +65,12 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             removeAllViews()
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            app.sugarlicious.uishared.WearSettingsUi
-                .pagePadding(this)
+            app.sugarlicious.uishared.WearSettingsUi.pagePadding(this)
             setBackgroundColor(background)
             addView(topBar(palette), fullWidth())
+
             val alarmAccess = checkNotNull(access.state.value.snapshot).alarmAccess
-            val warning = if (settings.soundEnabled) cgmAlarmAudioWarning(alarmAccess) else null
+            val warning = if (!settings.globalMuteAll) cgmAlarmAudioWarning(alarmAccess) else null
             if (warning != null && alarmPage != "Systemzugriff") {
                 addView(
                     card(palette).apply {
@@ -86,8 +83,16 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                     cardParams(7),
                 )
             }
+
             val selected = selectedAlarm
-            if (selected == null && alarmPage == null) {
+            if (selected != null) {
+                addView(alarmDetailCard(selected, settings, palette), cardParams(7))
+            } else if (alarmPage == "Systemzugriff") {
+                addView(dndCard(palette), cardParams(7))
+            } else if (alarmPage == "Ruhemodi") {
+                addView(quietModesCard(settings, palette), cardParams(7))
+            } else {
+                // Main Menu
                 addView(
                     card(palette).apply {
                         addView(toggle("SugarWear-Alarme", checkNotNull(access.state.value.snapshot).localAlarmsEnabled, palette) { access.localAlarms(it) })
@@ -103,44 +108,89 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                     cardParams(7),
                 )
                 addView(pauseAlarmsCard(palette), cardParams(7))
-            }
-            if (selected != null) {
-                addView(alarmCard(selected, settings, palette), cardParams(7))
-            } else if (alarmPage == "Systemzugriff") {
-                addView(dndCard(palette), cardParams(7))
-            } else if (alarmPage == "Töne und Vibration") {
-                addView(globalCard(settings, palette), cardParams(7))
-            } else {
-                val generalRows =
-                    listOf("Töne und Vibration", "Systemzugriff").map { title ->
-                        app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, title, null, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
-                            alarmPage = title
-                            scrollView.scrollTo(0, 0)
-                            render()
-                        }
+
+                // Section 1: General/Quiet Modes
+                val generalRows = listOf("Ruhemodi", "Systemzugriff").map { title ->
+                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, title, null, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
+                        alarmPage = title
+                        scrollView.scrollTo(0, 0)
+                        render()
                     }
+                }
                 addView(
-                    app.sugarlicious.uishared.WearSettingsUi
-                        .navigationGroup(this@CgmAlarmSettingsActivity, generalRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    app.sugarlicious.uishared.WearSettingsUi.navigationGroup(this@CgmAlarmSettingsActivity, generalRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
                     cardParams(10),
                 )
-                val rows =
-                    CgmAlarmType.entries.map { type ->
-                        app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), null, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
-                            selectedAlarm = type
-                            scrollView.scrollTo(0, 0)
-                            render()
-                        }
+
+                // Section 2: Glucose Warnings
+                addView(label("GEWEBEGLUKOSE-WARNUNGEN", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true).apply { setPadding(0, 8.dp, 0, 4.dp) })
+                val glucoseAlarmTypes = listOf(
+                    SugarWearAlarmType.URGENT_LOW,
+                    SugarWearAlarmType.URGENT_LOW_SOON,
+                    SugarWearAlarmType.LOW,
+                    SugarWearAlarmType.HIGH,
+                    SugarWearAlarmType.RAPID_RISE,
+                    SugarWearAlarmType.RAPID_FALL,
+                )
+                val glucoseRows = glucoseAlarmTypes.map { type ->
+                    val rule = settings.ruleFor(type)
+                    val statusText = if (type == SugarWearAlarmType.URGENT_LOW) "55 mg/dL (Aktiv)" else if (rule.enabled) "Aktiv" else "Aus"
+                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), statusText, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
+                        selectedAlarm = type
+                        scrollView.scrollTo(0, 0)
+                        render()
                     }
+                }
                 addView(
-                    app.sugarlicious.uishared.WearSettingsUi
-                        .navigationGroup(this@CgmAlarmSettingsActivity, rows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    app.sugarlicious.uishared.WearSettingsUi.navigationGroup(this@CgmAlarmSettingsActivity, glucoseRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    cardParams(6),
+                )
+
+                // Section 3: System Warnings
+                addView(label("SYSTEMWARNUNGEN", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true).apply { setPadding(0, 8.dp, 0, 4.dp) })
+                val systemAlarmTypes = listOf(
+                    SugarWearAlarmType.SIGNAL_LOSS,
+                    SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM,
+                    SugarWearAlarmType.TECHNICAL_WARNING,
+                )
+                val systemRows = systemAlarmTypes.map { type ->
+                    val rule = settings.ruleFor(type)
+                    val statusText = if (type == SugarWearAlarmType.TECHNICAL_WARNING) "Aktiv" else if (rule.enabled) "Aktiv" else "Aus"
+                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), statusText, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
+                        selectedAlarm = type
+                        scrollView.scrollTo(0, 0)
+                        render()
+                    }
+                }
+                addView(
+                    app.sugarlicious.uishared.WearSettingsUi.navigationGroup(this@CgmAlarmSettingsActivity, systemRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    cardParams(6),
+                )
+
+                // Section 4: Reset
+                addView(
+                    card(palette).apply {
+                        addView(actionButton("Warnungseinstellungen zurücksetzen", palette) {
+                            edit(CgmAlarmSettingsEdit.ResetAll)
+                        })
+                    },
                     cardParams(10),
                 )
             }
         }
         restoreScrollPosition(restoreScrollY)
     }
+
+    private fun quietModesCard(
+        settings: SugarWearAlarmSettings,
+        palette: CgmAppearancePalette,
+    ): LinearLayout =
+        card(palette).apply {
+            addView(label("RUHEMODI", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
+            addView(toggle("Vibrieren", settings.globalVibrateOnly, palette) { edit(CgmAlarmSettingsEdit.GlobalVibrateOnly(it)) })
+            addView(toggle("Alle stumm", settings.globalMuteAll, palette) { edit(CgmAlarmSettingsEdit.GlobalMuteAll(it)) })
+            addView(label("Im Modus 'Vibrieren' werden alle Alarme nur als Vibration ausgegeben. Bei 'Alle stumm' werden Ton und Vibration unterdrückt. Fachliche Alarmzustände bleiben aktiv.", 8.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+        }
 
     private fun dndCard(palette: CgmAppearancePalette): LinearLayout {
         val status = checkNotNull(access.state.value.snapshot).alarmAccess
@@ -168,59 +218,12 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             }
             addView(label(if (checkNotNull(access.state.value.snapshot).access.batteryUnrestricted) "Doze-Akkuexemption erlaubt" else "Doze-Akkuexemption fehlt", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
             addView(
-                actionButton("Berechtigungen und Alarmkan\u00e4le", palette) {
+                actionButton("Berechtigungen und Alarmkanäle", palette) {
                     startActivity(Intent(this@CgmAlarmSettingsActivity, CgmPermissionsActivity::class.java))
                 },
             )
         }
     }
-
-    private fun globalCard(
-        settings: CgmAlarmSettings,
-        palette: CgmAppearancePalette,
-    ): LinearLayout =
-        card(palette).apply {
-            addView(label("ALARMVERHALTEN", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
-            addView(toggle("Sound", settings.soundEnabled, palette) { edit(CgmAlarmSettingsEdit.Sound(it)) })
-            val volumeOverride = checkNotNull(access.state.value.snapshot).volumeOverride
-            val silentOverride = checkNotNull(access.state.value.snapshot).silentOverride
-            addView(
-                toggle("Lautlos überschreiben", silentOverride, palette) {
-                    access.silentOverride(it)
-                    render()
-                },
-            )
-            addView(
-                toggle("Eigene Alarmlautstärke", volumeOverride, palette) {
-                    access.volume(it)
-                    render()
-                },
-            )
-            val audio = getSystemService(android.media.AudioManager::class.java)
-            addView(label("System · ${audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM)}/${audio.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM)}", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-            if (volumeOverride || silentOverride) {
-                addView(
-                    stepper("Alarmlautstärke", "${checkNotNull(access.state.value.snapshot).volumePercent} %", palette, {
-                        access.adjustVolume(-10)
-                        render()
-                    }, {
-                        access.adjustVolume(10)
-                        render()
-                    }),
-                )
-            }
-            addView(label("Lautlos überschreiben verwendet bei Lautlos, Vibration oder stummer Alarmlautstärke den eigenen SugarWear-Ton mit der eingestellten Lautstärke. Tonmodus und Alarmlautstärke werden nach der Wiedergabe, spätestens nach 30 Sekunden, wiederhergestellt. Manuelle Änderungen bleiben erhalten. Nicht stören und vollständige Ruhe können die Wiedergabe weiterhin blockieren.", 8.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-
-            addView(toggle("Vibration", settings.vibrationEnabled, palette) { edit(CgmAlarmSettingsEdit.Vibration(it)) })
-            addView(toggle("Wiederholen", settings.repeatEnabled, palette) { edit(CgmAlarmSettingsEdit.Repeat(it)) })
-            addView(
-                stepper("Wiederholung", "${settings.repeatIntervalMinutes} min", palette, {
-                    edit(CgmAlarmSettingsEdit.AdjustRepeat(-5))
-                }, {
-                    edit(CgmAlarmSettingsEdit.AdjustRepeat(5))
-                }),
-            )
-        }
 
     private var pauseDurationMinutes = 60
 
@@ -231,7 +234,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         val isPaused = pauseUntil != null && pauseUntil > now
 
         return card(palette).apply {
-            addView(label("ALARME PAUSIEREN (AUSSER SEHR TIEF)", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
+            addView(label("ALARME PAUSIEREN (AUSSER DRINGEND NIEDRIG)", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
             if (isPaused) {
                 val pauseUntilTime = checkNotNull(pauseUntil)
                 val remainingMs = maxOf(0L, pauseUntilTime - now)
@@ -239,7 +242,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 val timeFormat = java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(pauseUntilTime))
                 addView(label("Alarme pausiert bis $timeFormat Uhr", 13f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
                 addView(label("Verbleibend: $remainingMinutes Min.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-                addView(label("Sehr niedriger Alarm (Sehr tief) bleibt aktiv!", 11f, 0xFFFF5C69.toInt(), true))
+                addView(label("Dringend niedriger Alarm (55 mg/dL) bleibt aktiv!", 11f, 0xFFFF5C69.toInt(), true))
                 addView(
                     actionButton("Pausierung aufheben", palette) {
                         access.clearAlarmPause()
@@ -248,7 +251,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 )
             } else {
                 if (pauseDurationMinutes !in 15..720) pauseDurationMinutes = snapshot.lastPauseDurationMinutes
-                addView(label("Schlummert alle Alarme außer Sehr tief für die gewählte Dauer.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                addView(label("Schlummert alle Alarme außer Niedriger Wert (dringend) für die gewählte Dauer.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
                 val durationText = if (pauseDurationMinutes >= 60 && pauseDurationMinutes % 60 == 0) {
                     "${pauseDurationMinutes / 60} Std."
                 } else {
@@ -283,34 +286,173 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         }
     }
 
-    private fun alarmCard(
-        type: CgmAlarmType,
-        settings: CgmAlarmSettings,
+    private fun alarmDetailCard(
+        type: SugarWearAlarmType,
+        settings: SugarWearAlarmSettings,
         palette: CgmAppearancePalette,
     ): LinearLayout =
         card(palette).apply {
-            addView(toggle(cgmAlarmTitle(type), alarmEnabled(settings, type), palette) { edit(CgmAlarmSettingsEdit.AlarmEnabled(type, it)) })
-            thresholdText(
-                type,
-                settings,
-            )?.let { addView(label("Schwelle · $it", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true)) }
-            addView(label("Sound · ${cgmAlarmSoundName(type)}", 8.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-            addView(
-                label(
-                    "${if (settings.vibrationEnabled) "Vibration aktiv" else "Vibration aus"} · ${if (settings.repeatEnabled) "Wiederholung ${settings.repeatIntervalMinutes} min" else "Keine Wiederholung"}",
-                    8.5f,
-                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
-                ),
+            val rule = settings.ruleFor(type)
+            addView(label(cgmAlarmTitle(type).uppercase(Locale.GERMAN), 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
+
+            // Non-disableable check
+            if (type == SugarWearAlarmType.URGENT_LOW || type == SugarWearAlarmType.TECHNICAL_WARNING) {
+                addView(label("Immer aktiv (nicht deaktivierbar)", 12f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+            } else {
+                addView(toggle("Alarm aktiv", rule.enabled, palette) { edit(CgmAlarmSettingsEdit.AlarmEnabled(type, it)) })
+            }
+
+            // Specific type rules & controls
+            when (type) {
+                SugarWearAlarmType.URGENT_LOW -> {
+                    addView(label("Feste Warnstufe: 55 mg/dL", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                    addView(label("Schlummerzeit: 30 Min. (nicht änderbar)", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                }
+                SugarWearAlarmType.URGENT_LOW_SOON -> {
+                    addView(label("Warnt, wenn 55 mg/dL in weniger als 20 Min. erreicht wird.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                    addView(label("Schlummerzeit: 30 Min.", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                }
+                SugarWearAlarmType.LOW -> {
+                    addView(label("Grenzwert: ${rule.thresholdMgDl.toInt()} mg/dL", 12f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                    addView(
+                        actionButton("Grenzwert bearbeiten", palette) {
+                            showNumberEditor("Niedrig-Grenzwert", rule.thresholdMgDl.toInt().toString(), InputType.TYPE_CLASS_NUMBER) { value ->
+                                value.toDoubleOrNull()?.let { edit(CgmAlarmSettingsEdit.Threshold(type, it)) }
+                            }
+                        },
+                    )
+                    addView(toggle("Schlummern aktiv", rule.snoozeEnabled, palette) { edit(CgmAlarmSettingsEdit.SnoozeEnabled(type, it)) })
+                    if (rule.snoozeEnabled) {
+                        addView(
+                            stepper("Schlummerzeit", "${rule.snoozeMinutes} min", palette, {
+                                edit(CgmAlarmSettingsEdit.SnoozeMinutes(type, rule.snoozeMinutes - 5))
+                            }, {
+                                edit(CgmAlarmSettingsEdit.SnoozeMinutes(type, rule.snoozeMinutes + 5))
+                            }),
+                        )
+                    }
+                }
+                SugarWearAlarmType.HIGH -> {
+                    addView(label("Grenzwert: ${rule.thresholdMgDl.toInt()} mg/dL", 12f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                    addView(
+                        actionButton("Grenzwert bearbeiten", palette) {
+                            showNumberEditor("Hoch-Grenzwert", rule.thresholdMgDl.toInt().toString(), InputType.TYPE_CLASS_NUMBER) { value ->
+                                value.toDoubleOrNull()?.let { edit(CgmAlarmSettingsEdit.Threshold(type, it)) }
+                            }
+                        },
+                    )
+                    val delayText = when {
+                        rule.highDelayMinutes == 0 -> "Aus (0 min)"
+                        rule.highDelayMinutes < 60 -> "${rule.highDelayMinutes} min"
+                        rule.highDelayMinutes % 60 == 0 -> "${rule.highDelayMinutes / 60} Std."
+                        else -> "${rule.highDelayMinutes / 60} Std. ${rule.highDelayMinutes % 60} min"
+                    }
+                    addView(
+                        stepper("Erste Warnung verzögern", delayText, palette, {
+                            val delta = if (rule.highDelayMinutes > 60) 15 else 5
+                            edit(CgmAlarmSettingsEdit.HighDelay(type, rule.highDelayMinutes - delta))
+                        }, {
+                            val delta = if (rule.highDelayMinutes >= 60) 15 else 5
+                            edit(CgmAlarmSettingsEdit.HighDelay(type, rule.highDelayMinutes + delta))
+                        }),
+                    )
+                    addView(
+                        actionButton("Verzögerung eingeben (5 min - 4 Std.)", palette) {
+                            showNumberEditor("Verzögerung in Min. (5-240)", rule.highDelayMinutes.toString(), InputType.TYPE_CLASS_NUMBER) { value ->
+                                value.toIntOrNull()?.let { edit(CgmAlarmSettingsEdit.HighDelay(type, it)) }
+                            }
+                        },
+                    )
+                    addView(toggle("Schlummern aktiv", rule.snoozeEnabled, palette) { edit(CgmAlarmSettingsEdit.SnoozeEnabled(type, it)) })
+                    if (rule.snoozeEnabled) {
+                        addView(
+                            stepper("Schlummerzeit", "${rule.snoozeMinutes} min", palette, {
+                                edit(CgmAlarmSettingsEdit.SnoozeMinutes(type, rule.snoozeMinutes - 5))
+                            }, {
+                                edit(CgmAlarmSettingsEdit.SnoozeMinutes(type, rule.snoozeMinutes + 5))
+                            }),
+                        )
+                    }
+                }
+                SugarWearAlarmType.RAPID_RISE -> {
+                    val stepText = if (rule.rateStep == 1) "Stufe 1: 2 bis <3 mg/dL/min (↑)" else "Stufe 2: ≥3 mg/dL/min (↑↑)"
+                    addView(label("Ratenstufe: $stepText", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                    addView(
+                        actionButton("Ratenstufe umschalten", palette) {
+                            val nextStep = if (rule.rateStep == 1) 2 else 1
+                            edit(CgmAlarmSettingsEdit.RateStep(type, nextStep))
+                        },
+                    )
+                    addView(label("Zusatzgrenze: > ${rule.additionalGlucoseThresholdMgDl.toInt()} mg/dL", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                    addView(
+                        actionButton("Zusatzgrenze bearbeiten", palette) {
+                            showNumberEditor("Zusatzgrenze (steigend)", rule.additionalGlucoseThresholdMgDl.toInt().toString(), InputType.TYPE_CLASS_NUMBER) { value ->
+                                value.toDoubleOrNull()?.let { edit(CgmAlarmSettingsEdit.AdditionalGlucoseThreshold(type, it)) }
+                            }
+                        },
+                    )
+                }
+                SugarWearAlarmType.RAPID_FALL -> {
+                    val stepText = if (rule.rateStep == 1) "Stufe 1: 2 bis <3 mg/dL/min (↓)" else "Stufe 2: ≥3 mg/dL/min (↓↓)"
+                    addView(label("Ratenstufe: $stepText", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                    addView(
+                        actionButton("Ratenstufe umschalten", palette) {
+                            val nextStep = if (rule.rateStep == 1) 2 else 1
+                            edit(CgmAlarmSettingsEdit.RateStep(type, nextStep))
+                        },
+                    )
+                    addView(label("Zusatzgrenze: < ${rule.additionalGlucoseThresholdMgDl.toInt()} mg/dL", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                    addView(
+                        actionButton("Zusatzgrenze bearbeiten", palette) {
+                            showNumberEditor("Zusatzgrenze (fallend)", rule.additionalGlucoseThresholdMgDl.toInt().toString(), InputType.TYPE_CLASS_NUMBER) { value ->
+                                value.toDoubleOrNull()?.let { edit(CgmAlarmSettingsEdit.AdditionalGlucoseThreshold(type, it)) }
+                            }
+                        },
+                    )
+                }
+                SugarWearAlarmType.SIGNAL_LOSS -> {
+                    addView(label("Warnung nach: ${rule.durationMinutes} Min. Signalverlust", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                    addView(
+                        stepper("Signalausfall-Zeit", "${rule.durationMinutes} min", palette, {
+                            edit(CgmAlarmSettingsEdit.DurationMinutes(type, rule.durationMinutes - 5))
+                        }, {
+                            edit(CgmAlarmSettingsEdit.DurationMinutes(type, rule.durationMinutes + 5))
+                        }),
+                    )
+                }
+                SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> {
+                    addView(label("Warnung nach: ${rule.durationMinutes} Min. Messproblem", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                    addView(
+                        stepper("Problemzeitraum", "${rule.durationMinutes} min", palette, {
+                            edit(CgmAlarmSettingsEdit.DurationMinutes(type, rule.durationMinutes - 5))
+                        }, {
+                            edit(CgmAlarmSettingsEdit.DurationMinutes(type, rule.durationMinutes + 5))
+                        }),
+                    )
+                }
+                SugarWearAlarmType.TECHNICAL_WARNING -> {
+                    addView(label("Warnt bei unbehebbaren Sensorfehlern oder erforderlicher Benutzerintervention.", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                }
+            }
+
+            // Delivery Mode Selection
+            addView(label("Ausgabemodus: ${rule.deliveryMode.labelGerman}", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply { setPadding(0, 6.dp, 0, 2.dp) })
+            val modes = listOf(
+                SugarWearAlertDeliveryMode.MATCH_DEVICE,
+                SugarWearAlertDeliveryMode.SOUND,
+                SugarWearAlertDeliveryMode.VIBRATE,
             )
-            if (type in editableThresholdTypes) {
+            modes.forEach { mode ->
                 addView(
-                    actionButton("Schwelle eingeben · ${thresholdText(type, settings).orEmpty()}", palette) {
-                        showThresholdEditor(type, settings)
+                    actionButton("${if (rule.deliveryMode == mode) "✓ " else ""}${mode.labelGerman}", palette) {
+                        edit(CgmAlarmSettingsEdit.DeliveryMode(type, mode))
                     },
                 )
             }
+
+            // Test Button
             addView(
-                actionButton("Test", palette) {
+                actionButton("Test-Ton abspielen", palette) {
                     access.test(type)
                 },
             )
@@ -334,35 +476,20 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         }
     }
 
-    private fun showThresholdEditor(
-        type: CgmAlarmType,
-        settings: CgmAlarmSettings,
+    private fun showNumberEditor(
+        title: String,
+        current: String,
+        inputType: Int,
+        onValue: (String) -> Unit,
     ) {
         val restoreScrollY = scrollView.scrollY
-        val current = thresholdValue(type, settings) ?: return
-        val shown =
-            if (type == CgmAlarmType.RAPID_RISE || type == CgmAlarmType.RAPID_FALL) {
-                String.format(Locale.US, "%.1f", current)
-            } else {
-                current.toInt().toString()
-            }
-
-        fun parsed(value: String) = value.trim().replace(',', '.').toDoubleOrNull()
         SharedNumberEditor.showText(
             activity = this,
-            title = "${cgmAlarmTitle(type)} · Schwelle",
-            current = shown,
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL,
-            validate = { text ->
-                if (parsed(text)?.let { withThreshold(settings, type, it) } == null) {
-                    thresholdValidationMessage(type, settings)
-                } else {
-                    null
-                }
-            },
-            onValue = { text ->
-                parsed(text)?.let { edit(CgmAlarmSettingsEdit.Threshold(type, it)) }
-            },
+            title = title,
+            current = current,
+            inputType = inputType,
+            validate = { null },
+            onValue = { text -> onValue(text) },
             onDismiss = { restoreScrollPosition(restoreScrollY) },
         )
     }
@@ -388,14 +515,12 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         palette: CgmAppearancePalette,
         changed: (Boolean) -> Unit,
     ) = app.sugarlicious.uishared.ScrollSafeSwitch(this).apply {
-        app.sugarlicious.uishared.WearSettingsUi
-            .toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+        app.sugarlicious.uishared.WearSettingsUi.toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
         text = title
         isChecked = checked
         setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
         textSize = 15f
-        app.sugarlicious.uishared.SystemTypography
-            .apply(this, true)
+        app.sugarlicious.uishared.SystemTypography.apply(this, true)
         setOnCheckedChangeListener { _, value -> changed(value) }
     }
 
@@ -424,12 +549,10 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         text = title
         textSize = 14f
         minimumHeight = 40.dp
-        app.sugarlicious.uishared.SystemTypography
-            .apply(this, true)
+        app.sugarlicious.uishared.SystemTypography.apply(this, true)
         isAllCaps = false
         setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
-        app.sugarlicious.uishared.WearSettingsUi
-            .actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+        app.sugarlicious.uishared.WearSettingsUi.actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
         setOnClickListener { action() }
     }
 
@@ -448,12 +571,9 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
     ) = TextView(this).apply {
         includeFontPadding = false
         text = value
-        textSize =
-            app.sugarlicious.uishared.WearSettingsUi
-                .textSize(size)
+        textSize = app.sugarlicious.uishared.WearSettingsUi.textSize(size)
         setTextColor(color)
-        app.sugarlicious.uishared.SystemTypography
-            .apply(this, bold)
+        app.sugarlicious.uishared.SystemTypography.apply(this, bold)
     }
 
     private fun rounded(
@@ -473,160 +593,3 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
 
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 }
-
-internal fun alarmEnabled(
-    settings: CgmAlarmSettings,
-    type: CgmAlarmType,
-): Boolean =
-    when (type) {
-        CgmAlarmType.VERY_HIGH -> settings.veryHighEnabled
-        CgmAlarmType.HIGH -> settings.highEnabled
-        CgmAlarmType.LOW -> settings.lowEnabled
-        CgmAlarmType.VERY_LOW -> settings.veryLowEnabled
-        CgmAlarmType.RAPID_RISE -> settings.rapidRiseEnabled
-        CgmAlarmType.RAPID_FALL -> settings.rapidFallEnabled
-        CgmAlarmType.SIGNAL_LOSS -> settings.signalLossEnabled
-        CgmAlarmType.SENSOR_ERROR -> settings.sensorErrorEnabled
-    }
-
-internal fun withAlarmEnabled(
-    settings: CgmAlarmSettings,
-    type: CgmAlarmType,
-    enabled: Boolean,
-): CgmAlarmSettings =
-    when (type) {
-        CgmAlarmType.VERY_HIGH -> settings.copy(veryHighEnabled = enabled)
-        CgmAlarmType.HIGH -> settings.copy(highEnabled = enabled)
-        CgmAlarmType.LOW -> settings.copy(lowEnabled = enabled)
-        CgmAlarmType.VERY_LOW -> settings.copy(veryLowEnabled = enabled)
-        CgmAlarmType.RAPID_RISE -> settings.copy(rapidRiseEnabled = enabled)
-        CgmAlarmType.RAPID_FALL -> settings.copy(rapidFallEnabled = enabled)
-        CgmAlarmType.SIGNAL_LOSS -> settings.copy(signalLossEnabled = enabled)
-        CgmAlarmType.SENSOR_ERROR -> settings.copy(sensorErrorEnabled = enabled)
-    }
-
-internal fun thresholdText(
-    type: CgmAlarmType,
-    settings: CgmAlarmSettings,
-): String? =
-    when (type) {
-        CgmAlarmType.VERY_HIGH -> "${settings.veryHighThreshold.toInt()} mg/dL"
-        CgmAlarmType.HIGH -> "${settings.highThreshold.toInt()} mg/dL"
-        CgmAlarmType.LOW -> "${settings.lowThreshold.toInt()} mg/dL"
-        CgmAlarmType.VERY_LOW -> "${settings.veryLowThreshold.toInt()} mg/dL"
-        CgmAlarmType.RAPID_RISE -> String.format(Locale.US, "%.1f mg/dL/min", settings.rapidRiseThreshold)
-        CgmAlarmType.RAPID_FALL -> String.format(Locale.US, "%.1f mg/dL/min", settings.rapidFallThreshold)
-        CgmAlarmType.SIGNAL_LOSS -> "${settings.signalLossMinutes} min"
-        CgmAlarmType.SENSOR_ERROR -> null
-    }
-
-private val editableThresholdTypes =
-    setOf(
-        CgmAlarmType.VERY_HIGH,
-        CgmAlarmType.HIGH,
-        CgmAlarmType.LOW,
-        CgmAlarmType.VERY_LOW,
-        CgmAlarmType.RAPID_RISE,
-        CgmAlarmType.RAPID_FALL,
-    )
-
-internal fun thresholdValue(
-    type: CgmAlarmType,
-    settings: CgmAlarmSettings,
-): Double? =
-    when (type) {
-        CgmAlarmType.VERY_HIGH -> settings.veryHighThreshold
-        CgmAlarmType.HIGH -> settings.highThreshold
-        CgmAlarmType.LOW -> settings.lowThreshold
-        CgmAlarmType.VERY_LOW -> settings.veryLowThreshold
-        CgmAlarmType.RAPID_RISE -> settings.rapidRiseThreshold
-        CgmAlarmType.RAPID_FALL -> settings.rapidFallThreshold
-        CgmAlarmType.SIGNAL_LOSS, CgmAlarmType.SENSOR_ERROR -> null
-    }
-
-internal fun withThreshold(
-    settings: CgmAlarmSettings,
-    type: CgmAlarmType,
-    value: Double,
-): CgmAlarmSettings? {
-    if (!value.isFinite()) return null
-    val updated =
-        when (type) {
-            CgmAlarmType.VERY_HIGH -> if (value in (settings.highThreshold + 1.0)..400.0) settings.copy(veryHighThreshold = value) else null
-            CgmAlarmType.HIGH ->
-                if (value > settings.lowThreshold &&
-                    value < settings.veryHighThreshold
-                ) {
-                    settings.copy(highThreshold = value)
-                } else {
-                    null
-                }
-            CgmAlarmType.LOW ->
-                if (value > settings.veryLowThreshold &&
-                    value < settings.highThreshold
-                ) {
-                    settings.copy(lowThreshold = value)
-                } else {
-                    null
-                }
-            CgmAlarmType.VERY_LOW -> if (value in 40.0..<settings.lowThreshold) settings.copy(veryLowThreshold = value) else null
-            CgmAlarmType.RAPID_RISE -> if (value in 0.5..10.0) settings.copy(rapidRiseThreshold = value) else null
-            CgmAlarmType.RAPID_FALL -> if (value in 0.5..10.0) settings.copy(rapidFallThreshold = value) else null
-            CgmAlarmType.SIGNAL_LOSS, CgmAlarmType.SENSOR_ERROR -> null
-        }
-    return updated?.takeIf {
-        app.sugarlicious.model
-            .CgmThresholds(it.veryHighThreshold, it.highThreshold, it.lowThreshold, it.veryLowThreshold)
-            .isValid &&
-            it.rapidRiseThreshold in 0.5..10.0 &&
-            it.rapidFallThreshold in 0.5..10.0
-    }
-}
-
-private fun thresholdValidationMessage(
-    type: CgmAlarmType,
-    settings: CgmAlarmSettings,
-): String =
-    when (type) {
-        CgmAlarmType.VERY_HIGH -> "Wert muss über ${settings.highThreshold.toInt()} und höchstens 400 sein"
-        CgmAlarmType.HIGH -> "Wert muss zwischen ${settings.lowThreshold.toInt()} und ${settings.veryHighThreshold.toInt()} liegen"
-        CgmAlarmType.LOW -> "Wert muss zwischen ${settings.veryLowThreshold.toInt()} und ${settings.highThreshold.toInt()} liegen"
-        CgmAlarmType.VERY_LOW -> "Wert muss mindestens 40 und unter ${settings.lowThreshold.toInt()} sein"
-        CgmAlarmType.RAPID_RISE, CgmAlarmType.RAPID_FALL -> "Wert muss zwischen 0,5 und 10,0 liegen"
-        CgmAlarmType.SIGNAL_LOSS, CgmAlarmType.SENSOR_ERROR -> "Nicht editierbar"
-    }
-
-internal fun adjustThreshold(
-    settings: CgmAlarmSettings,
-    type: CgmAlarmType,
-    delta: Double,
-): CgmAlarmSettings =
-    when (type) {
-        CgmAlarmType.VERY_HIGH ->
-            settings.copy(
-                veryHighThreshold = (settings.veryHighThreshold + delta).coerceIn(settings.highThreshold + 5.0, 400.0),
-            )
-        CgmAlarmType.HIGH ->
-            settings.copy(
-                highThreshold =
-                    (settings.highThreshold + delta).coerceIn(
-                        settings.lowThreshold + 5.0,
-                        settings.veryHighThreshold - 5.0,
-                    ),
-            )
-        CgmAlarmType.LOW ->
-            settings.copy(
-                lowThreshold =
-                    (settings.lowThreshold + delta).coerceIn(
-                        settings.veryLowThreshold + 5.0,
-                        settings.highThreshold - 5.0,
-                    ),
-            )
-        CgmAlarmType.VERY_LOW ->
-            settings.copy(
-                veryLowThreshold = (settings.veryLowThreshold + delta).coerceIn(40.0, settings.lowThreshold - 5.0),
-            )
-        CgmAlarmType.RAPID_RISE -> settings.copy(rapidRiseThreshold = (settings.rapidRiseThreshold + delta).coerceIn(0.5, 10.0))
-        CgmAlarmType.RAPID_FALL -> settings.copy(rapidFallThreshold = (settings.rapidFallThreshold + delta).coerceIn(0.5, 10.0))
-        CgmAlarmType.SIGNAL_LOSS, CgmAlarmType.SENSOR_ERROR -> settings
-    }

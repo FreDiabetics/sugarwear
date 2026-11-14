@@ -24,7 +24,7 @@ internal data class CgmOverviewSnapshot(
     val graphReadings: List<CgmReading>,
     val transition: CgmUiSensorTransition?,
     val activeHistoryIdentity: Pair<String, String>? = null,
-    val pendingAlarms: List<app.sugarlicious.sensor.protocol.CgmAlarm> = emptyList(),
+    val pendingAlarms: List<SugarWearAlarmInstance> = emptyList(),
 )
 
 internal data class CgmOverviewState(

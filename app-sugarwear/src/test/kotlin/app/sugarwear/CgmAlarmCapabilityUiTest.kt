@@ -15,7 +15,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
-import app.sugarlicious.sensor.protocol.CgmAlarmType
+import app.sugarlicious.sensor.protocol.CgmSessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -109,8 +109,8 @@ class CgmAlarmCapabilityUiTest {
         val manager = context.getSystemService(NotificationManager::class.java)
         shadowOf(manager).setNotificationPolicyAccessGranted(true)
         manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
-        CgmAlarmNotifier.showTest(context, CgmAlarmType.VERY_HIGH, CgmAlarmSettingsStore.read(context).copy(soundEnabled = true))
-        val notification = shadowOf(manager).getNotification(CgmAlarmNotifier.testNotificationId(CgmAlarmType.VERY_HIGH))
+        CgmAlarmNotifier.showTest(context, SugarWearAlarmType.HIGH, CgmAlarmSettingsStore.read(context))
+        val notification = shadowOf(manager).getNotification(CgmAlarmNotifier.testNotificationId(SugarWearAlarmType.HIGH))
         assertTrue(
             notification.extras
                 .getCharSequence(Notification.EXTRA_TEXT)

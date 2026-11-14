@@ -38,8 +38,8 @@ class CgmOverviewRepositoryTest {
                 .shadowOf(android.os.Looper.getMainLooper())
                 .idle()
             testScheduler.runCurrent()
-            assertTrue(snapshots.last().pendingAlarms.any { it.type == app.sugarlicious.sensor.protocol.CgmAlarmType.LOW })
-            CgmAlarmCoordinator.acknowledge(context, app.sugarlicious.sensor.protocol.CgmAlarmType.LOW, now)
+            assertTrue(snapshots.last().pendingAlarms.any { it.type == SugarWearAlarmType.LOW })
+            CgmAlarmCoordinator.acknowledge(context, SugarWearAlarmType.LOW, now)
             org.robolectric.Shadows
                 .shadowOf(android.os.Looper.getMainLooper())
                 .idle()

@@ -2,7 +2,6 @@ package app.sugarwear
 
 import android.content.Context
 import androidx.core.content.edit
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 
 internal object CgmAlarmPauseStore {
     private const val PREFS = "g7_cgm_alarm_pause"
@@ -22,10 +21,11 @@ internal object CgmAlarmPauseStore {
 
     fun isPaused(
         context: Context,
-        type: CgmAlarmType,
+        type: SugarWearAlarmType,
         nowEpochMs: Long = System.currentTimeMillis(),
     ): Boolean {
-        if (type == CgmAlarmType.VERY_LOW) return false
+        // URGENT_LOW and TECHNICAL_WARNING must NEVER be paused!
+        if (type == SugarWearAlarmType.URGENT_LOW || type == SugarWearAlarmType.TECHNICAL_WARNING) return false
         return pausedUntil(context, nowEpochMs) != null
     }
 

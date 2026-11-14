@@ -92,11 +92,11 @@ class CgmSettingsPresentationTest {
         try {
             awaitReady(activity)
             val before = CgmAlarmSettingsStore.read(activity)
-            for (type in app.sugarlicious.sensor.protocol.CgmAlarmType.entries) {
+            for (type in SugarWearAlarmType.entries) {
                 var target: View = descendants(activity.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == cgmAlarmTitle(type) }
                 while (!target.isClickable) target = target.parent as View
                 target.performClick()
-                assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Test" })
+                assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Test-Ton abspielen" })
                 descendants(activity.window.decorView).single { it.contentDescription == "Zurück" }.performClick()
             }
             assertEquals(before, CgmAlarmSettingsStore.read(activity))
@@ -118,7 +118,7 @@ class CgmSettingsPresentationTest {
             decor.measure(View.MeasureSpec.makeMeasureSpec(454, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(454, View.MeasureSpec.EXACTLY))
             decor.layout(0, 0, 454, 454)
             if (descendants(decor).any { it.tag?.toString()?.startsWith("settings-element-") == true } ||
-                descendants(decor).filterIsInstance<TextView>().any { it.text.toString() == "T\u00f6ne und Vibration" }
+                descendants(decor).filterIsInstance<TextView>().any { it.text.toString() == "Ruhemodi" }
             ) {
                 return
             }

@@ -10,7 +10,6 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import androidx.core.content.edit
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +50,7 @@ internal object CgmErrorNotifier {
                 description = "Dringende Fehler von SugarWear"
                 enableVibration(true)
                 setSound(
-                    cgmAlarmSoundUri(context, CgmAlarmType.SENSOR_ERROR),
+                    cgmAlarmSoundUri(context, SugarWearAlarmType.TECHNICAL_WARNING),
                     AudioAttributes
                         .Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -88,6 +87,9 @@ internal object CgmErrorNotifier {
             putLong(KEY_LAST_POSTED_AT, System.currentTimeMillis())
         }
 
+        // Pass event to central SugarWear alarm coordinator
+        CgmAlarmCoordinator.onTechnicalError(app, error)
+
         app.getSystemService(NotificationManager::class.java).notify(
             NOTIFICATION_ID,
             buildNotification(
@@ -100,7 +102,6 @@ internal object CgmErrorNotifier {
         )
     }
 
-    /** A valid new reading means the active connection problem is over; do not require cleanup acknowledgement. */
     fun markRecovered(context: Context) {
         clearActive(context)
     }

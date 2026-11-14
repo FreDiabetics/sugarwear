@@ -107,10 +107,10 @@ class CgmWatchActivityLayoutTest {
         fun hasAlarm(): Boolean {
             val labels = mutableListOf<String>()
             collectText(activity.window.decorView, labels)
-            return "Tief Alarm!" in labels
+            return "Niedrig Alarm!" in labels
         }
         awaitCondition(activity) { hasAlarm() }
-        CgmAlarmCoordinator.acknowledge(context, app.sugarlicious.sensor.protocol.CgmAlarmType.LOW, now)
+        CgmAlarmCoordinator.acknowledge(context, SugarWearAlarmType.LOW, now)
         awaitCondition(activity) { !hasAlarm() }
     }
 

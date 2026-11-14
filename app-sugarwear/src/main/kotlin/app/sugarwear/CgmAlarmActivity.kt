@@ -9,7 +9,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -33,7 +31,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import app.sugarlicious.model.Trend
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import app.sugarlicious.sensor.protocol.CgmReading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,21 +38,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-internal fun cgmAlarmHeadline(type: CgmAlarmType): String = "${cgmAlarmTitle(type)} Alarm!"
+internal fun cgmAlarmHeadline(type: SugarWearAlarmType): String = "${cgmAlarmTitle(type)} Alarm!"
 
 internal fun cgmAlarmValue(reading: CgmReading?, now: Long = System.currentTimeMillis()): String {
     if (reading == null) return "Keine aktuellen Daten"
-    val arrow =
-        when (reading.trend) {
-            Trend.DOUBLE_DOWN -> "↓↓"
-            Trend.SINGLE_DOWN -> "↓"
-            Trend.FORTY_FIVE_DOWN -> "↘"
-            Trend.FLAT -> "→"
-            Trend.FORTY_FIVE_UP -> "↗"
-            Trend.SINGLE_UP -> "↑"
-            Trend.DOUBLE_UP -> "↑↑"
-            Trend.UNKNOWN -> ""
-        }
+    val arrow = when (reading.trend) {
+        Trend.DOUBLE_DOWN -> "↓↓"
+        Trend.SINGLE_DOWN -> "↓"
+        Trend.FORTY_FIVE_DOWN -> "↘"
+        Trend.FLAT -> "→"
+        Trend.FORTY_FIVE_UP -> "↗"
+        Trend.SINGLE_UP -> "↑"
+        Trend.DOUBLE_UP -> "↑↑"
+        Trend.UNKNOWN -> ""
+    }
     val value = "${kotlin.math.round(reading.glucoseMgDl).toInt()} $arrow mg/dL"
     return if (now - reading.timestampEpochMs in 0 until 15 * 60_000L) value else "Letzter Wert: $value"
 }
@@ -68,21 +64,21 @@ internal object CgmAlarmDelivery {
 
     private fun prefs(context: Context) = context.getSharedPreferences("cgm_alarm_delivery", Context.MODE_PRIVATE)
 
-    fun mode(context: Context, type: CgmAlarmType): String? = prefs(context).getString(type.name, null)
+    fun mode(context: Context, type: SugarWearAlarmType): String? = prefs(context).getString(type.id, null)
 
-    fun snoozeMinutes(context: Context, type: CgmAlarmType): Int = prefs(context).getInt("duration_${type.name}", 10).coerceIn(5, 120)
+    fun snoozeMinutes(context: Context, type: SugarWearAlarmType): Int = prefs(context).getInt("duration_${type.id}", 10).coerceIn(5, 120)
 
-    fun setSnoozeMinutes(context: Context, type: CgmAlarmType, minutes: Int) {
-        prefs(context).edit { putInt("duration_${type.name}", minutes.coerceIn(5, 120)) }
+    fun setSnoozeMinutes(context: Context, type: SugarWearAlarmType, minutes: Int) {
+        prefs(context).edit { putInt("duration_${type.id}", minutes.coerceIn(5, 120)) }
         CgmAlarmCoordinator.refreshNotification(context, type)
     }
 
-    fun reset(context: Context, type: CgmAlarmType) = prefs(context).edit { remove(type.name) }
+    fun reset(context: Context, type: SugarWearAlarmType) = prefs(context).edit { remove(type.id) }
 
-    fun pending(context: Context, type: CgmAlarmType, operation: String): PendingIntent =
+    fun pending(context: Context, type: SugarWearAlarmType, operation: String): PendingIntent =
         PendingIntent.getBroadcast(
             context,
-            7_600 + type.ordinal * 4 + listOf("snooze", "mute", "vibrate", "ack").indexOf(operation),
+            7_600 + SugarWearAlarmDefaults.priority(type) * 4 + listOf("snooze", "mute", "vibrate", "ack").indexOf(operation),
             Intent(context, CgmAlarmAcknowledgeReceiver::class.java)
                 .setAction(ACTION)
                 .putExtra(CgmAlarmAcknowledgeReceiver.EXTRA_TYPE, type.name)
@@ -90,23 +86,20 @@ internal object CgmAlarmDelivery {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-    fun perform(context: Context, type: CgmAlarmType, operation: String) =
+    fun perform(context: Context, type: SugarWearAlarmType, operation: String) =
         synchronized(CgmSensorStateStore.lifecycleLock) {
             if (!CgmAlarmCoordinator.isVisible(context, type)) return@synchronized
             when (operation) {
                 "ack" -> CgmAlarmCoordinator.acknowledge(context, type)
                 "snooze" -> CgmAlarmCoordinator.snooze(context, type)
                 "mute", "vibrate" -> {
-                    prefs(context).edit { putString(type.name, operation) }
+                    prefs(context).edit { putString(type.id, operation) }
                     CgmAlarmAudioService.stop(context, type)
                     context.getSystemService(android.os.Vibrator::class.java)?.cancel()
                     if (operation == "vibrate") {
                         context.getSystemService(android.os.Vibrator::class.java)?.vibrate(
                             android.os.VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1),
-                            android.os.VibrationAttributes
-                                .Builder()
-                                .setUsage(android.os.VibrationAttributes.USAGE_ALARM)
-                                .build(),
+                            android.os.VibrationAttributes.Builder().setUsage(android.os.VibrationAttributes.USAGE_ALARM).build(),
                         )
                     }
                 }
@@ -115,7 +108,7 @@ internal object CgmAlarmDelivery {
 }
 
 internal data class CgmAlarmScreenState(
-    val type: CgmAlarmType? = null,
+    val type: SugarWearAlarmType? = null,
     val visible: Boolean = false,
     val active: Boolean = false,
     val triggerGlucose: Double? = null,
@@ -132,7 +125,7 @@ class CgmAlarmViewModel
     ) : AndroidViewModel(app) {
         private val mutable = MutableStateFlow(CgmAlarmScreenState())
         internal val state = mutable.asStateFlow()
-        private var selected: CgmAlarmType? = null
+        private var selected: SugarWearAlarmType? = null
         private val preferences = listOf("g7_cgm_alarm_state", "g7_collector_state", "cgm_alarm_delivery").map { app.getSharedPreferences(it, Context.MODE_PRIVATE) }
         private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> refresh() }
 
@@ -140,7 +133,7 @@ class CgmAlarmViewModel
             preferences.forEach { it.registerOnSharedPreferenceChangeListener(listener) }
         }
 
-        internal fun select(type: CgmAlarmType) {
+        internal fun select(type: SugarWearAlarmType) {
             selected = type
             refresh()
         }
@@ -226,7 +219,7 @@ class CgmAlarmActivity : ComponentActivity() {
             val state = model.state.collectAsStateWithLifecycle().value
             LaunchedEffect(state.type, state.visible) { if (state.type != null && !state.visible) finish() }
             val type = state.type ?: return@setContent
-            val accent = if (type in setOf(CgmAlarmType.HIGH, CgmAlarmType.VERY_HIGH, CgmAlarmType.RAPID_RISE)) Color(0xFFFFD040) else Color(0xFFFF5C69)
+            val accent = if (type in setOf(SugarWearAlarmType.HIGH, SugarWearAlarmType.RAPID_RISE)) Color(0xFFFFD040) else Color(0xFFFF5C69)
             val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
 
             Column(
@@ -236,7 +229,6 @@ class CgmAlarmActivity : ComponentActivity() {
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Top screen viewport: ONLY 3 centered items fill this section
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -245,7 +237,6 @@ class CgmAlarmActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    // Item 1: Large Alarm Icon (ic_alert)
                     androidx.compose.foundation.Image(
                         painter = androidx.compose.ui.res.painterResource(app.sugarlicious.uishared.R.drawable.ic_alert),
                         contentDescription = null,
@@ -253,7 +244,6 @@ class CgmAlarmActivity : ComponentActivity() {
                         colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accent),
                     )
 
-                    // Item 2: Glucose Value + Trend Arrow Icon (side-by-side), mg/dL below
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
@@ -282,14 +272,12 @@ class CgmAlarmActivity : ComponentActivity() {
                         )
                     }
 
-                    // Item 3: Large Alarm Type Title
                     BasicText(
                         cgmAlarmHeadline(type),
                         style = TextStyle(color = accent, fontSize = 26.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
                     )
                 }
 
-                // Scroll down content (controls & details)
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -361,11 +349,11 @@ class CgmAlarmActivity : ComponentActivity() {
     }
 
     private fun select(intent: Intent) {
-        val type = intent.getStringExtra("type")?.let { runCatching { CgmAlarmType.valueOf(it) }.getOrNull() }
+        val type = intent.getStringExtra("type")?.let { runCatching { SugarWearAlarmType.valueOf(it) }.getOrNull() }
         if (type == null) finish() else model.select(type)
     }
 
     companion object {
-        internal fun intent(context: Context, type: CgmAlarmType) = Intent(context, CgmAlarmActivity::class.java).putExtra("type", type.name)
+        internal fun intent(context: Context, type: SugarWearAlarmType) = Intent(context, CgmAlarmActivity::class.java).putExtra("type", type.name)
     }
 }

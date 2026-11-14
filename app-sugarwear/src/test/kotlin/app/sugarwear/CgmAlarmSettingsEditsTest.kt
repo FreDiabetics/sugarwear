@@ -1,6 +1,5 @@
 package app.sugarwear
 
-import app.sugarlicious.sensor.protocol.CgmAlarmSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import org.junit.Assert.*
@@ -8,30 +7,33 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CgmAlarmSettingsEditsTest {
-    private fun baseline() = CgmAlarmSettings(250.0, 180.0, 70.0, 55.0, 2.0, 2.0, 16, soundEnabled = true)
+    private fun baseline() = SugarWearAlarmDefaults.defaultSettings()
 
     @Test fun `delayed queued toggles preserve both independent edits`() =
         runTest {
             var persisted = baseline()
             val worker = CgmSettingsWorker(backgroundScope, StandardTestDispatcher(testScheduler)) { persisted }
             runCurrent()
-            worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.Sound(false)) })
-            worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.Vibration(false)) })
-            assertTrue(persisted.soundEnabled)
-            assertTrue(persisted.vibrationEnabled)
+            worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.GlobalMuteAll(true)) })
+            worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.GlobalVibrateOnly(true)) })
+            assertFalse(persisted.globalMuteAll)
+            assertFalse(persisted.globalVibrateOnly)
             runCurrent()
-            assertFalse(persisted.soundEnabled)
-            assertFalse(persisted.vibrationEnabled)
+            assertTrue(persisted.globalMuteAll)
+            assertTrue(persisted.globalVibrateOnly)
         }
 
-    @Test fun `repeated interval taps accumulate before any worker write completes`() =
+    @Test fun `high alert delay range supports 5 minutes to 240 minutes`() =
         runTest {
-            var persisted = baseline().copy(repeatIntervalMinutes = 15)
+            var persisted = baseline()
             val worker = CgmSettingsWorker(backgroundScope, StandardTestDispatcher(testScheduler)) { persisted }
             runCurrent()
-            repeat(3) { worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.AdjustRepeat(5)) }) }
-            assertEquals(15, persisted.repeatIntervalMinutes)
+            worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.HighDelay(SugarWearAlarmType.HIGH, 240)) })
             runCurrent()
-            assertEquals(30, persisted.repeatIntervalMinutes)
+            assertEquals(240, persisted.ruleFor(SugarWearAlarmType.HIGH).highDelayMinutes)
+
+            worker.submit({ persisted = applyCgmAlarmSettingsEdit(persisted, CgmAlarmSettingsEdit.HighDelay(SugarWearAlarmType.HIGH, 300)) })
+            runCurrent()
+            assertEquals(240, persisted.ruleFor(SugarWearAlarmType.HIGH).highDelayMinutes)
         }
 }

@@ -785,7 +785,7 @@ class CgmWatchActivity : ComponentActivity() {
             alarmHost.removeAllViews()
             alarmHost.visibility = if (snapshot.pendingAlarms.isEmpty()) View.GONE else View.VISIBLE
             snapshot.pendingAlarms.forEach { alarm ->
-                val accent = if (alarm.type in setOf(app.sugarlicious.sensor.protocol.CgmAlarmType.HIGH, app.sugarlicious.sensor.protocol.CgmAlarmType.VERY_HIGH, app.sugarlicious.sensor.protocol.CgmAlarmType.RAPID_RISE)) 0xFFFFD040.toInt() else 0xFFFF5C69.toInt()
+                val accent = if (alarm.type == SugarWearAlarmType.HIGH || alarm.type == SugarWearAlarmType.RAPID_RISE) 0xFFFFD040.toInt() else 0xFFFF5C69.toInt()
                 alarmHost.addView(
                     LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL

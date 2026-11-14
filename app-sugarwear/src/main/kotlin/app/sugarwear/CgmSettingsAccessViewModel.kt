@@ -5,8 +5,6 @@ import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import app.sugarlicious.sensor.protocol.CgmAlarmSettings
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -14,7 +12,7 @@ internal data class CgmSettingsAccessState(
     val palette: CgmAppearancePalette,
     val access: CgmSystemAccessSnapshot,
     val alarmAccess: CgmAlarmSystemSnapshot,
-    val alarms: CgmAlarmSettings,
+    val alarms: SugarWearAlarmSettings,
     val volumeOverride: Boolean,
     val volumePercent: Int,
     val sensor: app.sugarlicious.sensor.protocol.CgmPersistedState,
@@ -53,7 +51,7 @@ internal class CgmSettingsAccessRepository(
         CgmAlarmNotifier.ensureAllChannels(app, settings)
     }
 
-    fun test(type: CgmAlarmType) = CgmAlarmNotifier.showTest(app, type, CgmAlarmSettingsStore.read(app))
+    fun test(type: SugarWearAlarmType) = CgmAlarmNotifier.showTest(app, type, CgmAlarmSettingsStore.read(app))
 
     fun volume(enabled: Boolean, percent: Int?) = CgmAlarmVolume.configure(app, enabled, percent ?: CgmAlarmVolume.percent(app))
 
@@ -98,7 +96,7 @@ internal class CgmSettingsAccessRepository(
 }
 
 internal data class CgmAlarmNavigationState(
-    val selectedAlarm: CgmAlarmType? = null,
+    val selectedAlarm: SugarWearAlarmType? = null,
     val alarmPage: String? = null,
 )
 
@@ -123,7 +121,7 @@ internal class CgmSettingsAccessViewModel(
         worker.submit({ if (prepare) repository.prepareChannels() })
     }
 
-    fun selectAlarm(type: CgmAlarmType?) {
+    fun selectAlarm(type: SugarWearAlarmType?) {
         navigationState.value = navigation.value.copy(selectedAlarm = type)
     }
 
@@ -135,7 +133,7 @@ internal class CgmSettingsAccessViewModel(
         worker.submit({ repository.edit(edit) })
     }
 
-    fun test(type: CgmAlarmType) {
+    fun test(type: SugarWearAlarmType) {
         worker.submit({ repository.test(type) })
     }
 

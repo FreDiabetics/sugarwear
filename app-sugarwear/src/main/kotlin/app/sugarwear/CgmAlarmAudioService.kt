@@ -14,13 +14,12 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 
 /** Plays bundled alarms directly: Wear's notification UI substitutes its own notification chime. */
 class CgmAlarmAudioService : Service() {
     private var player: MediaPlayer? = null
     private var focus: AudioFocusRequest? = null
-    private var activeType: CgmAlarmType? = null
+    private var activeType: SugarWearAlarmType? = null
     private var activeTest = false
     private val handler = Handler(Looper.getMainLooper())
     private val timeout = Runnable { stopSelf() }
@@ -28,8 +27,9 @@ class CgmAlarmAudioService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val type = intent?.getStringExtra("type")?.let { runCatching { CgmAlarmType.valueOf(it) }.getOrNull() }
-        if (type == null || !CgmAlarmSettingsStore.read(this).soundEnabled) {
+        val type = intent?.getStringExtra("type")?.let { runCatching { SugarWearAlarmType.valueOf(it) }.getOrNull() }
+        val settings = CgmAlarmSettingsStore.read(this)
+        if (type == null || settings.globalMuteAll) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -129,27 +129,17 @@ class CgmAlarmAudioService : Service() {
 
     companion object {
         private const val CHANNEL = "g7_alarm_playback"
-        private var playingType: CgmAlarmType? = null
+        private var playingType: SugarWearAlarmType? = null
 
-        fun play(context: Context, type: CgmAlarmType, test: Boolean = false) {
+        fun play(context: Context, type: SugarWearAlarmType, test: Boolean = false) {
             runCatching { context.startForegroundService(Intent(context, CgmAlarmAudioService::class.java).putExtra("type", type.name).putExtra("test", test)) }
                 .onFailure { android.util.Log.e("G7AlarmAudio", "Alarm service start rejected", it) }
         }
 
-        fun stop(context: Context, type: CgmAlarmType? = null) {
+        fun stop(context: Context, type: SugarWearAlarmType? = null) {
             if (type == null || playingType == type) context.stopService(Intent(context, CgmAlarmAudioService::class.java))
         }
 
-        private fun priority(type: CgmAlarmType): Int =
-            when (type) {
-                CgmAlarmType.VERY_LOW -> 100
-                CgmAlarmType.LOW -> 90
-                CgmAlarmType.SENSOR_ERROR -> 80
-                CgmAlarmType.SIGNAL_LOSS -> 70
-                CgmAlarmType.RAPID_FALL -> 60
-                CgmAlarmType.RAPID_RISE -> 50
-                CgmAlarmType.VERY_HIGH -> 40
-                CgmAlarmType.HIGH -> 30
-            }
+        private fun priority(type: SugarWearAlarmType): Int = SugarWearAlarmDefaults.priority(type)
     }
 }
