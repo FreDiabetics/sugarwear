@@ -1,5 +1,5 @@
-<p align="center">
+<div align="center">
   <img src="design-assets/sugarwear/adaptive108/readme.svg" width="180" alt="SugarWear" />
-</p>
+</div>
 
-<p align="center">Something is happening here...</p>
+<div align="center">Something is happening here...</div>

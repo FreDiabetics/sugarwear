@@ -6,7 +6,7 @@
         fill: url(#Unbenannter_Verlauf_16);
       }
     </style>
-    <linearGradient id="Unbenannter_Verlauf_16" data-name="Unbenannter Verlauf 16" x1="96.28" y1="11.72" x2="11.72" y2="96.28" gradientUnits="userSpaceOnUse">
+    <linearGradient id="Unbenannter_Verlauf_16" x1="96.28" y1="11.72" x2="11.72" y2="96.28" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#22eb60"/>
       <stop offset="1" stop-color="#ba76f5"/>
     </linearGradient>
