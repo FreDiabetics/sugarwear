@@ -1,0 +1,30 @@
+{
+  "capturedOn": "2026-10-24",
+  "device": "Galaxy Watch Ultra",
+  "apex": {
+    "settings": {
+      "materialAccent": "37", "materialSubTheme": "37", "dialTheme": "0", "nightMode": "0",
+      "handStyle": "0", "progressMarker": "TRUE", "progressGradient": "TRUE", "glucoseColor": "FALSE",
+      "upperRightMarkers": "TRUE", "backgroundPattern": "0", "secondStyle": "0", "indexStyle": "0",
+      "minuteMarkers": "0", "aodStyle": "0", "showAmPm": "FALSE", "unreadIndicator": "FALSE"
+    },
+    "providers": {
+      "0": "TirRangedValueComplication", "1": "WATCH_BATTERY", "2": "CobRangedValueComplication",
+      "3": "IobComplication", "4": "GlucoseDeltaComplication", "5": "DateComplication",
+      "6": "GlucoseTrendRangedValueComplication", "7": "GlucoseGraphComplication"
+    }
+  },
+  "orbit": {
+    "settings": {
+      "dialIndex": "0", "dialInk": "0", "apexHands": "0", "secondSweep": "1", "minuteStyle": "2",
+      "aodStyle": "0", "backgroundGlow": "FALSE", "primary": "70", "secondary": "70", "tertiary": "0",
+      "arcContent": "4", "weatherSymbols": "0", "weatherLaunch": "0", "progressBars": "7",
+      "batteryIndicator": "TRUE", "glucoseColor": "TRUE"
+    },
+    "providers": {
+      "0": "IobRangedValueComplication", "7": "WATCH_BATTERY", "2": "CobRangedValueComplication",
+      "3": "GlucoseTrendRangedValueComplication", "4": "DateComplication", "5": "GlucoseDeltaComplication",
+      "8": "OrbitGlucoseGraphComplication", "9": "OrbitDailyTirComplication"
+    }
+  }
+}

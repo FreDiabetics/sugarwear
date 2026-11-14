@@ -1,0 +1,10 @@
+<samsung-appwidget-info xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:widgetSize="0x1a"
+    app:widgetStyle="0x1"
+    app:targetHost="0x15"
+    app:initialLayoutSmall="@layout/widget_glucose_initial"
+    app:initialLayoutMedium="@layout/widget_glucose_initial"
+    app:initialLayoutLarge="@layout/widget_glucose_initial"
+    app:previewLayoutSmall="@layout/widget_glucose_family_small_preview"
+    app:previewLayoutMedium="@layout/widget_glucose_family_medium_preview"
+    app:previewLayoutLarge="@layout/widget_glucose_family_large_preview" />

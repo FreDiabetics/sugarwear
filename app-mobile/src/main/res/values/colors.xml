@@ -1,0 +1,12 @@
+<resources>
+    <!-- Semantic app palette. Keep synchronized with SugarliciousColors.kt. -->
+    <color name="app_background">#F2F2F2</color>
+    <color name="app_surface">#FDFDFD</color>
+    <color name="app_surface_high">#E7E7E7</color>
+    <color name="app_surface_raised">#DDDDDD</color>
+    <color name="app_surface_selected">#E1E1E1</color>
+    <color name="app_text">#252525</color>
+
+    <!-- Interactive accents -->
+    <color name="app_accent">#22EB60</color>
+</resources>

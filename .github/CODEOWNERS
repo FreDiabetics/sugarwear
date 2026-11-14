@@ -1,0 +1,9 @@
+# Sugarlicious repository ownership
+* @FreDiabetics
+
+# Critical data-integrity and collector paths
+/dexcom-g7/ @FreDiabetics
+/g7watch/ @FreDiabetics
+/app-mobile/ @FreDiabetics
+/app-wear/ @FreDiabetics
+/.github/ @FreDiabetics

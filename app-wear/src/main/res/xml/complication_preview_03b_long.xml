@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="LONG_TEXT"><text><plain value="123" valueType="integer"/></text><title><plain value="@string/complication_preview_delta"/></title></complication></complications>

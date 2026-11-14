@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="RANGED_VALUE" value="123" min="40" max="260" monochromaticImage="@drawable/ic_trend_fortyfiveup"><text><plain value="123" valueType="integer"/></text></complication></complications>

@@ -1,0 +1,8 @@
+# SugarWear repository extraction
+
+SugarWear and Vigil move to FreDiabetics/sugarwear with their current application IDs, signing behavior, sensor state and history contracts unchanged. Sugarlicious retains Mobile, Wear, ApeX, Orbit and Digital. The shared libraries have one canonical source in Sugarlicious and are consumed by SugarWear through an HTTPS Git submodule pinned to a reviewed commit; only the six required library projects are included, never the Sugarlicious applications.
+
+1. Move tracked collector/Vigil sources, product assets and product-specific tests/tools to the new repository. Keep common previews and conventions in shared library locations; remove dependencies on application source directories.
+2. Give SugarWear independent settings, wrapper, version metadata, build/validation/install tasks and CI. Reuse common library sources, quality rules and watchface resources through the pinned submodule. Clean clones must build with recursive submodule initialization and without sibling checkouts.
+3. Remove collector/Vigil modules, installation tasks and product-specific validation from Sugarlicious. Preserve common G7 data/protocol types required by Wear consumers and migration documentation.
+4. Build/test/lint both projects sequentially; validate Vigil WFF and code-free output; verify that Sugarlicious installs only Mobile/Wear and SugarWear only collector/Vigil. Review changes, push a Sugarlicious PR and the new repository, pin the integrated shared commit, and finish with clean main branches and green CI. Do not reinstall or alter device sensor sessions for a repository-only extraction.

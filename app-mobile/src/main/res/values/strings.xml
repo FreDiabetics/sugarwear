@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Sugarlicious</string>
+    <string name="contact_email">typ1.diafreddy@gmail.com</string>
+    <string name="brand_logo">FreDiabetics-Logo</string>
+    <string name="widget_glucose_family_label">Glukose</string>
+    <string name="widget_graph_family_label">Verlauf</string>
+    <string name="widget_therapy_family_label">IOB · COB · BASAL</string>
+    <string name="widget_developer_glucose_label">Zusätzlich</string>
+    <string name="widget_developer_graph_label">Zusätzlich</string>
+    <string name="widget_developer_therapy_label">Zusätzlich</string>
+    <string name="widget_developer_compact_label">Glukose mit Graph - kompakt</string>
+    <string name="screen_settings">Einstellungen</string>
+    <string name="health_connect_data_title">Health Connect Daten</string>
+    <string name="health_connect_not_synchronized">noch nicht synchronisiert</string>
+    <string name="health_connect_sync_summary">Leserechte %1$d/%2$d · Letzte Synchronisierung: %3$s</string>
+    <string name="navigate_back">Zurück</string>
+    <string name="watch_open_app">Watch App öffnen</string>
+    <string name="watch_send_preset">An Watch senden</string>
+</resources>

@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="SHORT_TEXT" monochromaticImage="@drawable/ic_reservoir"><text><plain value="120U"/></text><title><plain value="OK"/></title></complication></complications>

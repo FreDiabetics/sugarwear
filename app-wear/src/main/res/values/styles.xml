@@ -1,0 +1,9 @@
+<resources>
+    <style name="WearTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">@color/wear_accent</item>
+        <item name="android:windowBackground">@color/wear_background</item>
+        <item name="android:navigationBarColor">@color/wear_background</item>
+        <item name="android:statusBarColor">@color/wear_background</item>
+    </style>
+</resources>

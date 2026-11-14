@@ -4,9 +4,6 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: read
-
 jobs:
   secret-scan:
     runs-on: ubuntu-24.04
@@ -68,50 +65,81 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          submodules: recursive
+
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '21'
+
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: ''
           cmdline-tools-version: '15859902'
           accept-android-sdk-licenses: false
+
       - name: Install Android API 37
         run: |
           test -s "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
           android --no-metrics sdk install "platforms;android-37" "build-tools;37.0.0" --canary
-      - name: Prepare native raster backend
-        uses: ./shared/sugarlicious/.github/actions/prepare-cairo
-      - name: Check Kotlin product architecture and artwork
-        run: ./gradlew :tools:maintenance:test
-      - name: Enforce Kotlin static analysis and formatting
-        run: ./gradlew detekt ktlintCheck
-      - name: Report Kotlin lint diagnostics when quality gate fails
-        if: failure()
-        shell: bash
-        run: |
-          report="app-sugarwear/build/reports/ktlint/ktlintMainSourceSetCheck/ktlintMainSourceSetCheck.txt"
-          if [[ -f "$report" ]]; then
-            cat "$report"
-          fi
 
-      - name: Test and build SugarWear and Vigil
-        run: ./gradlew test assembleDebug :watchfaces:vigil:assembleRelease
-      - name: Lint Android modules
-        run: ./gradlew lint
-      - name: Validate Vigil Watch Face Format XML
+      - name: Validate branch protection helper with PowerShell 7
         shell: pwsh
         run: |
-          ./shared/sugarlicious/tools/wff-validator/validate.ps1 -WatchfaceFiles @((Join-Path $PWD 'watchfaces/vigil/src/main/res/raw/watchface.xml'))
-      - name: Verify code-free Vigil APK
-        run: ./gradlew :tools:maintenance:run --args=verify-codefree-vigil
-      - name: Upload collector visual QA previews
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'tools/protect-main.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List *
+            throw 'tools/protect-main.ps1 failed PowerShell 7 parsing.'
+          }
+
+      - name: Prepare Watch Face Push marketplace assets
+        shell: pwsh
+        run: ./tools/watchface-push/Prepare-WatchFacePushAssets.ps1
+
+      - name: Prepare native raster backend
+        uses: ./.github/actions/prepare-cairo
+
+      - name: Check Kotlin maintenance tools and reference parity
+        run: ./gradlew :tools:maintenance:test
+
+      - name: Enforce Kotlin static analysis and formatting
+        run: ./gradlew detekt ktlintCheck
+
+      - name: Test and build all applications and watchfaces
+        run: >-
+          ./gradlew verifyArchitecture test assembleDebug
+          :watchfaces:test-wff:assembleRelease
+          :watchfaces:sugarlicious-digital:assembleRelease
+          :watchfaces:sugarlicious-analog:assembleRelease
+          :watchfaces:sugarlicious-orbit:assembleRelease
+
+      - name: Upload Android widget visual QA previews
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: sugarwear-visual-qa
-          path: app-sugarwear/build/reports/g7-visual-qa/*.png
+          name: android-widget-visual-qa
+          path: app-mobile/build/reports/widget-visual-qa/*.png
           if-no-files-found: error
           retention-days: 14
+
+      - name: Lint all Android modules
+        run: ./gradlew lint
+
+      - name: Validate Watch Face Format XML
+        shell: pwsh
+        run: ./tools/wff-validator/validate.ps1
+
+      - name: Verify code-free watchface APKs
+        shell: pwsh
+        run: ./tools/verify-codefree-watchfaces.ps1
+
+      - name: Generate SPDX software bill of materials
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          artifact-name: sugarlicious-sbom.spdx.json

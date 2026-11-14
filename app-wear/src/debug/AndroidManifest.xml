@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <receiver
+            android:name=".DebugStateReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="app.aapswear.DEBUG_INJECT_STATE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

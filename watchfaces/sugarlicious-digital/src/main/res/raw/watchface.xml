@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original Sugarlicious design. AGPL-3.0-or-later. -->
+<WatchFace width="450" height="450">
+    <Metadata key="CLOCK_TYPE" value="DIGITAL" />
+    <Metadata key="PREVIEW_TIME" value="10:30:00" />
+    <Scene backgroundColor="#050B10">
+        <Group x="0" y="0" width="450" height="450" name="activeTiles">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <PartDraw x="0" y="0" width="450" height="450">
+                <RoundRectangle x="42" y="112" width="366" height="112" cornerRadiusX="22" cornerRadiusY="22"><Fill color="#FF091117" /></RoundRectangle>
+                <RoundRectangle x="42" y="112" width="366" height="112" cornerRadiusX="22" cornerRadiusY="22"><Stroke color="#FF22313A" thickness="2" /></RoundRectangle>
+                <RoundRectangle x="42" y="238" width="366" height="90" cornerRadiusX="18" cornerRadiusY="18"><Fill color="#FF091117" /></RoundRectangle>
+                <RoundRectangle x="42" y="238" width="366" height="90" cornerRadiusX="18" cornerRadiusY="18"><Stroke color="#FF22313A" thickness="2" /></RoundRectangle>
+                <RoundRectangle x="42" y="342" width="84" height="66" cornerRadiusX="15" cornerRadiusY="15"><Fill color="#FF091117" /></RoundRectangle>
+                <RoundRectangle x="136" y="342" width="84" height="66" cornerRadiusX="15" cornerRadiusY="15"><Fill color="#FF091117" /></RoundRectangle>
+                <RoundRectangle x="230" y="342" width="84" height="66" cornerRadiusX="15" cornerRadiusY="15"><Fill color="#FF091117" /></RoundRectangle>
+                <RoundRectangle x="324" y="342" width="84" height="66" cornerRadiusX="15" cornerRadiusY="15"><Fill color="#FF091117" /></RoundRectangle>
+                <Line startX="49" startY="331" endX="401" endY="331"><Stroke color="#FF19D7E8" cap="ROUND" thickness="2" /></Line>
+            </PartDraw>
+            <PartText x="145" y="23" width="160" height="27"><Text align="CENTER"><Font family="SYNC_TO_DEVICE" size="17" weight="BOLD" color="#FFFFFFFF">Sugarlicious</Font></Text></PartText>
+        </Group>
+
+        <DigitalClock x="66" y="44" width="318" height="72">
+            <TimeText x="0" y="0" width="318" height="72" format="hh:mm" hourFormat="SYNC_TO_DEVICE" align="CENTER"><Font family="SYNC_TO_DEVICE" size="62" weight="BOLD" color="#FFF2F5F6" /></TimeText>
+        </DigitalClock>
+
+        <ComplicationSlot slotId="0" displayName="Glucose, trend and delta" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="84" y="121" width="282" height="96">
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.GlucoseTrendDeltaComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="282" height="96" />
+            <Complication type="SHORT_TEXT">
+                <PartText x="0" y="0" width="282" height="65"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="52" weight="BOLD" color="#FF54DF30"><Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template></Font></Text></PartText>
+                <PartText x="0" y="60" width="282" height="30"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="19" color="#FFF2F5F6"><Template>%s<Parameter expression="[COMPLICATION.TITLE]" /></Template></Font></Text></PartText>
+            </Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="1" displayName="Glucose age" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="333" y="117" width="65" height="45">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.GlucoseAgeComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="65" height="45" />
+            <Complication type="SHORT_TEXT"><PartText x="0" y="0" width="65" height="22"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="13" color="#FFA9B4BA"><Template>%s<Parameter expression="[COMPLICATION.TITLE]" /></Template></Font></Text></PartText></Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="2" displayName="Glucose graph" isCustomizable="TRUE" supportedTypes="SMALL_IMAGE EMPTY" x="55" y="247" width="340" height="72">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.GlucoseGraphComplication" primaryProviderType="SMALL_IMAGE" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" />
+            <BoundingBox x="0" y="0" width="340" height="72" />
+            <Complication type="SMALL_IMAGE"><PartImage x="0" y="0" width="340" height="72"><Image resource="[COMPLICATION.SMALL_IMAGE]" /></PartImage></Complication>
+            <Complication type="EMPTY" />
+        </ComplicationSlot>
+
+        <ComplicationSlot slotId="3" displayName="IOB" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="48" y="348" width="72" height="54">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.IobComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" /><BoundingBox x="0" y="0" width="72" height="54" />
+            <Complication type="SHORT_TEXT"><PartText x="0" y="0" width="72" height="18"><Text align="CENTER"><Font family="SYNC_TO_DEVICE" size="12" color="#FF64BFFF"><Template>%s<Parameter expression="[COMPLICATION.TITLE]" /></Template></Font></Text></PartText><PartText x="0" y="17" width="72" height="34"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="19" color="#FFF2F5F6"><Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template></Font></Text></PartText></Complication><Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="4" displayName="COB" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="142" y="348" width="72" height="54">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.CobComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" /><BoundingBox x="0" y="0" width="72" height="54" />
+            <Complication type="SHORT_TEXT"><PartText x="0" y="0" width="72" height="18"><Text align="CENTER"><Font family="SYNC_TO_DEVICE" size="12" color="#FFFF9D18"><Template>%s<Parameter expression="[COMPLICATION.TITLE]" /></Template></Font></Text></PartText><PartText x="0" y="17" width="72" height="34"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="19" color="#FFF2F5F6"><Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template></Font></Text></PartText></Complication><Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="5" displayName="Basal" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="236" y="348" width="72" height="54">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.BasalComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" /><BoundingBox x="0" y="0" width="72" height="54" />
+            <Complication type="SHORT_TEXT"><PartText x="0" y="0" width="72" height="18"><Text align="CENTER"><Font family="SYNC_TO_DEVICE" size="12" color="#FF19D7E8"><Template>%s<Parameter expression="[COMPLICATION.TITLE]" /></Template></Font></Text></PartText><PartText x="0" y="17" width="72" height="34"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="16" color="#FFF2F5F6"><Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template></Font></Text></PartText></Complication><Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="6" displayName="Loop" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="330" y="348" width="72" height="54">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.LoopComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" /><BoundingBox x="0" y="0" width="72" height="54" />
+            <Complication type="SHORT_TEXT"><PartText x="0" y="0" width="72" height="18"><Text align="CENTER"><Font family="SYNC_TO_DEVICE" size="12" color="#FFD69AFF"><Template>%s<Parameter expression="[COMPLICATION.TITLE]" /></Template></Font></Text></PartText><PartText x="0" y="17" width="72" height="34"><Text align="CENTER" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="16" color="#FFF2F5F6"><Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template></Font></Text></PartText></Complication><Complication type="EMPTY" />
+        </ComplicationSlot>
+        <ComplicationSlot slotId="7" displayName="Phone battery" isCustomizable="TRUE" supportedTypes="SHORT_TEXT EMPTY" x="304" y="52" width="82" height="38">
+            <Variant mode="AMBIENT" target="alpha" value="0" />
+            <DefaultProviderPolicy primaryProvider="app.sugarlicious/app.sugarlicious.complications.PhoneBatteryComplication" primaryProviderType="SHORT_TEXT" defaultSystemProvider="EMPTY" defaultSystemProviderType="EMPTY" /><BoundingBox x="0" y="0" width="82" height="38" />
+            <Complication type="SHORT_TEXT"><PartText x="0" y="0" width="82" height="28"><Text align="END" ellipsis="TRUE"><Font family="SYNC_TO_DEVICE" size="15" color="#FFA9B4BA"><Template>%s<Parameter expression="[COMPLICATION.TEXT]" /></Template></Font></Text></PartText></Complication><Complication type="EMPTY" />
+        </ComplicationSlot>
+    </Scene>
+</WatchFace>

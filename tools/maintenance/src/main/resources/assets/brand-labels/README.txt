@@ -1,0 +1,2 @@
+Fixed contact-sheet label artwork rendered from Pillow 11.3.0 default Aileron Regular font (Sora Sagano), CC0 1.0 Universal. https://creativecommons.org/publicdomain/zero/1.0/
+These six static labels preserve the original import_adaptive_brand_icons.py preview and its exact alpha masks, independent of installed platform fonts. Rendered on transparent 308x24 RGBA canvases with ImageDraw.text((0, 0), label, fill="white") using the default font. Labels are product name, colon, space, background/foreground/combined, space, source108 (layers) or safe66/108 (combined).

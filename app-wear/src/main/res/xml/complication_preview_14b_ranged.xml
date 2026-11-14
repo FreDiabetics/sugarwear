@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="RANGED_VALUE" value="1.2" min="0" max="10" monochromaticImage="@drawable/ic_iob"><text><plain value="1.20U"/></text></complication></complications>

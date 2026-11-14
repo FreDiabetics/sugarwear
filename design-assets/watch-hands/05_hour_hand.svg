@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_5" data-name="Ebene 5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <g id="hour_hand">
+    <rect class="cls-1" x="252.75" y="224.44" width="6.5" height="29.56"/>
+    <rect class="cls-1" x="243" y="113.57" width="26" height="114" rx="13" ry="13"/>
+  </g>
+</svg>

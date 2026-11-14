@@ -1,0 +1,13 @@
+<resources>
+    <!-- One UI widget-size and preview metadata, matching the installed Samsung Health provider. -->
+    <attr name="widgetSize" format="integer" />
+    <attr name="featuredWidget" format="integer" />
+    <attr name="widgetStyle" format="integer" />
+    <attr name="targetHost" format="integer" />
+    <attr name="initialLayoutSmall" format="reference" />
+    <attr name="initialLayoutMedium" format="reference" />
+    <attr name="initialLayoutLarge" format="reference" />
+    <attr name="previewLayoutSmall" format="reference" />
+    <attr name="previewLayoutMedium" format="reference" />
+    <attr name="previewLayoutLarge" format="reference" />
+</resources>

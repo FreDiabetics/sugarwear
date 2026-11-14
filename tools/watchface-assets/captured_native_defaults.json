@@ -1,0 +1,57 @@
+{
+  "apex": {
+    "captured": "2026-11-02",
+    "configurations": {
+      "indexStyle": "0",
+      "handStyle": "1",
+      "secondStyle": "1",
+      "materialAccent": "37",
+      "materialSubTheme": "61",
+      "backgroundPattern": "0",
+      "progressBars": "5",
+      "glucoseColor": "FALSE"
+    },
+    "providers": {
+      "0": {
+        "primaryProvider": "app.sugarlicious/app.aapswear.complications.IobRangedValueComplication",
+        "primaryProviderType": "RANGED_VALUE",
+        "defaultSystemProvider": "EMPTY",
+        "defaultSystemProviderType": "EMPTY"
+      },
+      "3": {
+        "primaryProvider": "app.sugarlicious/app.aapswear.complications.TirRangedValueComplication",
+        "primaryProviderType": "RANGED_VALUE",
+        "defaultSystemProvider": "EMPTY",
+        "defaultSystemProviderType": "EMPTY"
+      },
+      "4": {
+        "primaryProvider": "app.sugarlicious/app.aapswear.complications.DateComplication",
+        "primaryProviderType": "SHORT_TEXT",
+        "defaultSystemProvider": "EMPTY",
+        "defaultSystemProviderType": "EMPTY"
+      },
+      "5": {
+        "primaryProvider": "app.sugarlicious/app.aapswear.complications.GlucoseDeltaComplication",
+        "primaryProviderType": "SHORT_TEXT",
+        "defaultSystemProvider": "EMPTY",
+        "defaultSystemProviderType": "EMPTY"
+      }
+    }
+  },
+  "orbit": {
+    "captured": "2026-11-02",
+    "configurations": {
+      "secondary": "14",
+      "progressBars": "7",
+      "apexHands": "1",
+      "secondSweep": "1",
+      "weatherLaunch": "0",
+      "dialInk": "1",
+      "arcContent": "3",
+      "tertiary": "14",
+      "batteryIndicator": "TRUE",
+      "glucoseColor": "TRUE",
+      "primary": "70"
+    }
+  }
+}

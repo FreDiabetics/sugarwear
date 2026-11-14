@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="RANGED_VALUE" monochromaticImage="@drawable/ic_reservoir" value="120" min="0" max="300"><text><plain value="120U"/></text></complication></complications>

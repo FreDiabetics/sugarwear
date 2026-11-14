@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="GOAL_PROGRESS" value="100" targetValue="70"><text><plain value="@string/complication_preview_tir"/></text></complication></complications>

@@ -1,0 +1,16 @@
+[
+  {
+    "WatchFace": "sugarlicious-digital",
+    "Package": "app.aapswear.watchface.sugarlicious.digital",
+    "ActiveSha256": "430244369EA7F8EDE67A138EDC0AF87DE0CE79F9DBB8438F2A33C41A9718C5F3",
+    "AmbientSha256": "40A93468BF299BDFC9023AC0A1C9D4B06E3E52320DBB11300E59CB1BA0497B34",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "sugarlicious-analog",
+    "Package": "app.aapswear.watchface.sugarlicious.analog",
+    "ActiveSha256": "1658DF4AC9EB1BBCF6DF1BC3AFE0E4B835A13B2239782017933D04E4829064BB",
+    "AmbientSha256": "0A89C5B83764651C6998B80A8614FFEA68ADF81277E5E7621BB1DC0819DF4ACD",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  }
+]

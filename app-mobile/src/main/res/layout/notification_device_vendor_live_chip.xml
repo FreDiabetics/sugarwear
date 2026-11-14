@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/live_chip_root"
+    android:layout_width="wrap_content"
+    android:layout_height="24dp"
+    android:background="@drawable/bg_notification_device_vendor_live_chip"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="6dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="1dp"
+    android:paddingBottom="5dp">
+
+        <ImageView
+            android:id="@+id/live_chip_icon"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_notification_outlined"
+            android:tint="#FF000000" />
+
+        <TextView
+            android:id="@+id/live_chip_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:fontFamily="sans"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#FF000000"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+</LinearLayout>

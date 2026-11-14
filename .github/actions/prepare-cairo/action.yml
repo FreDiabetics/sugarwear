@@ -1,0 +1,21 @@
+name: Prepare pinned Cairo renderer
+description: Build the native raster backend used by Kotlin maintenance parity tests
+runs:
+  using: composite
+  steps:
+    - name: Build verified Cairo 1.18.4 image backend
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install -y meson ninja-build pkg-config libpng-dev libpixman-1-dev zlib1g-dev
+        work="$RUNNER_TEMP/sugarlicious-cairo"
+        mkdir -p "$work"
+        curl --fail --location --retry 3 https://cairographics.org/releases/cairo-1.18.4.tar.xz -o "$work/cairo.tar.xz"
+        echo '445ed8208a6e4823de1226a74ca319d3600e83f6369f99b14265006599c32ccb  '"$work/cairo.tar.xz" | sha256sum --check
+        tar -xf "$work/cairo.tar.xz" -C "$work"
+        meson setup "$work/build" "$work/cairo-1.18.4" --prefix="$work/install" --libdir=lib \
+          --buildtype=release -Ddefault_library=shared -Dauto_features=disabled -Dpng=enabled -Dzlib=enabled
+        meson compile -C "$work/build"
+        meson install -C "$work/build"
+        echo "SUGARLICIOUS_CAIRO_LIBRARY=$work/install/lib/libcairo.so" >> "$GITHUB_ENV"

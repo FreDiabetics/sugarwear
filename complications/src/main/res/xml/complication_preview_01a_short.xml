@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="SHORT_TEXT" monochromaticImage="@drawable/ic_complication_glucose"><text><plain value="123" valueType="integer"/></text></complication></complications>

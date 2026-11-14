@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="400dp"
+    android:height="400dp"
+    android:viewportWidth="400"
+    android:viewportHeight="400">
+    <!-- Static preview artwork only. Live UI and rendering remain Kotlin. -->
+    <path android:fillColor="#181818" android:pathData="M200,0A200,200 0,1 1,199.9,0Z"/>
+    <!-- Value and trend at the top of the round canvas. -->
+    <path android:fillColor="#F5F5F5" android:pathData="M110,101H137V181H110ZM151,101H178V181H151ZM192,101H219V181H192Z"/>
+    <group android:translateX="245" android:translateY="112" android:scaleX="0.83" android:scaleY="0.83">
+        <path android:fillColor="#F5F5F5" android:pathData="M26.1,1.6c-2.2,2.2 -2.2,5.6 0,7.7l15.2,15.2H5.5C2.5,24.5 0,27 0,30s2.5,5.5 5.5,5.5h35.9L26.2,50.7c-2.2,2.2 -2.2,5.6 0,7.7c2.2,2.2 5.6,2.2 7.7,0l24.5,-24.5c2.2,-2.2 2.2,-5.6 0,-7.7L33.9,1.6c-2.2,-2.2 -5.6,-2.2 -7.7,0Z"/>
+    </group>
+    <!-- Rounded Mobile-identical progress track, with a clear marker gap. -->
+    <path android:fillColor="#B0B0B0" android:fillAlpha="0.30" android:pathData="M93,215A8,8 0,0 1,101 207H299A8,8 0,0 1,307 215A8,8 0,0 1,299 223H101A8,8 0,0 1,93 215Z"/>
+    <path android:fillColor="#22EB60" android:pathData="M101,207H191A8,8 0,0 1,191 223H101A8,8 0,0 1,101 207Z"/>
+    <path android:fillColor="#22EB60" android:pathData="M209,207H299A8,8 0,0 1,299 223H209A8,8 0,0 1,209 207Z"/>
+    <!-- One rounded vertical pill: reading age first, delta and unit below. -->
+    <path android:fillColor="#242424" android:pathData="M117,252H283A24,24 0,0 1,307 276V320A24,24 0,0 1,283 344H117A24,24 0,0 1,93 320V276A24,24 0,0 1,117 252Z"/>
+    <path android:fillColor="#B5B5B5" android:pathData="M151,272H249A6,6 0,0 1,249 284H151A6,6 0,0 1,151 272Z"/>
+    <path android:fillColor="#F5F5F5" android:pathData="M139,306H261A7,7 0,0 1,261 320H139A7,7 0,0 1,139 306Z"/>
+</vector>

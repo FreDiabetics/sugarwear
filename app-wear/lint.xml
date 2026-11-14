@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Adaptive icon XML must stay API-qualified; moving it to mipmap-anydpi
+         makes the launcher resources unavailable to AAPT. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+    <!-- Full-tile vectors are picker previews rendered on demand, not runtime icons. -->
+    <issue id="VectorRaster">
+        <ignore path="src/main/res/drawable/tile_preview_glucose.xml" />
+        <ignore path="src/main/res/drawable/tile_preview_therapy.xml" />
+    </issue>
+</lint>

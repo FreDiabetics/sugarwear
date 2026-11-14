@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Ebene_5" data-name="Ebene 5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <path id="second_hand" class="cls-1" d="M258,264.25v31.75h-4v-31.75c-3.73-.9-6.5-4.25-6.5-8.25s2.77-7.35,6.5-8.25V6h4v241.75c3.73.9,6.5,4.25,6.5,8.25s-2.77,7.35-6.5,8.25Z"/>
+</svg>

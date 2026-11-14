@@ -1,0 +1,7 @@
+<!-- Generated from the production renderer by WidgetPickerPreviewTest. -->
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:scaleType="fitCenter"
+    android:contentDescription="@null"
+    android:src="@drawable/widget_picker_metabolic_medium" />

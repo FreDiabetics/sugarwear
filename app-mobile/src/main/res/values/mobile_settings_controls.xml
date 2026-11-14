@@ -1,0 +1,4 @@
+<resources>
+    <color name="mobile_settings_accent">@color/app_accent</color>
+    <style name="MobileSettingsControls" />
+</resources>

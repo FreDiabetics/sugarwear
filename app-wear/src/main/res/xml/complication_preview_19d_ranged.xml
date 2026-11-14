@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<complications><complication type="RANGED_VALUE" value="100" min="0" max="100" monochromaticImage="@drawable/ic_tir"><text><plain value="@string/complication_preview_tir"/></text><title><plain value="70–180"/></title></complication></complications>
