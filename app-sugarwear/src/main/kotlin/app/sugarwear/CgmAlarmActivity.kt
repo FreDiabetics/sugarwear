@@ -20,7 +20,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -53,7 +52,7 @@ internal fun cgmAlarmValue(reading: CgmReading?, now: Long = System.currentTimeM
         Trend.UNKNOWN -> ""
     }
     val value = "${kotlin.math.round(reading.glucoseMgDl).toInt()} $arrow mg/dL"
-    return if (now - reading.timestampEpochMs in 0 until 15 * 60_000L) value else "Letzter Wert: $value"
+    return if ((now - reading.timestampEpochMs) in 0 until (15 * 60_000L)) value else "Letzter Wert: $value"
 }
 
 internal fun cgmAlarmReadingText(context: Context): String = cgmAlarmValue(CgmSensorStateStore(context).read().lastReading)
@@ -191,7 +190,7 @@ internal fun cgmGlucoseNumberText(reading: CgmReading?): String =
     reading?.let { "${kotlin.math.round(it.glucoseMgDl).toInt()} mg/dL" } ?: "---"
 
 internal fun cgmGlucoseOnlyNumberText(reading: CgmReading?): String =
-    reading?.let { "${kotlin.math.round(it.glucoseMgDl).toInt()}" } ?: "---"
+    reading?.let { kotlin.math.round(it.glucoseMgDl).toInt().toString() } ?: "---"
 
 internal fun trendDrawableRes(trend: Trend?): Int? =
     when (trend) {
@@ -204,6 +203,137 @@ internal fun trendDrawableRes(trend: Trend?): Int? =
         Trend.DOUBLE_UP -> app.sugarlicious.uishared.R.drawable.ic_trend_doubleup
         null, Trend.UNKNOWN -> null
     }
+
+@androidx.compose.runtime.Composable
+internal fun CgmAlarmScreenContent(
+    state: CgmAlarmScreenState,
+    onAcknowledge: () -> Unit,
+    onSnooze: () -> Unit,
+    onAdjustSnooze: (Int) -> Unit,
+    onMute: () -> Unit,
+    onVibrate: () -> Unit,
+    visualStyle: app.sugarwear.ui.visual.AlarmVisualStyle = app.sugarwear.ui.visual.VisualStyleDefaults.alarm(),
+) {
+    val type = state.type ?: return
+    val accent = if (type in setOf(SugarWearAlarmType.HIGH, SugarWearAlarmType.RAPID_RISE)) visualStyle.highAccentColor else visualStyle.lowAccentColor
+    val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(visualStyle.backgroundColor)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .height(screenHeight)
+                .padding(horizontal = visualStyle.contentPaddingDp, vertical = visualStyle.contentPaddingDp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(app.sugarlicious.uishared.R.drawable.ic_alert),
+                contentDescription = null,
+                modifier = Modifier.size(visualStyle.iconSizeDp),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accent),
+            )
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                ) {
+                    BasicText(
+                        cgmGlucoseOnlyNumberText(state.currentReading),
+                        style = TextStyle(color = visualStyle.primaryTextColor, fontSize = visualStyle.glucoseValueFontSize, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+                    )
+                    val trendRes = trendDrawableRes(state.currentReading?.trend)
+                    if (trendRes != null) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(trendRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(visualStyle.primaryTextColor),
+                        )
+                    }
+                }
+                BasicText(
+                    "mg/dL",
+                    style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center),
+                )
+            }
+
+            BasicText(
+                cgmAlarmHeadline(type),
+                style = TextStyle(color = accent, fontSize = visualStyle.headlineFontSize, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+            )
+        }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = visualStyle.contentPaddingDp)
+                .padding(bottom = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(visualStyle.buttonSpacingDp),
+        ) {
+            BasicText(
+                "Quittieren",
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(visualStyle.buttonCornerRadiusDp))
+                    .background(visualStyle.buttonBackgroundColor)
+                    .clickable { onAcknowledge() }
+                    .padding(vertical = 12.dp),
+                style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                listOf("−" to -5, "+" to 5).forEachIndexed { index, (label, delta) ->
+                    if (index == 1) BasicText("${state.snoozeMinutes} Min.", style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold))
+                    BasicText(
+                        label,
+                        Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(visualStyle.buttonBackgroundColor)
+                            .clickable { onAdjustSnooze(delta) }
+                            .padding(vertical = 10.dp),
+                        style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 20.sp, textAlign = TextAlign.Center),
+                    )
+                }
+            }
+            BasicText(
+                "Schlummern · ${state.snoozeMinutes} Min.",
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(visualStyle.buttonCornerRadiusDp))
+                    .background(visualStyle.snoozeButtonBackgroundColor)
+                    .clickable { onSnooze() }
+                    .padding(vertical = 12.dp),
+                style = TextStyle(color = visualStyle.snoozeTextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("Stumm" to onMute, "Vibrieren" to onVibrate).forEach { (label, action) ->
+                    BasicText(
+                        label,
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(visualStyle.buttonCornerRadiusDp))
+                            .background(visualStyle.buttonBackgroundColor)
+                            .clickable { action() }
+                            .padding(vertical = 12.dp),
+                        style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 14.sp, textAlign = TextAlign.Center),
+                    )
+                }
+            }
+        }
+    }
+}
 
 /** Full-screen intent destination; no direct Bluetooth or sensor lifecycle operations. */
 @dagger.hilt.android.AndroidEntryPoint
@@ -218,127 +348,14 @@ class CgmAlarmActivity : ComponentActivity() {
         setContent {
             val state = model.state.collectAsStateWithLifecycle().value
             LaunchedEffect(state.type, state.visible) { if (state.type != null && !state.visible) finish() }
-            val type = state.type ?: return@setContent
-            val accent = if (type in setOf(SugarWearAlarmType.HIGH, SugarWearAlarmType.RAPID_RISE)) Color(0xFFFFD040) else Color(0xFFFF5C69)
-            val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(screenHeight)
-                        .padding(horizontal = 24.dp, vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(app.sugarlicious.uishared.R.drawable.ic_alert),
-                        contentDescription = null,
-                        modifier = Modifier.size(80.dp),
-                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accent),
-                    )
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        ) {
-                            BasicText(
-                                cgmGlucoseOnlyNumberText(state.currentReading),
-                                style = TextStyle(color = Color.White, fontSize = 48.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                            )
-                            val trendRes = trendDrawableRes(state.currentReading?.trend)
-                            if (trendRes != null) {
-                                androidx.compose.foundation.Image(
-                                    painter = androidx.compose.ui.res.painterResource(trendRes),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp),
-                                    colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color.White),
-                                )
-                            }
-                        }
-                        BasicText(
-                            "mg/dL",
-                            style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center),
-                        )
-                    }
-
-                    BasicText(
-                        cgmAlarmHeadline(type),
-                        style = TextStyle(color = accent, fontSize = 26.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                    )
-                }
-
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    BasicText(
-                        "Quittieren",
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0xFF242424))
-                            .clickable { if (model.act("ack")) finish() }
-                            .padding(vertical = 12.dp),
-                        style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                    )
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        listOf("−" to -5, "+" to 5).forEachIndexed { index, (label, delta) ->
-                            if (index == 1) BasicText("${state.snoozeMinutes} Min.", style = TextStyle(color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold))
-                            BasicText(
-                                label,
-                                Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Color(0xFF242424))
-                                    .clickable { model.adjustSnooze(delta) }
-                                    .padding(vertical = 10.dp),
-                                style = TextStyle(color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center),
-                            )
-                        }
-                    }
-                    BasicText(
-                        "Schlummern · ${state.snoozeMinutes} Min.",
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0xFF22EB60))
-                            .clickable {
-                                if (model.act("snooze")) finish()
-                            }.padding(vertical = 12.dp),
-                        style = TextStyle(color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Stumm" to "mute", "Vibrieren" to "vibrate").forEach { (label, action) ->
-                            BasicText(
-                                label,
-                                Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Color(0xFF242424))
-                                    .clickable {
-                                        if (model.act(action)) finish()
-                                    }.padding(vertical = 12.dp),
-                                style = TextStyle(color = Color.White, fontSize = 14.sp, textAlign = TextAlign.Center),
-                            )
-                        }
-                    }
-                }
-            }
+            CgmAlarmScreenContent(
+                state = state,
+                onAcknowledge = { if (model.act("ack")) finish() },
+                onSnooze = { if (model.act("snooze")) finish() },
+                onAdjustSnooze = { model.adjustSnooze(it) },
+                onMute = { if (model.act("mute")) finish() },
+                onVibrate = { if (model.act("vibrate")) finish() },
+            )
         }
     }
 

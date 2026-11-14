@@ -1,0 +1,15 @@
+# SugarWear Screen Inventory
+
+This inventory documents all graphical user interfaces found in SugarWear for playground visualization and preview integration. Regular settings screens are excluded from modification as per specification.
+
+| ID | Display Name | Original File Path | Original Class / Function | Rendering Technology | Required UI State | Data Source | Supported Preview | Playground Integration | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| `SCR-HOME-01` | Hauptübersicht (Overview) | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmWatchActivity.kt` | `CgmWatchActivity` / `buildScreen` | Android View + Canvas | `CgmOverviewState`, `CgmPersistedState` | `CollectorViewModel` | Compose Preview (extracted content) | `HomePlaygroundScreen` | Implemented |
+| `SCR-GRAPH-01` | Glukosegraph (Collector Canvas) | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmCollectorGraphView.kt` | `CgmCollectorGraphView` / `cgmSharedGraphInput` | Android Canvas / `SharedWearCgmGraphRenderer` | `SharedWearCgmGraphInput` | `CgmReadingDatabase` / `CgmReading` list | Compose Preview & Live Canvas | `GraphPlaygroundScreen` | Implemented |
+| `SCR-ALARM-01` | Alarmbildschirm (Alarm Overlay) | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmAlarmActivity.kt` | `CgmAlarmActivity` / `CgmAlarmScreenContent` | Jetpack Compose | `CgmAlarmScreenState` | `CgmAlarmViewModel` | Compose Preview (`@Preview`) | `AlarmPlaygroundScreen` | Implemented |
+| `SCR-NOTIF-01` | Dringender Fehler Notification | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmErrorNotifier.kt` | `CgmErrorNotifier` | Android System Notification | `CgmCollectorError` | `CgmCollectorService` | System Notification & Debug Publisher | `NotificationPlaygroundScreen` | Implemented |
+| `SCR-TILE-01` | Collector Main Tile | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmCollectorTileService.kt` | `CgmCollectorTileService` | ProtoLayout TileService | `CgmCollectorTileSnapshot` | `CgmReadingDatabase` / State Store | Tile Preview (`TilePreviewData`) | `TilePlaygroundScreen` | Implemented |
+| `SCR-TILE-02` | Graph Tile | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmGraphTileService.kt` | `CgmGraphTileService` | ProtoLayout + Bitmap Canvas TileService | `CgmGraphTileSnapshot` | `CgmReadingDatabase` | Tile Preview (`TilePreviewData`) | `TilePlaygroundScreen` | Implemented |
+| `CMP-GLUCOSE-01` | Glukosewert-Karte | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmWatchActivity.kt` | `glucoseTile` | Android View Layout | `WearGlucoseCardPresentation` | `CgmReading` | Compose Preview (`AndroidView`) | `ComponentPlaygroundScreen` | Implemented |
+| `CMP-DOTS-01` | Verbindungs-Dots | `app-sugarwear/src/main/kotlin/app/sugarwear/CgmConnectionDotsView.kt` | `CgmConnectionDotsView` | Android Canvas | Color, Animation Flag | Pairing State | Compose Preview | `ComponentPlaygroundScreen` | Implemented |
+| `CMP-SIGNAL-01` | Signalverlust Warning Header | `ui-shared/src/main/kotlin/app/sugarlicious/uishared/SignalLossWarningView.kt` | `SignalLossWarningView` | Custom Android View | Visibility, Message | Collector Service | Compose Preview | `ComponentPlaygroundScreen` | Implemented |

@@ -114,7 +114,7 @@ class CgmCoreParityTest {
 
     @Test fun `configuration bytes retain the pre migration Java fingerprint`() {
         val digest = MessageDigest.getInstance("SHA-256")
-        for (item in Config.Get.values()) {
+        for (item in Config.Get.entries) {
             digest.update(item.name.toByteArray(Charsets.US_ASCII))
             digest.update(0.toByte())
             digest.update(Util.intToByteArray(item.bytes.size))
