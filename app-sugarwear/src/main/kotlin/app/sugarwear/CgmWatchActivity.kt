@@ -761,6 +761,87 @@ class CgmWatchActivity : ComponentActivity() {
         return tile
     }
 
+    private fun warmupTile(
+        presentation: CgmWarmupPresentation,
+        palette: CgmAppearancePalette,
+    ): LinearLayout {
+        val tile = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
+            setPadding(
+                WearGlucoseCardStyle.HORIZONTAL_PADDING_DP.dp,
+                WearGlucoseCardStyle.VERTICAL_PADDING_DP.dp,
+                WearGlucoseCardStyle.HORIZONTAL_PADDING_DP.dp,
+                WearGlucoseCardStyle.VERTICAL_PADDING_DP.dp,
+            )
+            background = rounded(
+                palette.argb(CgmAppearanceRole.MENU_SURFACE),
+                palette.argb(CgmAppearanceRole.MENU_BORDER),
+                WearGlucoseCardStyle.CARD_RADIUS_DP,
+            )
+        }
+
+        when (presentation) {
+            is CgmWarmupPresentation.CountingDown -> {
+                tile.addView(
+                    label(
+                        presentation.remainingMinutes.toString(),
+                        CgmWarmupTokens.COUNTDOWN_TEXT_SP,
+                        palette.argb(CgmAppearanceRole.MENU_PRIMARY),
+                        true,
+                    ).apply { gravity = Gravity.CENTER },
+                )
+                tile.addView(
+                    label(
+                        "Minuten verbleibend",
+                        CgmWarmupTokens.DESCRIPTION_TEXT_SP,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                        false,
+                    ).apply { gravity = Gravity.CENTER; setPadding(0, CgmWarmupTokens.TEXT_SPACING_DP.dp, 0, CgmWarmupTokens.SECTION_SPACING_DP.dp) },
+                )
+                tile.addView(
+                    label(
+                        "Sensoraufwärmphase",
+                        CgmWarmupTokens.TITLE_TEXT_SP,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                        true,
+                    ).apply { gravity = Gravity.CENTER },
+                )
+            }
+            is CgmWarmupPresentation.UnknownRemainingTime -> {
+                tile.addView(
+                    label(
+                        "Sensor wird aufgewärmt",
+                        16f,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                        false,
+                    ).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, CgmWarmupTokens.SECTION_SPACING_DP.dp) },
+                )
+                tile.addView(
+                    label(
+                        "Sensoraufwärmphase",
+                        CgmWarmupTokens.TITLE_TEXT_SP,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                        true,
+                    ).apply { gravity = Gravity.CENTER },
+                )
+            }
+            is CgmWarmupPresentation.AwaitingFirstReading -> {
+                tile.addView(
+                    label(
+                        "Warte auf erste Messung",
+                        18f,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                        true,
+                    ).apply { gravity = Gravity.CENTER },
+                )
+            }
+            is CgmWarmupPresentation.NotWarmingUp -> Unit
+        }
+        return tile
+    }
+
     private fun refreshLiveContent(preserveScroll: Boolean = true) {
         if (pairingGateVisible) {
             refreshScreen()
@@ -840,14 +921,24 @@ class CgmWatchActivity : ComponentActivity() {
             collectorAttemptLabel.text = attempt?.phase.orEmpty()
             collectorStatusTitle.visibility = if (warning != null || collectorStatusTitle.text.isBlank()) View.GONE else View.VISIBLE
             collectorAttemptLabel.visibility = if (attempt == null) View.GONE else View.VISIBLE
-            glucoseHost.removeAllViews()
-            glucoseHost.addView(
-                label("Gewebeglukose", 11f, 0xFFFFFFFF.toInt(), false).apply {
-                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                    setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
-                },
+            val warmup = CgmWarmupPolicy.evaluate(
+                sensor = state.sensor,
+                reading = state.lastReading,
+                collectorEnabled = state.collectorEnabled,
+                nowEpochMs = overviewState.now,
             )
-            glucoseHost.addView(glucoseTile(state.lastReading.takeIf { state.collectorEnabled && !overviewState.failed }, palette))
+            glucoseHost.removeAllViews()
+            if (warmup is CgmWarmupPresentation.NotWarmingUp) {
+                glucoseHost.addView(
+                    label("Gewebeglukose", 11f, 0xFFFFFFFF.toInt(), false).apply {
+                        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                        setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
+                    },
+                )
+                glucoseHost.addView(glucoseTile(state.lastReading.takeIf { state.collectorEnabled && !overviewState.failed }, palette))
+            } else {
+                glucoseHost.addView(warmupTile(warmup, palette))
+            }
             updateGraphOnly(preserveScroll = false)
         }
     }

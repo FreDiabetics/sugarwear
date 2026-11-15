@@ -1,5 +1,6 @@
 package app.sugarwear
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.sugarlicious.sensor.protocol.CgmPersistedState
@@ -58,6 +59,7 @@ internal data class CgmPairingUiState(
     val effect: CgmPairingEffect? = null,
     val commandError: CgmPairingCommandError? = null,
     val now: Long = 0L,
+    val recoveryState: CgmRecoveryState = CgmRecoveryState.NotRequired,
 )
 
 /** Presentation/command sequencing only. The collector owns every BLE deadline and packet. */
@@ -212,6 +214,51 @@ internal class SensorConnectionViewModel(
         } else {
             mutableState.update { it.copy(step = CgmPairingScreenStep.ENTER_CODE, startInFlight = false) }
             updateClock()
+        }
+    }
+
+    fun inspectRecovery(context: Context) {
+        workScope.launch {
+            val controller = CgmBondRecoveryController(context.applicationContext)
+            val recovery = controller.inspect()
+            mutableState.update { it.copy(recoveryState = recovery) }
+        }
+    }
+
+    fun requestReconnect(context: Context, candidate: CgmBondCandidate, pairingCode: String) {
+        if (pairingCode.isBlank()) return
+        workScope.launch {
+            val controller = CgmBondRecoveryController(context.applicationContext)
+            when (val result = controller.reconnect(candidate, pairingCode)) {
+                is CgmRecoveryResult.Connected -> {
+                    mutableState.update { it.copy(recoveryState = CgmRecoveryState.NotRequired, step = CgmPairingScreenStep.CONNECTED) }
+                }
+                is CgmRecoveryResult.Failed -> {
+                    mutableState.update { it.copy(failureMessage = result.reason) }
+                }
+                else -> {
+                    start(pairingCode)
+                }
+            }
+        }
+    }
+
+    fun requestBondRepair(candidate: CgmBondCandidate) {
+        mutableState.update { it.copy(recoveryState = CgmRecoveryState.BondRepairRequired(candidate, "Reparatur vom Benutzer angefordert")) }
+    }
+
+    fun confirmBondRepair(context: Context) {
+        val currentRecovery = state.value.recoveryState
+        if (currentRecovery is CgmRecoveryState.BondRepairRequired) {
+            workScope.launch {
+                val controller = CgmBondRecoveryController(context.applicationContext)
+                val result = controller.repairBond(currentRecovery.candidate, userConfirmed = true)
+                if (result is CgmRecoveryResult.Failed) {
+                    mutableState.update { it.copy(failureMessage = result.reason) }
+                } else {
+                    unlink(closePairing = false)
+                }
+            }
         }
     }
 

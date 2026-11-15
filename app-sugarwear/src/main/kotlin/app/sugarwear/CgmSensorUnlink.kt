@@ -172,7 +172,7 @@ internal fun cgmSensorUnlinkAddresses(context: Context): Set<String> =
         .distinctBy { it.uppercase(java.util.Locale.ROOT) }
         .toSet()
 
-@SuppressLint("MissingPermission", "DiscouragedPrivateApi")
+@SuppressLint("MissingPermission")
 private fun removeCgmBond(
     context: Context,
     address: String?,
@@ -187,6 +187,8 @@ private fun removeCgmBond(
         val bonded = adapter.bondedDevices ?: return@runCatching CgmBondRemovalStatus.FAILED
         val device = bonded.firstOrNull { it.address.equals(address, ignoreCase = true) } ?: adapter.getRemoteDevice(address)
         val initialBondState = readableCgmBondState({ adapter.state }, { device.bondState }) ?: return@runCatching CgmBondRemovalStatus.FAILED
+        if (initialBondState == BluetoothDevice.BOND_NONE) return@runCatching CgmBondRemovalStatus.REMOVED
+
         if (Build.VERSION.SDK_INT >= 36) {
             val ownsAssociation =
                 context
@@ -194,33 +196,14 @@ private fun removeCgmBond(
                     ?.myAssociations
                     .orEmpty()
                     .any { it.deviceMacAddress?.toString().equals(address, ignoreCase = true) }
-            if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_WATCH) || ownsAssociation) {
+            if (ownsAssociation) {
                 return@runCatching removeCgmBondThroughCompanion(context, address, device)
             }
-            // Wear OS forbids creating third-party CDM associations. Reuse the existing
-            // exact-peer removal, under the app's normal permissions, and require BOND_NONE.
-            android.util.Log.i("G7BondRemoval", "watch_without_companion_association exact_peer_removal")
         }
-        if (initialBondState == BluetoothDevice.BOND_NONE) return@runCatching CgmBondRemovalStatus.REMOVED
-        val method = device.javaClass.getMethod("removeBond")
-        val before = initialBondState
-        val requested = method.invoke(device) as? Boolean ?: false
-        android.util.Log.i("G7BondRemoval", "remove_requested=$requested adapter=${adapter.state} state_before=$before")
-        if (!requested) {
-            val after = readableCgmBondState({ adapter.state }, { device.bondState })
-            android.util.Log.w("G7BondRemoval", "request_declined state_after=$after")
-            return@runCatching if (after == BluetoothDevice.BOND_NONE) CgmBondRemovalStatus.REMOVED else CgmBondRemovalStatus.FAILED
-        }
-        if (awaitCgmBondRemoval(readBondState = { readableCgmBondState({ adapter.state }, { device.bondState }) })) {
-            CgmBondRemovalStatus.REMOVED
-        } else {
-            android.util.Log.w("G7BondRemoval", "confirmation_timeout state_after=${device.bondState}")
-            CgmBondRemovalStatus.FAILED
-        }
+        val after = readableCgmBondState({ adapter.state }, { device.bondState })
+        if (after == BluetoothDevice.BOND_NONE) CgmBondRemovalStatus.REMOVED else CgmBondRemovalStatus.FAILED
     }.getOrElse { error ->
-        val cause = (error as? java.lang.reflect.InvocationTargetException)?.targetException ?: error
-        // Class only: do not log peer identity, key material or the pairing code.
-        android.util.Log.w("G7BondRemoval", "platform_failure=${cause.javaClass.simpleName}")
+        android.util.Log.w("G7BondRemoval", "platform_failure=${error.javaClass.simpleName}")
         CgmBondRemovalStatus.FAILED
     }
 }
