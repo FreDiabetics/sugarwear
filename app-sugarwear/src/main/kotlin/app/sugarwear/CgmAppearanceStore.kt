@@ -61,7 +61,6 @@ enum class CgmAppearanceRole(
     MENU_PRIMARY("menu_primary", "Primär / Sugarlicious", CgmAppearanceSection.MENU, 0xFF22EB60.toInt()),
 
     GLUCOSE_LOW("glucose_low", AppearanceTerminology.GLUCOSE_LOW, CgmAppearanceSection.GLUCOSE, 0xFFFF5C69.toInt()),
-    GLUCOSE_VERY_LOW("glucose_very_low", AppearanceTerminology.GLUCOSE_VERY_LOW, CgmAppearanceSection.GLUCOSE, 0xFFFF5C69.toInt()),
     GLUCOSE_IN_RANGE(
         "glucose_in_range",
         AppearanceTerminology.GLUCOSE_IN_RANGE,
@@ -70,7 +69,6 @@ enum class CgmAppearanceRole(
         0xFF202020.toInt(),
     ),
     GLUCOSE_HIGH("glucose_high", AppearanceTerminology.GLUCOSE_HIGH, CgmAppearanceSection.GLUCOSE, 0xFFFFD040.toInt()),
-    GLUCOSE_VERY_HIGH("glucose_very_high", AppearanceTerminology.GLUCOSE_VERY_HIGH, CgmAppearanceSection.GLUCOSE, 0xFFFFD040.toInt()),
     GLUCOSE_TREND("glucose_trend", AppearanceTerminology.TREND_ARROW, CgmAppearanceSection.GLUCOSE, 0xFFFFFFFF.toInt()),
     GLUCOSE_DELTA("glucose_delta", AppearanceTerminology.DELTA_UNIT, CgmAppearanceSection.GLUCOSE, 0xFFB5B5B5.toInt(), 0xFF666666.toInt()),
     METADATA_PILL_BACKGROUND("metadata_pill_background", "Delta/Alter · Pillenfläche", CgmAppearanceSection.GLUCOSE, 0xFF181818.toInt()),
@@ -94,7 +92,6 @@ enum class CgmAppearanceRole(
     GRAPH_HIGH_LINE("graph_high_line", AppearanceTerminology.GRAPH_HIGH_LINE, CgmAppearanceSection.GRAPH, 0xFFFFD040.toInt()),
     GRAPH_LOW_LINE("graph_low_line", AppearanceTerminology.GRAPH_LOW_LINE, CgmAppearanceSection.GRAPH, 0xFFFF5C69.toInt()),
     GRAPH_DOT_HIGH("graph_dot_high", AppearanceTerminology.GRAPH_DOT_HIGH, CgmAppearanceSection.GRAPH, 0xFFFFD040.toInt()),
-    GRAPH_DOT_VERY_HIGH("graph_dot_very_high", AppearanceTerminology.GLUCOSE_VERY_HIGH, CgmAppearanceSection.GRAPH, 0xFFFFD040.toInt()),
     GRAPH_DOT_IN_RANGE(
         "graph_dot_in_range",
         AppearanceTerminology.GRAPH_DOT_IN_RANGE,
@@ -103,7 +100,6 @@ enum class CgmAppearanceRole(
         0xFF202020.toInt(),
     ),
     GRAPH_DOT_LOW("graph_dot_low", AppearanceTerminology.GRAPH_DOT_LOW, CgmAppearanceSection.GRAPH, 0xFFFF5C69.toInt()),
-    GRAPH_DOT_VERY_LOW("graph_dot_very_low", AppearanceTerminology.GLUCOSE_VERY_LOW, CgmAppearanceSection.GRAPH, 0xFFFF5C69.toInt()),
     GRAPH_DOT_OUTLINE("graph_dot_outline", AppearanceTerminology.GRAPH_DOT_OUTLINE, CgmAppearanceSection.GRAPH, 0xFF000000.toInt()),
     GRAPH_AXIS_TEXT("graph_axis_text", AppearanceTerminology.GRAPH_AXIS_TEXT, CgmAppearanceSection.GRAPH, 0xFFD2D2D2.toInt()),
     GRAPH_GRID("graph_grid", "Grid / Divider", CgmAppearanceSection.GRAPH, 0xFF464646.toInt()),

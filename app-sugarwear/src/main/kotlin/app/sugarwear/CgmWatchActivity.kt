@@ -660,10 +660,8 @@ class CgmWatchActivity : ComponentActivity() {
             when {
                 presentation.freshness == app.sugarlicious.model.Freshness.SIGNAL_LOSS -> 0xFF9E9E9E.toInt()
                 !presentation.displayable -> palette.argb(CgmAppearanceRole.GLUCOSE_NO_SOURCE)
-                presentation.rangeClass == CgmRangeClass.VERY_LOW -> palette.argb(CgmAppearanceRole.GLUCOSE_VERY_LOW)
-                presentation.rangeClass == CgmRangeClass.LOW -> palette.argb(CgmAppearanceRole.GLUCOSE_LOW)
-                presentation.rangeClass == CgmRangeClass.VERY_HIGH -> palette.argb(CgmAppearanceRole.GLUCOSE_VERY_HIGH)
-                presentation.rangeClass == CgmRangeClass.HIGH -> palette.argb(CgmAppearanceRole.GLUCOSE_HIGH)
+                presentation.rangeClass == CgmRangeClass.VERY_LOW || presentation.rangeClass == CgmRangeClass.LOW -> palette.argb(CgmAppearanceRole.GLUCOSE_LOW)
+                presentation.rangeClass == CgmRangeClass.VERY_HIGH || presentation.rangeClass == CgmRangeClass.HIGH -> palette.argb(CgmAppearanceRole.GLUCOSE_HIGH)
                 else -> palette.argb(CgmAppearanceRole.GLUCOSE_IN_RANGE)
             }
         val tile =

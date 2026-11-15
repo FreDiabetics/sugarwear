@@ -308,8 +308,6 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
         add("LOW-Punkte", c.cgmLow, defaults.cgmLow) { x, v -> x.copy(cgmLow = v) }
         add("IN-RANGE-Punkte", c.cgmInRange, defaults.cgmInRange) { x, v -> x.copy(cgmInRange = v) }
         add("HIGH-Punkte", c.cgmHigh, defaults.cgmHigh) { x, v -> x.copy(cgmHigh = v) }
-        add("VERY-LOW-Punkte", c.cgmVeryLow, defaults.cgmVeryLow) { x, v -> x.copy(cgmVeryLow = v) }
-        add("VERY-HIGH-Punkte", c.cgmVeryHigh, defaults.cgmVeryHigh) { x, v -> x.copy(cgmVeryHigh = v) }
         add("Punktkontur", c.outline, defaults.outline) { x, v -> x.copy(outline = v) }
         add("HIGH-Linie", c.highLine, defaults.highLine) { x, v -> x.copy(highLine = v) }
         add("LOW-Linie", c.lowLine, defaults.lowLine) { x, v -> x.copy(lowLine = v) }

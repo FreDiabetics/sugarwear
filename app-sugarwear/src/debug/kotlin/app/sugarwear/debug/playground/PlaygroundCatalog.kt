@@ -29,7 +29,7 @@ object PlaygroundCatalog {
         PlaygroundEntry(
             id = "entry_alarm_low",
             title = "Alarm: Niedrig (Low)",
-            description = "Full-screen Alarm overlay for LOW / VERY_LOW glucose alerts",
+            description = "Full-screen Alarm overlay for LOW glucose alerts",
             category = PlaygroundCategory.ALARM,
             renderingType = RenderingType.COMPOSE,
             supportedScenarios = listOf("scenario_hypo"),
@@ -38,7 +38,7 @@ object PlaygroundCatalog {
         PlaygroundEntry(
             id = "entry_alarm_high",
             title = "Alarm: Hoch (High)",
-            description = "Full-screen Alarm overlay for HIGH / VERY_HIGH glucose alerts",
+            description = "Full-screen Alarm overlay for HIGH glucose alerts",
             category = PlaygroundCategory.ALARM,
             renderingType = RenderingType.COMPOSE,
             supportedScenarios = listOf("scenario_hyper"),

@@ -122,10 +122,8 @@ internal fun cgmTilePresentation(
             0xFF9E9E9E.toInt()
         } else {
             when (shared.rangeClass) {
-                CgmRangeClass.VERY_LOW -> palette?.argb(CgmAppearanceRole.GLUCOSE_VERY_LOW) ?: colors.cgmVeryLow
-                CgmRangeClass.LOW -> palette?.argb(CgmAppearanceRole.GLUCOSE_LOW) ?: colors.cgmLow
-                CgmRangeClass.HIGH -> palette?.argb(CgmAppearanceRole.GLUCOSE_HIGH) ?: colors.cgmHigh
-                CgmRangeClass.VERY_HIGH -> palette?.argb(CgmAppearanceRole.GLUCOSE_VERY_HIGH) ?: colors.cgmVeryHigh
+                CgmRangeClass.VERY_LOW, CgmRangeClass.LOW -> palette?.argb(CgmAppearanceRole.GLUCOSE_LOW) ?: colors.cgmLow
+                CgmRangeClass.VERY_HIGH, CgmRangeClass.HIGH -> palette?.argb(CgmAppearanceRole.GLUCOSE_HIGH) ?: colors.cgmHigh
                 else -> palette?.argb(CgmAppearanceRole.GLUCOSE_IN_RANGE) ?: CGM_TILE_TEXT_PRIMARY
             }
         }
