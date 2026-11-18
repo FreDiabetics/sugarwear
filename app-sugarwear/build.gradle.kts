@@ -67,5 +67,5 @@ dependencies {
     implementation("com.google.guava:guava:33.8.0-android")
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.7.0")
-    testImplementation("org.robolectric:robolectric:4.18")
+    testImplementation("org.robolectric:robolectric:4.18.1")
 }

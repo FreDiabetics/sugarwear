@@ -3,6 +3,7 @@ package app.sugarlicious.uishared
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import androidx.core.graphics.withClip
 import app.sugarlicious.model.GlucoseBarRange
 import app.sugarlicious.model.GlucoseBarState
 
@@ -55,10 +56,9 @@ class GlucoseRangeBarRenderer {
 
     private fun drawSegment(canvas: Canvas, left: Float, right: Float, heightPx: Float, radius: Float) {
         if (right <= left) return
-        val saveCount = canvas.save()
-        canvas.clipRect(left, 0f, right, heightPx)
-        bounds.set(left, 0f, right, heightPx)
-        canvas.drawRoundRect(bounds, radius, radius, paint)
-        canvas.restoreToCount(saveCount)
+        canvas.withClip(left, 0f, right, heightPx) {
+            bounds.set(left, 0f, right, heightPx)
+            drawRoundRect(bounds, radius, radius, paint)
+        }
     }
 }

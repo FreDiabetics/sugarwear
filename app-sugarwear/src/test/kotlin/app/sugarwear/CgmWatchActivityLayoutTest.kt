@@ -162,7 +162,8 @@ class CgmWatchActivityLayoutTest {
         assertEquals(cgmStatusIconLayout(R.drawable.ic_status_paused)!!.height(activity.resources.displayMetrics.density), warningIcon.layoutParams.height)
         val card = resume.parent as ViewGroup
         val lastValue = findText(card, "Letzter Messwert: ${kotlin.math.round(before.lastReading!!.glucoseMgDl).toInt()} mg/dL")!!
-        assertEquals(12f * activity.resources.displayMetrics.scaledDensity, lastValue.textSize, 0.01f)
+        val expectedTextSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 12f, activity.resources.displayMetrics)
+        assertEquals(expectedTextSize, lastValue.textSize, 0.01f)
         assertFalse(lastValue.typeface.isBold)
         assertTrue(resume is CgmTileActionButton)
         val title = findText(card, "Datenempfang pausiert")!!
