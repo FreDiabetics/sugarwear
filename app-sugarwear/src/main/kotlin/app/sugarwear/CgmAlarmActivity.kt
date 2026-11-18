@@ -100,7 +100,7 @@ internal object CgmAlarmDelivery {
                     prefs(context).edit { putString(type.id, operation) }
                     CgmAlarmAudioService.stop(context, type)
                     context.getSystemService(android.os.Vibrator::class.java)?.cancel()
-                    if (operation == "vibrate") {
+                    if (operation == "vibrate" && !CgmAlarmSettingsStore.read(context).globalMuteAll) {
                         context.getSystemService(android.os.Vibrator::class.java)?.vibrate(
                             android.os.VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1),
                             android.os.VibrationAttributes

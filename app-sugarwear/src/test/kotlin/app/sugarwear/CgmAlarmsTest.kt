@@ -277,6 +277,30 @@ class CgmAlarmsTest {
     }
 
     @Test
+    fun `new notification actions refer to the episode being posted`() {
+        val low = SugarWearAlarmType.LOW
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        val episode = cgmAlarmEpisodeKey(CgmAlarmCoordinator.pendingNotices(context).single { it.type == low })
+        val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        for (action in notification.actions.drop(1)) {
+            assertEquals(episode, shadowOf(action.actionIntent).savedIntent.getStringExtra("episode"))
+        }
+    }
+
+    @Test
+    fun `all muted mode can display a notification with neither sound nor vibration`() {
+        val type = SugarWearAlarmType.LOW
+        val app = shadowOf(context as android.app.Application)
+        while (app.nextStartedService != null) { /* drain prior requests */ }
+        val settings = CgmAlarmSettingsStore.read(context).copy(globalMuteAll = true, globalVibrateOnly = true)
+        CgmAlarmNotifier.showTest(context, type, settings)
+        val vibrator = context.getSystemService(android.os.Vibrator::class.java)
+        assertFalse(shadowOf(vibrator).isVibrating)
+        assertNull(app.nextStartedService)
+        assertNotNull(shadowOf(notificationManager).getNotification(CgmAlarmNotifier.testNotificationId(type)))
+    }
+
+    @Test
     fun `selected snooze duration updates notification and controls actual wake time`() {
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         CgmAlarmDelivery.setSnoozeMinutes(context, SugarWearAlarmType.LOW, 20)

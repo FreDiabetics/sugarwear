@@ -19,6 +19,27 @@ class SugarWearAlarmEngineTest {
         assertEquals(first.timestampEpochMs, alarm.measuredAtEpochMs)
     }
 
+    @Test
+    fun `stale glucose cannot trigger urgent low while signal loss still fires`() {
+        val now = 1_000_000L + 20 * 60_000L
+        val defaults = SugarWearAlarmDefaults.defaultSettings()
+        val signal = SugarWearAlarmType.SIGNAL_LOSS
+        val settings = defaults.copy(rules = defaults.rules + (signal to defaults.ruleFor(signal).copy(enabled = true)))
+        val result = SugarWearAlarmEngine.evaluate(reading(50.0), null, 20L, 0L, emptyMap(), settings, now)
+        assertEquals(listOf(signal), result.newlyActiveTypes)
+    }
+
+    @Test
+    fun `monitor cannot complete high delay from the same sample`() {
+        val first = reading(160.0)
+        val high = SugarWearAlarmType.HIGH
+        val defaults = SugarWearAlarmDefaults.defaultSettings()
+        val settings = defaults.copy(rules = defaults.rules + (high to defaults.ruleFor(high).copy(highDelayMinutes = 5)))
+        val pending = SugarWearAlarmEngine.evaluate(first, null, 0L, 0L, emptyMap(), settings, first.timestampEpochMs)
+        val result = SugarWearAlarmEngine.evaluate(first, null, 5L, 0L, pending.updatedInstances, settings, first.timestampEpochMs + 5 * 60_000L)
+        assertEquals(SugarWearAlarmState.PENDING_DELAY, result.updatedInstances.getValue(high).state)
+    }
+
     private fun reading(glucose: Double, trendRate: Double? = null, predicted: Double? = null, status: CgmReadingStatus = CgmReadingStatus.VALID) =
         CgmReading(
             id = "test-1",
@@ -100,7 +121,7 @@ class SugarWearAlarmEngineTest {
         // 14 min elapsed -> still PENDING_DELAY
         val res14 =
             SugarWearAlarmEngine.evaluate(
-                reading = reading(160.0),
+                reading = reading(160.0).copy(timestampEpochMs = start + 14 * 60_000L),
                 technicalError = null,
                 signalLossDurationMinutes = 0,
                 sensorErrorDurationMinutes = 0,
@@ -114,7 +135,7 @@ class SugarWearAlarmEngineTest {
         // 15 min elapsed -> ACTIVE
         val res15 =
             SugarWearAlarmEngine.evaluate(
-                reading = reading(160.0),
+                reading = reading(160.0).copy(timestampEpochMs = start + 15 * 60_000L),
                 technicalError = null,
                 signalLossDurationMinutes = 0,
                 sensorErrorDurationMinutes = 0,

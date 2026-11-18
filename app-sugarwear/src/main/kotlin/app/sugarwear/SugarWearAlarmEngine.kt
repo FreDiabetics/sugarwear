@@ -1,5 +1,6 @@
 package app.sugarwear
 
+import app.sugarlicious.model.FreshnessPolicy
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
@@ -11,16 +12,6 @@ internal data class SugarWearAlarmEvaluationResult(
 )
 
 internal object SugarWearAlarmEngine {
-    private val glucoseAlarmTypes =
-        setOf(
-            SugarWearAlarmType.URGENT_LOW,
-            SugarWearAlarmType.URGENT_LOW_SOON,
-            SugarWearAlarmType.LOW,
-            SugarWearAlarmType.HIGH,
-            SugarWearAlarmType.RAPID_RISE,
-            SugarWearAlarmType.RAPID_FALL,
-        )
-
     fun evaluate(
         reading: CgmReading?,
         technicalError: CgmCollectorError?,
@@ -34,27 +25,36 @@ internal object SugarWearAlarmEngine {
         val updated = mutableMapOf<SugarWearAlarmType, SugarWearAlarmInstance>()
         val newlyActive = mutableListOf<SugarWearAlarmType>()
         val resolved = mutableListOf<SugarWearAlarmType>()
+        val freshReading = reading?.takeIf { it.isFreshAlarmReading(nowEpochMs) }
 
         SugarWearAlarmType.entries.forEach { type ->
-            if (!evaluateGlucose && type in glucoseAlarmTypes) {
-                previousState[type]?.let { updated[type] = it }
+            val prev = previousState[type]
+            val rule = settings.ruleFor(type)
+            val samePendingHighReading =
+                type == SugarWearAlarmType.HIGH &&
+                    rule.enabled &&
+                    rule.highDelayMinutes > 0 &&
+                    prev?.state == SugarWearAlarmState.PENDING_DELAY &&
+                    freshReading != null &&
+                    prev.measuredAtEpochMs?.let { freshReading.timestampEpochMs <= it } == true
+            if ((!evaluateGlucose && type.usesGlucoseReading) || samePendingHighReading) {
+                prev?.let { updated[type] = it }
                 return@forEach
             }
 
-            val rule = settings.ruleFor(type)
             val isMet =
                 isConditionMet(
                     type = type,
                     rule = rule,
-                    reading = reading,
+                    validReading = freshReading,
+                    sensorErrorReading = reading?.status == CgmReadingStatus.SENSOR_ERROR,
                     technicalError = technicalError,
                     signalLossDurationMinutes = signalLossDurationMinutes,
                     sensorErrorDurationMinutes = sensorErrorDurationMinutes,
                 )
 
-            val prev = previousState[type]
             val prevActive = prev?.state == SugarWearAlarmState.ACTIVE
-            val glucoseVal = reading?.takeIf { it.status == CgmReadingStatus.VALID }?.glucoseMgDl
+            val glucoseVal = freshReading?.glucoseMgDl
 
             val nextInstance =
                 SugarWearAlarmStateMachine.update(
@@ -91,13 +91,12 @@ internal object SugarWearAlarmEngine {
     private fun isConditionMet(
         type: SugarWearAlarmType,
         rule: SugarWearAlarmRule,
-        reading: CgmReading?,
+        validReading: CgmReading?,
+        sensorErrorReading: Boolean,
         technicalError: CgmCollectorError?,
         signalLossDurationMinutes: Long,
         sensorErrorDurationMinutes: Long,
     ): Boolean {
-        val validReading = reading?.takeIf { it.status == CgmReadingStatus.VALID }
-
         return when (type) {
             SugarWearAlarmType.URGENT_LOW -> {
                 // Fixed 55 mg/dL, non-disableable
@@ -141,7 +140,7 @@ internal object SugarWearAlarmEngine {
             }
             SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> {
                 if (!rule.enabled) return false
-                reading != null && reading.status == CgmReadingStatus.SENSOR_ERROR && sensorErrorDurationMinutes >= rule.durationMinutes
+                sensorErrorReading && sensorErrorDurationMinutes >= rule.durationMinutes
             }
             SugarWearAlarmType.TECHNICAL_WARNING -> {
                 // Fixed non-disableable for critical technical events
@@ -150,3 +149,10 @@ internal object SugarWearAlarmEngine {
         }
     }
 }
+
+internal fun CgmReading.isFreshAlarmReading(now: Long): Boolean =
+    status == CgmReadingStatus.VALID &&
+        !displayOnly &&
+        glucoseMgDl.isFinite() &&
+        timestampEpochMs > 0 &&
+        now - timestampEpochMs in 0..FreshnessPolicy.CURRENT_MAX_MS

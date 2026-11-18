@@ -205,7 +205,8 @@ internal object CgmAlarmCoordinator {
         }
         val (snapshot, settings) = readRuntime(context, nowEpochMs)
         val alarm = snapshot.alarms.firstOrNull { it.type == type } ?: return@synchronized
-        if (!settings.ruleFor(type).enabled) {
+        val rule = settings.ruleFor(type)
+        if (!rule.enabled) {
             CgmAlarmNotifier.cancel(context, type)
             CgmAlarmRepeatScheduler.cancel(context, type)
             return@synchronized
@@ -214,15 +215,18 @@ internal object CgmAlarmCoordinator {
             evaluate(context, reading = CgmSensorStateStore(context).read().lastReading, nowEpochMs = nowEpochMs)
             return@synchronized
         }
-        if (alarm.state != SugarWearAlarmState.ACTIVE && alarm.state != SugarWearAlarmState.SNOOZED) return@synchronized
+        if (alarm.state != SugarWearAlarmState.ACTIVE || !rule.snoozeEnabled) return@synchronized
+        if (type.usesGlucoseReading && CgmSensorStateStore(context).read().lastReading?.isFreshAlarmReading(nowEpochMs) != true) {
+            evaluate(context, nowEpochMs = nowEpochMs)
+            return@synchronized
+        }
         CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
         val updated =
             snapshot.alarms.map {
                 if (it.type == type) it.copy(lastNotifiedAtEpochMs = nowEpochMs) else it
             }
         save(context, snapshot.copy(alarms = updated))
-        val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type, nowEpochMs)
-        CgmAlarmRepeatScheduler.schedule(context, type, repeatMinutes)
+        CgmAlarmRepeatScheduler.schedule(context, type, rule.snoozeMinutes)
     }
 
     fun clearSuppressed(context: Context) =
@@ -263,8 +267,7 @@ internal object CgmAlarmCoordinator {
                 CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
                 val rule = settings.ruleFor(type)
                 if (rule.snoozeEnabled) {
-                    val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type, nowEpochMs)
-                    val intervalMs = repeatMinutes * 60_000L
+                    val intervalMs = rule.snoozeMinutes * 60_000L
                     val nextRepeat = (alarm.lastNotifiedAtEpochMs ?: alarm.triggeredAtEpochMs ?: nowEpochMs) + intervalMs
                     CgmAlarmRepeatScheduler.scheduleAt(context, type, maxOf(nextRepeat, nowEpochMs + 1_000L))
                 } else {
@@ -365,8 +368,7 @@ internal object CgmAlarmCoordinator {
                     withNotifications[type] = current.copy(lastNotifiedAtEpochMs = nowEpochMs)
                     val rule = settings.ruleFor(type)
                     if (rule.snoozeEnabled) {
-                        val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type, nowEpochMs)
-                        CgmAlarmRepeatScheduler.schedule(context, type, repeatMinutes)
+                        CgmAlarmRepeatScheduler.schedule(context, type, rule.snoozeMinutes)
                     }
                 }
                 current?.state == SugarWearAlarmState.RESOLVED -> {
@@ -481,6 +483,7 @@ internal object CgmAlarmNotifier {
         reading: CgmReading? = null,
     ) {
         val channelId = channelId(context, alarm.type, settings)
+        val episode = cgmAlarmEpisodeKey(alarm)
         ensureAllChannels(context, settings)
         val open =
             PendingIntent.getActivity(
@@ -488,8 +491,8 @@ internal object CgmAlarmNotifier {
                 notificationId(alarm.type),
                 CgmAlarmActivity
                     .intent(context, alarm.type)
-                    .putExtra("episode", cgmAlarmEpisodeKey(alarm))
-                    .setData("sugarwear:alarm/${android.net.Uri.encode(cgmAlarmEpisodeKey(alarm))}".toUri()),
+                    .putExtra("episode", episode)
+                    .setData("sugarwear:alarm/${android.net.Uri.encode(episode)}".toUri()),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
         val presentationReading =
@@ -519,8 +522,8 @@ internal object CgmAlarmNotifier {
                 .setAutoCancel(false)
                 .setOnlyAlertOnce(onlyAlertOnce)
                 .addAction(Notification.Action.Builder(icon, "Schlummerzeit · ${CgmAlarmDelivery.snoozeMinutes(context, alarm.type)} Min.", open).build())
-                .addAction(Notification.Action.Builder(icon, "Stumm", CgmAlarmDelivery.pending(context, alarm.type, "mute")).build())
-                .addAction(Notification.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate")).build())
+                .addAction(Notification.Action.Builder(icon, "Stumm", CgmAlarmDelivery.pending(context, alarm.type, "mute", episode)).build())
+                .addAction(Notification.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate", episode)).build())
                 .build(),
         )
     }
@@ -588,7 +591,8 @@ internal object CgmAlarmNotifier {
         val rule = settings.ruleFor(type)
         val allowSound = !settings.globalMuteAll && !settings.globalVibrateOnly && rule.deliveryMode != SugarWearAlertDeliveryMode.VIBRATE
         if (allowSound && mode == null) CgmAlarmAudioService.play(context, type, test)
-        if ((settings.globalVibrateOnly || rule.deliveryMode == SugarWearAlertDeliveryMode.VIBRATE || mode == "vibrate") && mode != "mute") {
+        val allowVibration = !settings.globalMuteAll && mode != "mute"
+        if (allowVibration && (settings.globalVibrateOnly || rule.deliveryMode == SugarWearAlertDeliveryMode.VIBRATE || mode == "vibrate")) {
             context.getSystemService(android.os.Vibrator::class.java)?.vibrate(
                 android.os.VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1),
                 android.os.VibrationAttributes

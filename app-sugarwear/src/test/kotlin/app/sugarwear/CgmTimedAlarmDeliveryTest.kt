@@ -202,6 +202,26 @@ class CgmTimedAlarmDeliveryTest {
         assertTrue(drainServices().none { it.component?.className == CgmAlarmAudioService::class.java.name })
     }
 
+    @Test fun `automatic repeat uses the alarm rule instead of the quick snooze option`() {
+        val type = SugarWearAlarmType.LOW
+        val settings = CgmAlarmSettingsStore.read(app)
+        val rule = settings.ruleFor(type).copy(enabled = true, snoozeEnabled = true, snoozeMinutes = 25)
+        CgmAlarmSettingsStore.write(app, settings.copy(rules = settings.rules + (type to rule)))
+        CgmAlarmDelivery.setSnoozeMinutes(app, type, 10)
+        val reading = sample(0).copy(glucoseMgDl = 65.0)
+        save(reading)
+        val beforeScheduling = System.currentTimeMillis()
+        CgmAlarmCoordinator.onReading(app, reading, start)
+        val afterScheduling = System.currentTimeMillis()
+
+        val repeat =
+            shadowOf(app.getSystemService(AlarmManager::class.java)).scheduledAlarms.single {
+                shadowOf(it.operation).savedIntent.getStringExtra(CgmAlarmRepeatReceiver.EXTRA_TYPE) == type.name
+            }
+        val interval = 25 * 60_000L
+        assertTrue(repeat.triggerAtMs in (beforeScheduling + interval)..(afterScheduling + interval))
+    }
+
     @Test fun `scheduled profile discards old high delay and checks the first new measurement`() {
         start =
             LocalDate

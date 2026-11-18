@@ -18,6 +18,13 @@ enum class SugarWearAlarmType(
     TECHNICAL_WARNING("technical_warning", "Technisches Problem"),
     ;
 
+    val usesGlucoseReading: Boolean
+        get() =
+            when (this) {
+                SIGNAL_LOSS, TEMPORARY_SENSOR_PROBLEM, TECHNICAL_WARNING -> false
+                else -> true
+            }
+
     val isMandatory: Boolean
         get() = this == URGENT_LOW || this == TECHNICAL_WARNING
 
