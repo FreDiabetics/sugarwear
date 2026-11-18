@@ -1,6 +1,6 @@
 # Originale SugarWear-Alarmgrafiken
 
-Quelle: `C:/Users/typ1d/Desktop/Sugarlicious/Watchfaces`, bereitgestellt vom Nutzer
+Quelle: Originalentwürfe für SugarWear und Vigil, bereitgestellt vom Nutzer
 am 16. November 2026. Die SVGs sind Designquellen, keine Laufzeit-Screenshots.
 
 - Vollbildreferenzen: `hoch fullscreen notification.svg`, `tief notification.svg`,
