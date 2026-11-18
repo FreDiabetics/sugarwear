@@ -63,8 +63,7 @@ fun NotificationPlaygroundScreen(
                     .background(Color(0xFF242424))
                     .clickable {
                         DebugNotificationPublisher.postTestErrorNotification(context, error)
-                    }
-                    .padding(vertical = 10.dp),
+                    }.padding(vertical = 10.dp),
                 style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
             )
             Spacer(Modifier.height(8.dp))
@@ -80,8 +79,7 @@ fun NotificationPlaygroundScreen(
                 .background(Color(0xFFFF5C69))
                 .clickable {
                     DebugNotificationPublisher.cancelAllTestNotifications(context)
-                }
-                .padding(vertical = 10.dp),
+                }.padding(vertical = 10.dp),
             style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
         )
     }

@@ -20,13 +20,13 @@ import kotlinx.coroutines.flow.update
 class PlaygroundViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
-
-    private val _uiState = MutableStateFlow(
-        PlaygroundUiState(
-            selectedEntry = PlaygroundCatalog.entries.firstOrNull(),
-            styleOverrides = PlaygroundStylePersistence.load(application),
+    private val _uiState =
+        MutableStateFlow(
+            PlaygroundUiState(
+                selectedEntry = PlaygroundCatalog.entries.firstOrNull(),
+                styleOverrides = PlaygroundStylePersistence.load(application),
+            ),
         )
-    )
     val uiState: StateFlow<PlaygroundUiState> = _uiState.asStateFlow()
 
     val demoPlaybackController = DemoPlaybackController(viewModelScope)
@@ -105,7 +105,13 @@ class PlaygroundViewModel(
             }
             is PlaygroundAction.ResetStyles -> {
                 PlaygroundStylePersistence.clear(getApplication())
-                _uiState.update { it.copy(styleOverrides = app.sugarwear.debug.playground.editor.PlaygroundStyleOverrides()) }
+                _uiState.update {
+                    it.copy(
+                        styleOverrides =
+                            app.sugarwear.debug.playground.editor
+                                .PlaygroundStyleOverrides(),
+                    )
+                }
             }
             is PlaygroundAction.ToggleEditor -> {
                 _uiState.update { it.copy(isEditorOpen = action.open) }

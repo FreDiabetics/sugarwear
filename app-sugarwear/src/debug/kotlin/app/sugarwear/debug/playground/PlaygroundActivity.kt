@@ -10,7 +10,6 @@ import androidx.activity.viewModels
  * Excluded from release builds; operates independently of real active sensor connections.
  */
 class PlaygroundActivity : ComponentActivity() {
-
     private val viewModel by viewModels<PlaygroundViewModel>()
 
     override fun onCreate(savedInstanceState: Bundle?) {

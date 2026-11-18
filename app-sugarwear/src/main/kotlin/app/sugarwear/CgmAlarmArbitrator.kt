@@ -14,6 +14,5 @@ internal object CgmAlarmArbitrator {
                 compareByDescending<SugarWearAlarmInstance> { priority(it.type) }
                     .thenBy { it.triggeredAtEpochMs ?: 0L }
                     .thenBy { it.type.name },
-            )
-            .firstOrNull()
+            ).firstOrNull()
 }

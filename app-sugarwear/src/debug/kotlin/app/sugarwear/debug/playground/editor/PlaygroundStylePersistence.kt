@@ -2,6 +2,7 @@ package app.sugarwear.debug.playground.editor
 
 import android.content.Context
 import androidx.compose.ui.unit.dp
+import androidx.core.content.edit
 
 /**
  * Persists debug playground visual style overrides in SharedPreferences.
@@ -30,18 +31,24 @@ object PlaygroundStylePersistence {
             return PlaygroundStyleOverrides()
         }
 
-        val baseGraph = app.sugarwear.ui.visual.VisualStyleDefaults.graph()
-        val baseHome = app.sugarwear.ui.visual.VisualStyleDefaults.home()
+        val baseGraph =
+            app.sugarwear.ui.visual.VisualStyleDefaults
+                .graph()
+        val baseHome =
+            app.sugarwear.ui.visual.VisualStyleDefaults
+                .home()
 
-        val loadedGraph = baseGraph.copy(
-            lineWidthDp = prefs.getFloat(KEY_GRAPH_LINE_WIDTH, baseGraph.lineWidthDp.value).dp,
-            pointRadiusDp = prefs.getFloat(KEY_GRAPH_POINT_RADIUS, baseGraph.pointRadiusDp.value).dp,
-        )
+        val loadedGraph =
+            baseGraph.copy(
+                lineWidthDp = prefs.getFloat(KEY_GRAPH_LINE_WIDTH, baseGraph.lineWidthDp.value).dp,
+                pointRadiusDp = prefs.getFloat(KEY_GRAPH_POINT_RADIUS, baseGraph.pointRadiusDp.value).dp,
+            )
 
-        val loadedHome = baseHome.copy(
-            glucoseScalePercent = prefs.getInt(KEY_HOME_GLUCOSE_SCALE, baseHome.glucoseScalePercent),
-            cardCornerRadiusDp = prefs.getFloat(KEY_HOME_CARD_RADIUS, baseHome.cardCornerRadiusDp.value).dp,
-        )
+        val loadedHome =
+            baseHome.copy(
+                glucoseScalePercent = prefs.getInt(KEY_HOME_GLUCOSE_SCALE, baseHome.glucoseScalePercent),
+                cardCornerRadiusDp = prefs.getFloat(KEY_HOME_CARD_RADIUS, baseHome.cardCornerRadiusDp.value).dp,
+            )
 
         return PlaygroundStyleOverrides(
             graphStyle = loadedGraph,
@@ -51,6 +58,6 @@ object PlaygroundStylePersistence {
     }
 
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit { clear() }
     }
 }

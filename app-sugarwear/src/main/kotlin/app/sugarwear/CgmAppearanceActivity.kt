@@ -38,7 +38,14 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         bindSettingsState(navigation.state, render = ::render)
         bindSettingsState(store.state, render = ::render)
 
-        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    navigateBack()
+                }
+            },
+        )
         selectedCategory = savedInstanceState?.getString("settings-category")
         pageRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
@@ -285,7 +292,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                         historicalDotOutlineWidthDp = AppearanceControlContract.quantizeDotOutlineWidth(it / 100f),
                     )
                 store.setInAppDotOutlineWidths(style.historicalDotOutlineWidthDp, style.currentDotOutlineWidthDp)
-            }, min = 25, max = 300, format = { "Historisch · ${it / 100f} dp" }),
+            }, min = 25, max = 300, step = 5, format = { "Historisch · ${it / 100f} dp" }),
             params(top = 5),
         )
         content.addView(
@@ -295,7 +302,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                         currentDotOutlineWidthDp = AppearanceControlContract.quantizeDotOutlineWidth(it / 100f),
                     )
                 store.setInAppDotOutlineWidths(style.historicalDotOutlineWidthDp, style.currentDotOutlineWidthDp)
-            }, min = 25, max = 300, format = { "Aktuell · ${it / 100f} dp" }),
+            }, min = 25, max = 300, step = 5, format = { "Aktuell · ${it / 100f} dp" }),
             params(top = 5),
         )
         content.addView(
@@ -334,7 +341,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                             AppearanceControlContract.quantizeDotOutlineWidth(it / 100f),
                     ),
                 )
-            }, min = 25, max = 300, format = { "Historisch · ${it / 100f} dp" }),
+            }, min = 25, max = 300, step = 5, format = { "Historisch · ${it / 100f} dp" }),
             params(top = 5),
         )
         content.addView(
@@ -345,7 +352,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                             AppearanceControlContract.quantizeDotOutlineWidth(it / 100f),
                     ),
                 )
-            }, min = 25, max = 300, format = { "Aktuell · ${it / 100f} dp" }),
+            }, min = 25, max = 300, step = 5, format = { "Aktuell · ${it / 100f} dp" }),
             params(top = 5),
         )
         content.addView(
@@ -524,6 +531,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         save: (Int) -> Unit,
         min: Int = GlucoseTrendSizing.MIN_SCALE_PERCENT,
         max: Int = GlucoseTrendSizing.MAX_SCALE_PERCENT,
+        step: Int = 1,
         format: (Int) -> String = { "$title · $it %" },
     ) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
@@ -553,7 +561,8 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                                 progress: Int,
                                 fromUser: Boolean,
                             ) {
-                                val value = progress + min
+                                val value = ((progress.toFloat() / step).roundToInt() * step + min).coerceIn(min, max)
+                                if (seekBar?.progress != value - min) seekBar?.progress = value - min
                                 selectedValue = value
                                 valueLabel.text = format(value)
                                 if (fromUser) save(value)
@@ -565,7 +574,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                         },
                     )
                 }.let { slider ->
-                    app.sugarlicious.uishared.WearSettingsUi.inlineSlider(slider) { raw ->
+                    app.sugarlicious.uishared.WearSettingsUi.inlineSlider(slider, step) { raw ->
                         selectedValue = raw + min
                         valueLabel.text = format(selectedValue)
                         save(selectedValue)

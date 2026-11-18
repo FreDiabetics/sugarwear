@@ -61,12 +61,13 @@ fun HomePlaygroundScreen(
 
                 BasicText(
                     valueText,
-                    style = TextStyle(
-                        color = homeStyle.primaryTextColor,
-                        fontSize = scaledFontSize,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                    ),
+                    style =
+                        TextStyle(
+                            color = homeStyle.primaryTextColor,
+                            fontSize = scaledFontSize,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        ),
                 )
                 BasicText(
                     "mg/dL",

@@ -9,6 +9,7 @@ import app.sugarlicious.model.DataSourceId
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingOrigin
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
+import app.sugarlicious.sensor.protocol.CgmSensor
 import app.sugarlicious.uishared.SharedWearCgmGraphRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -51,6 +52,95 @@ class CgmGraphTileTest {
         assertEquals("Verlauf 2h · 3m", cgmGraphTileHeaderLabel(2, now - 3 * 60_000L, now))
         assertEquals("Verlauf 2h", cgmGraphTileHeaderLabel(2, null, now))
     }
+
+    @Test fun `graph title is regular and scale metadata is bold`() {
+        val service = Robolectric.buildService(CgmGraphTileService::class.java).create().get()
+        val device =
+            DeviceParameters
+                .Builder()
+                .setScreenWidthDp(240)
+                .setScreenHeightDp(240)
+                .setScreenDensity(2f)
+                .build()
+        val request =
+            RequestBuilders.TileRequest
+                .Builder()
+                .setDeviceConfiguration(device)
+                .build()
+        val snapshot = CgmGraphTileSnapshot(emptyList(), CgmAppearanceStore(context).load(), CgmStatusPillState.CONNECTED, 2, now)
+        val method = CgmGraphTileService::class.java.getDeclaredMethod("layout", RequestBuilders.TileRequest::class.java, CgmGraphTileSnapshot::class.java).apply { isAccessible = true }
+        val root = method.invoke(service, request, snapshot) as androidx.wear.protolayout.LayoutElementBuilders.LayoutElement
+        val texts = textsIn(root)
+        val title = texts.single { it.text!!.value == "Verlauf" }
+        val metadata = texts.single { it.text!!.value.trim() == "2h" }
+        assertEquals(sugarWearTileWeight(false), title.fontStyle!!.weight!!.value)
+        assertEquals(sugarWearTileWeight(true), metadata.fontStyle!!.weight!!.value)
+        service.onDestroy()
+    }
+
+    @Test
+    @Config(shadows = [PausedOverviewCredentialShadow::class])
+    fun `collector tile title is Glukose in regular weight`() {
+        val timestamp = System.currentTimeMillis()
+        val reading = reading("tile-header", "tile-session", 1, timestamp, CgmReadingOrigin.LIVE)
+        val state =
+            app.sugarlicious.sensor.protocol
+                .CgmPersistedState(
+                    sensor = CgmSensor(reading.sensorId, reading.sessionId),
+                    collectorEnabled = true,
+                    lastReading = reading,
+                )
+        CgmSensorStateStore(context).save(state)
+        kotlinx.coroutines.runBlocking {
+            CgmReadingDatabase(context).let { database ->
+                try {
+                    database.insert(reading)
+                } finally {
+                    database.close()
+                }
+            }
+        }
+        val service = Robolectric.buildService(CgmCollectorTileService::class.java).create().get()
+        try {
+            val device =
+                DeviceParameters
+                    .Builder()
+                    .setScreenWidthDp(226)
+                    .setScreenHeightDp(226)
+                    .setScreenDensity(2.125f)
+                    .build()
+            val request =
+                RequestBuilders.TileRequest
+                    .Builder()
+                    .setDeviceConfiguration(device)
+                    .build()
+            val method = CgmCollectorTileService::class.java.getDeclaredMethod("onTileRequest", RequestBuilders.TileRequest::class.java).apply { isAccessible = true }
+
+            @Suppress("UNCHECKED_CAST")
+            val future = method.invoke(service, request) as com.google.common.util.concurrent.ListenableFuture<androidx.wear.tiles.TileBuilders.Tile>
+            val tile = future.get()
+            val layout =
+                tile.tileTimeline!!
+                    .timelineEntries
+                    .first()
+                    .layout!!
+            val texts = textsIn(layout.root!!)
+            assertTrue(texts.none { it.text!!.value == "Gewebeglukose" })
+            val title = texts.single { it.text!!.value == "Glukose" }
+            assertEquals(400, title.fontStyle!!.weight!!.value)
+        } finally {
+            service.onDestroy()
+        }
+    }
+
+    private fun textsIn(element: androidx.wear.protolayout.LayoutElementBuilders.LayoutElement): List<androidx.wear.protolayout.LayoutElementBuilders.Text> =
+        when (element) {
+            is androidx.wear.protolayout.LayoutElementBuilders.Text -> listOf(element)
+            is androidx.wear.protolayout.LayoutElementBuilders.Box -> element.contents.flatMap(::textsIn)
+            is androidx.wear.protolayout.LayoutElementBuilders.Column -> element.contents.flatMap(::textsIn)
+            is androidx.wear.protolayout.LayoutElementBuilders.Row -> element.contents.flatMap(::textsIn)
+            else -> emptyList()
+        }
 
     private val context =
         androidx.test.core.app.ApplicationProvider

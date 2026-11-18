@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -37,21 +38,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-internal fun cgmAlarmHeadline(type: SugarWearAlarmType): String = "${cgmAlarmTitle(type)} Alarm!"
+internal fun cgmAlarmHeadline(type: SugarWearAlarmType): String =
+    if (type in setOf(SugarWearAlarmType.RAPID_RISE, SugarWearAlarmType.RAPID_FALL, SugarWearAlarmType.TECHNICAL_WARNING)) cgmAlarmTitle(type) else "${cgmAlarmTitle(type)} Alarm!"
 
 internal fun cgmAlarmValue(reading: CgmReading?, now: Long = System.currentTimeMillis()): String {
     if (reading == null) return "Keine aktuellen Daten"
-    val arrow = when (reading.trend) {
-        Trend.DOUBLE_DOWN -> "↓↓"
-        Trend.SINGLE_DOWN -> "↓"
-        Trend.FORTY_FIVE_DOWN -> "↘"
-        Trend.FLAT -> "→"
-        Trend.FORTY_FIVE_UP -> "↗"
-        Trend.SINGLE_UP -> "↑"
-        Trend.DOUBLE_UP -> "↑↑"
-        Trend.UNKNOWN -> ""
-    }
-    val value = "${kotlin.math.round(reading.glucoseMgDl).toInt()} $arrow mg/dL"
+    if (reading.status != app.sugarlicious.sensor.protocol.CgmReadingStatus.VALID || !reading.glucoseMgDl.isFinite()) return "Keine aktuellen Daten"
+    val value = "${kotlin.math.round(reading.glucoseMgDl).toInt()} mg/dL"
     return if ((now - reading.timestampEpochMs) in 0 until (15 * 60_000L)) value else "Letzter Wert: $value"
 }
 
@@ -65,29 +58,41 @@ internal object CgmAlarmDelivery {
 
     fun mode(context: Context, type: SugarWearAlarmType): String? = prefs(context).getString(type.id, null)
 
-    fun snoozeMinutes(context: Context, type: SugarWearAlarmType): Int = prefs(context).getInt("duration_${type.id}", 10).coerceIn(5, 120)
+    private const val DEFAULT_QUICK_SNOOZE_MINUTES = 10
+
+    fun snoozeMinutes(context: Context, type: SugarWearAlarmType, now: Long = System.currentTimeMillis()): Int {
+        val profile = CgmAlarmSettingsStore.read(context).activeProfile(now).profile
+        return prefs(context).getInt(durationKey(type, profile), DEFAULT_QUICK_SNOOZE_MINUTES).coerceIn(5, 120)
+    }
+
+    private fun durationKey(type: SugarWearAlarmType, profile: SugarWearAlarmProfile): String =
+        if (profile == SugarWearAlarmProfile.NIGHT) "night_duration_${type.id}" else "duration_${type.id}"
 
     fun setSnoozeMinutes(context: Context, type: SugarWearAlarmType, minutes: Int) {
-        prefs(context).edit { putInt("duration_${type.id}", minutes.coerceIn(5, 120)) }
+        val profile = CgmAlarmSettingsStore.read(context).activeProfile(System.currentTimeMillis()).profile
+        prefs(context).edit { putInt(durationKey(type, profile), minutes.coerceIn(5, 120)) }
         CgmAlarmCoordinator.refreshNotification(context, type)
     }
 
     fun reset(context: Context, type: SugarWearAlarmType) = prefs(context).edit { remove(type.id) }
 
-    fun pending(context: Context, type: SugarWearAlarmType, operation: String): PendingIntent =
+    fun pending(context: Context, type: SugarWearAlarmType, operation: String, episode: String? = CgmAlarmCoordinator.pendingNotices(context).firstOrNull { it.type == type }?.let(::cgmAlarmEpisodeKey)): PendingIntent =
         PendingIntent.getBroadcast(
             context,
             7_600 + SugarWearAlarmDefaults.priority(type) * 4 + listOf("snooze", "mute", "vibrate", "ack").indexOf(operation),
             Intent(context, CgmAlarmAcknowledgeReceiver::class.java)
                 .setAction(ACTION)
+                .setData("sugarwear:delivery/${android.net.Uri.encode(episode.orEmpty())}/$operation".toUri())
+                .putExtra("episode", episode)
                 .putExtra(CgmAlarmAcknowledgeReceiver.EXTRA_TYPE, type.name)
                 .putExtra("operation", operation),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-    fun perform(context: Context, type: SugarWearAlarmType, operation: String) =
+    fun perform(context: Context, type: SugarWearAlarmType, operation: String, episode: String? = null) =
         synchronized(CgmSensorStateStore.lifecycleLock) {
             if (!CgmAlarmCoordinator.isVisible(context, type)) return@synchronized
+            if (episode != null && !CgmAlarmCoordinator.matchesEpisode(context, type, episode)) return@synchronized
             when (operation) {
                 "ack" -> CgmAlarmCoordinator.acknowledge(context, type)
                 "snooze" -> CgmAlarmCoordinator.snooze(context, type)
@@ -98,13 +103,19 @@ internal object CgmAlarmDelivery {
                     if (operation == "vibrate") {
                         context.getSystemService(android.os.Vibrator::class.java)?.vibrate(
                             android.os.VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1),
-                            android.os.VibrationAttributes.Builder().setUsage(android.os.VibrationAttributes.USAGE_ALARM).build(),
+                            android.os.VibrationAttributes
+                                .Builder()
+                                .setUsage(android.os.VibrationAttributes.USAGE_ALARM)
+                                .build(),
                         )
                     }
                 }
             }
         }
 }
+
+internal fun cgmAlarmEpisodeKey(alarm: SugarWearAlarmInstance): String =
+    listOf(alarm.type.id, alarm.sensorId.orEmpty(), alarm.sessionId.orEmpty(), alarm.triggeredAtEpochMs.toString(), alarm.conditionFirstMetAtEpochMs.toString()).joinToString("|") { android.net.Uri.encode(it) }
 
 internal data class CgmAlarmScreenState(
     val type: SugarWearAlarmType? = null,
@@ -114,6 +125,9 @@ internal data class CgmAlarmScreenState(
     val triggeredAtEpochMs: Long = 0L,
     val currentReading: CgmReading? = null,
     val snoozeMinutes: Int = 10,
+    val episode: String? = null,
+    val glucoseColor: Int = android.graphics.Color.WHITE,
+    val trendStyle: app.sugarlicious.model.TrendArrowRenderSpec? = null,
 )
 
 @dagger.hilt.android.lifecycle.HiltViewModel
@@ -125,6 +139,8 @@ class CgmAlarmViewModel
         private val mutable = MutableStateFlow(CgmAlarmScreenState())
         internal val state = mutable.asStateFlow()
         private var selected: SugarWearAlarmType? = null
+        private var selectedEpisode: String? = null
+        private var refreshRevision = 0L
         private val preferences = listOf("g7_cgm_alarm_state", "g7_collector_state", "cgm_alarm_delivery").map { app.getSharedPreferences(it, Context.MODE_PRIVATE) }
         private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> refresh() }
 
@@ -132,23 +148,41 @@ class CgmAlarmViewModel
             preferences.forEach { it.registerOnSharedPreferenceChangeListener(listener) }
         }
 
-        internal fun select(type: SugarWearAlarmType) {
+        internal fun select(type: SugarWearAlarmType, episode: String? = null) {
+            selectedEpisode = episode
             selected = type
             refresh()
         }
 
-        private fun refresh() {
+        internal fun refresh() {
             val type = selected ?: return
+            val selection = selectedEpisode
+            val revision = ++refreshRevision
             viewModelScope.launch {
                 val context = getApplication<Application>()
                 val next =
                     withContext(Dispatchers.IO) {
                         val pending = CgmAlarmCoordinator.pendingNotices(context).firstOrNull { it.type == type }
                         val active = CgmAlarmCoordinator.isActive(context, type)
-                        val visible = pending != null
-                        val currentReading = CgmSensorStateStore(context).read().lastReading
+                        val visible = pending != null && (selectedEpisode == null || selectedEpisode == cgmAlarmEpisodeKey(pending))
+                        val sensorState = CgmSensorStateStore(context).read()
+                        val now = System.currentTimeMillis()
+                        val currentReading = sensorState.lastReading?.takeIf { cgmReadingBelongsToSession(sensorState, it) && it.status == app.sugarlicious.sensor.protocol.CgmReadingStatus.VALID && !it.displayOnly && it.timestampEpochMs <= now && now - it.timestampEpochMs < CGM_SIGNAL_LOSS_AFTER_MS }
+                        val appearance = CgmAppearanceStore(context)
+                        val palette = appearance.load()
+                        val thresholds = CgmGraphColorStore(context).readThresholds()
+                        val role =
+                            when (currentReading?.let { thresholds.classify(it.glucoseMgDl) }) {
+                                app.sugarlicious.model.CgmRangeClass.VERY_LOW, app.sugarlicious.model.CgmRangeClass.LOW -> CgmAppearanceRole.GLUCOSE_LOW
+                                app.sugarlicious.model.CgmRangeClass.VERY_HIGH, app.sugarlicious.model.CgmRangeClass.HIGH -> CgmAppearanceRole.GLUCOSE_HIGH
+                                app.sugarlicious.model.CgmRangeClass.IN_RANGE -> CgmAppearanceRole.GLUCOSE_IN_RANGE
+                                null -> CgmAppearanceRole.GLUCOSE_NO_SOURCE
+                            }
                         CgmAlarmScreenState(
                             type = type,
+                            episode = pending?.let(::cgmAlarmEpisodeKey),
+                            glucoseColor = palette.argb(role),
+                            trendStyle = appearance.trendArrowStyle().renderSpec(),
                             visible = visible,
                             active = active,
                             triggerGlucose = pending?.triggerGlucoseMgDl,
@@ -157,14 +191,15 @@ class CgmAlarmViewModel
                             snoozeMinutes = CgmAlarmDelivery.snoozeMinutes(context, type),
                         )
                     }
-                if (selected == type) mutable.value = next
+                if (selected == type && selectedEpisode == selection && revision == refreshRevision) mutable.value = next
             }
         }
 
         internal fun act(operation: String): Boolean {
             val type = selected ?: return false
+            val episode = state.value.episode ?: return false
             return try {
-                CgmAlarmDelivery.pending(getApplication(), type, operation).send()
+                CgmAlarmDelivery.pending(getApplication(), type, operation, episode).send()
                 true
             } catch (error: PendingIntent.CanceledException) {
                 android.util.Log.e("CgmAlarmAction", "Alarm action could not be delivered", error)
@@ -190,7 +225,12 @@ internal fun cgmGlucoseNumberText(reading: CgmReading?): String =
     reading?.let { "${kotlin.math.round(it.glucoseMgDl).toInt()} mg/dL" } ?: "---"
 
 internal fun cgmGlucoseOnlyNumberText(reading: CgmReading?): String =
-    reading?.let { kotlin.math.round(it.glucoseMgDl).toInt().toString() } ?: "---"
+    reading?.let {
+        kotlin.math
+            .round(it.glucoseMgDl)
+            .toInt()
+            .toString()
+    } ?: "---"
 
 internal fun trendDrawableRes(trend: Trend?): Int? =
     when (trend) {
@@ -212,65 +252,25 @@ internal fun CgmAlarmScreenContent(
     onAdjustSnooze: (Int) -> Unit,
     onMute: () -> Unit,
     onVibrate: () -> Unit,
-    visualStyle: app.sugarwear.ui.visual.AlarmVisualStyle = app.sugarwear.ui.visual.VisualStyleDefaults.alarm(),
+    visualStyle: app.sugarwear.ui.visual.AlarmVisualStyle =
+        app.sugarwear.ui.visual.VisualStyleDefaults
+            .alarm(),
 ) {
     val type = state.type ?: return
-    val accent = if (type in setOf(SugarWearAlarmType.HIGH, SugarWearAlarmType.RAPID_RISE)) visualStyle.highAccentColor else visualStyle.lowAccentColor
     val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
 
     Column(
         Modifier
             .fillMaxSize()
-            .background(visualStyle.backgroundColor)
+            .background(androidx.compose.ui.graphics.Color.Black)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .height(screenHeight)
-                .padding(horizontal = visualStyle.contentPaddingDp, vertical = visualStyle.contentPaddingDp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            androidx.compose.foundation.Image(
-                painter = androidx.compose.ui.res.painterResource(app.sugarlicious.uishared.R.drawable.ic_alert),
-                contentDescription = null,
-                modifier = Modifier.size(visualStyle.iconSizeDp),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(accent),
-            )
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                ) {
-                    BasicText(
-                        cgmGlucoseOnlyNumberText(state.currentReading),
-                        style = TextStyle(color = visualStyle.primaryTextColor, fontSize = visualStyle.glucoseValueFontSize, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-                    )
-                    val trendRes = trendDrawableRes(state.currentReading?.trend)
-                    if (trendRes != null) {
-                        androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(trendRes),
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(visualStyle.primaryTextColor),
-                        )
-                    }
-                }
-                BasicText(
-                    "mg/dL",
-                    style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center),
-                )
-            }
-
-            BasicText(
-                cgmAlarmHeadline(type),
-                style = TextStyle(color = accent, fontSize = visualStyle.headlineFontSize, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
+        val artwork = cgmAlarmArtwork(type) ?: return
+        androidx.compose.runtime.key(type, artwork, state.currentReading, state.glucoseColor, state.trendStyle) {
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { CgmAlarmFullBleedView(it, artwork, state.currentReading, state.glucoseColor, state.trendStyle, titleOverride = if (type == SugarWearAlarmType.TECHNICAL_WARNING) cgmAlarmHeadline(type) else null) },
+                modifier = Modifier.fillMaxWidth().height(screenHeight),
             )
         }
 
@@ -282,16 +282,6 @@ internal fun CgmAlarmScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(visualStyle.buttonSpacingDp),
         ) {
-            BasicText(
-                "Quittieren",
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(visualStyle.buttonCornerRadiusDp))
-                    .background(visualStyle.buttonBackgroundColor)
-                    .clickable { onAcknowledge() }
-                    .padding(vertical = 12.dp),
-                style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
-            )
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 listOf("−" to -5, "+" to 5).forEachIndexed { index, (label, delta) ->
                     if (index == 1) BasicText("${state.snoozeMinutes} Min.", style = TextStyle(color = visualStyle.primaryTextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold))
@@ -342,12 +332,19 @@ class CgmAlarmActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyCgmAlarmFullBleedChrome(window)
         setShowWhenLocked(true)
         setTurnScreenOn(true)
         select(intent)
         setContent {
             val state = model.state.collectAsStateWithLifecycle().value
             LaunchedEffect(state.type, state.visible) { if (state.type != null && !state.visible) finish() }
+            LaunchedEffect(state.currentReading) {
+                state.currentReading?.let {
+                    kotlinx.coroutines.delay((it.timestampEpochMs + CGM_SIGNAL_LOSS_AFTER_MS - System.currentTimeMillis()).coerceAtLeast(1L))
+                    model.refresh()
+                }
+            }
             CgmAlarmScreenContent(
                 state = state,
                 onAcknowledge = { if (model.act("ack")) finish() },
@@ -365,9 +362,14 @@ class CgmAlarmActivity : ComponentActivity() {
         select(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        model.refresh()
+    }
+
     private fun select(intent: Intent) {
         val type = intent.getStringExtra("type")?.let { runCatching { SugarWearAlarmType.valueOf(it) }.getOrNull() }
-        if (type == null) finish() else model.select(type)
+        if (type == null) finish() else model.select(type, intent.getStringExtra("episode"))
     }
 
     companion object {

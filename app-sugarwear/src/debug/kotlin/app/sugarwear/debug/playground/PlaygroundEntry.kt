@@ -3,7 +3,9 @@ package app.sugarwear.debug.playground
 /**
  * Type-safe representation of an entry in the SugarWear UI Playground catalog.
  */
-enum class PlaygroundCategory(val label: String) {
+enum class PlaygroundCategory(
+    val label: String,
+) {
     HOME("Hauptübersicht"),
     GRAPH("Glukosegraph"),
     ALARM("Alarmbildschirme"),

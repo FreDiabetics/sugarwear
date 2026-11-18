@@ -7,8 +7,8 @@ class CgmSettingsViewModelTest {
     @Test fun `setup advances without granting access and completes once`() {
         var completions = 0
         val vm = CgmSetupViewModel { completions++ }
-        repeat(6) { assertFalse(vm.advance()) }
-        assertEquals(6, vm.state.value.step)
+        repeat(3) { assertFalse(vm.advance()) }
+        assertEquals(3, vm.state.value.step)
         assertTrue(vm.advance())
         assertTrue(vm.advance())
         assertEquals(1, completions)

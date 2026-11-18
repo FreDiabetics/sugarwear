@@ -9,7 +9,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class PlaygroundStyleValidatorTest {
-
     @Test
     fun `validator clamps invalid negative dimensions to safe bounds`() {
         val invalidGraph = GraphVisualStyle(lineWidthDp = (-5).dp, fillAlpha = 2.5f)

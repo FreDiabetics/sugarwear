@@ -1,6 +1,5 @@
 package app.sugarwear
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
@@ -68,28 +67,16 @@ class CgmAlarmsTest {
     @Test
     fun `settings preparation registers channels without posting or changing alarm preferences`() {
         val settings = CgmAlarmSettingsStore.read(context)
-        shadowOf(notificationManager).setNotificationPolicyAccessGranted(false)
 
         CgmAlarmNotifier.prepareCurrentChannels(context)
 
-        val deniedIds = SugarWearAlarmType.entries.map { CgmAlarmNotifier.channelId(context, it, settings) }
-        deniedIds.forEach { id ->
+        val channelIds = SugarWearAlarmType.entries.map { CgmAlarmNotifier.channelId(context, it, settings) }
+        channelIds.forEach { id ->
             val channel = notificationManager.getNotificationChannel(id)
             assertNotNull(channel)
-            assertFalse(channel.canBypassDnd())
             assertFalse(channel.shouldVibrate())
             assertNull(channel.sound)
         }
-        assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
-
-        shadowOf(notificationManager).setNotificationPolicyAccessGranted(true)
-        CgmAlarmNotifier.prepareCurrentChannels(context)
-
-        SugarWearAlarmType.entries.forEach { type ->
-            val channel = notificationManager.getNotificationChannel(CgmAlarmNotifier.channelId(context, type, settings))
-            assertTrue(channel.canBypassDnd())
-        }
-        deniedIds.forEach { assertNotNull(notificationManager.getNotificationChannel(it)) }
         assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
     }
 
@@ -258,7 +245,8 @@ class CgmAlarmsTest {
         assertTrue(CgmAlertPolicyStore.alarmsEnabled(context))
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
-        assertNotNull(notification.fullScreenIntent)
+        assertNull(notification.fullScreenIntent)
+        assertNotNull(notification.contentIntent)
         assertEquals(listOf("Schlummerzeit · 10 Min.", "Stumm", "Vibrieren"), notification.actions.map { it.title.toString() })
         CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = false))
         assertFalse(CgmAlertPolicyStore.alarmsEnabled(context))
@@ -360,6 +348,46 @@ class CgmAlarmsTest {
         assertFalse(CgmAlarmPauseStore.isPaused(context, SugarWearAlarmType.LOW, NOW))
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         assertTrue(CgmAlarmCoordinator.isActive(context, SugarWearAlarmType.LOW))
+    }
+
+    @Test
+    fun `stale acknowledgement cannot dismiss a new episode of the same type`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        val old = CgmAlarmCoordinator.pendingNotices(context).first { it.type == SugarWearAlarmType.LOW }
+        val staleAction = CgmAlarmDelivery.pending(context, old.type, "ack", cgmAlarmEpisodeKey(old))
+        CgmAlarmCoordinator.onReading(context, reading("sensor-b", "session-b", 65.0), NOW + 1)
+        assertFalse(CgmAlarmCoordinator.acknowledgeEpisode(context, old))
+        CgmAlarmDelivery.perform(context, old.type, "ack", cgmAlarmEpisodeKey(old))
+        assertTrue(CgmAlarmCoordinator.isVisible(context, old.type))
+        val current = CgmAlarmCoordinator.pendingNotices(context).first { it.type == old.type }
+        val newAction = CgmAlarmDelivery.pending(context, current.type, "ack", cgmAlarmEpisodeKey(current))
+        assertFalse(staleAction == newAction)
+        assertTrue(CgmAlarmCoordinator.acknowledgeEpisode(context, current))
+        assertFalse(CgmAlarmCoordinator.isVisible(context, old.type))
+    }
+
+    @Test
+    fun `acknowledging alarm preserves sensor state and reading`() {
+        val value = reading("sensor-a", "session-a", 65.0)
+        CgmSensorStateStore(context).save(CgmPersistedState(sensor = CgmSensor(value.sensorId, value.sessionId), collectorEnabled = true, lastReading = value))
+        CgmAlarmCoordinator.onReading(context, value, NOW)
+        val before = CgmSensorStateStore(context).read()
+        val notice = CgmAlarmCoordinator.pendingNotices(context).first { it.type == SugarWearAlarmType.LOW }
+        assertTrue(CgmAlarmCoordinator.acknowledgeEpisode(context, notice))
+        assertEquals(before, CgmSensorStateStore(context).read())
+    }
+
+    @Test
+    fun `acknowledging an older lower priority notice preserves urgent vibration`() {
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+        val low = CgmAlarmCoordinator.pendingNotices(context).first { it.type == SugarWearAlarmType.LOW }
+        CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 40.0), NOW + 1)
+        val vibrator = context.getSystemService(android.os.Vibrator::class.java)
+        vibrator.vibrate(android.os.VibrationEffect.createOneShot(1_000L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        assertTrue(CgmAlarmCoordinator.acknowledgeEpisode(context, low))
+        assertTrue(shadowOf(vibrator).isVibrating)
+        CgmAlarmCoordinator.acknowledge(context, SugarWearAlarmType.URGENT_LOW, NOW + 2)
+        assertFalse(shadowOf(vibrator).isVibrating)
     }
 
     private fun reading(

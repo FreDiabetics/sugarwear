@@ -9,6 +9,7 @@ import kotlin.test.*
 
 /** Golden decoded RGBA hashes captured from original Pillow 11.3 render_orbit_hands.
  * PNG compression and metadata are deliberately outside the visual contract. */
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class HandRasterParityTest {
     @Test fun everyHandAssetMatchesOriginalRgbaPixels() {
         val root = Path.of(System.getProperty("maintenance.sharedRoot"))

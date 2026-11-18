@@ -9,6 +9,7 @@ internal object SugarWearAlarmMigration {
     private const val OLD_STATE_PREFERENCES = "g7_cgm_alarm_state"
     private const val NEW_PREFERENCES = "sugarwear_alarm_settings_v2"
     private const val KEY_MIGRATED = "migrated_v2"
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     fun migrateIfNeeded(context: Context): SugarWearAlarmSettings {
         val app = context.applicationContext
@@ -31,35 +32,41 @@ internal object SugarWearAlarmMigration {
 
         val updatedRules = defaults.rules.toMutableMap()
 
-        updatedRules[SugarWearAlarmType.HIGH] = defaults.ruleFor(SugarWearAlarmType.HIGH).copy(
-            enabled = highEnabled,
-            thresholdMgDl = highThreshold,
-        )
-        updatedRules[SugarWearAlarmType.LOW] = defaults.ruleFor(SugarWearAlarmType.LOW).copy(
-            enabled = lowEnabled,
-            thresholdMgDl = lowThreshold,
-        )
-        updatedRules[SugarWearAlarmType.RAPID_RISE] = defaults.ruleFor(SugarWearAlarmType.RAPID_RISE).copy(
-            enabled = rapidRiseEnabled,
-        )
-        updatedRules[SugarWearAlarmType.RAPID_FALL] = defaults.ruleFor(SugarWearAlarmType.RAPID_FALL).copy(
-            enabled = rapidFallEnabled,
-        )
-        updatedRules[SugarWearAlarmType.SIGNAL_LOSS] = defaults.ruleFor(SugarWearAlarmType.SIGNAL_LOSS).copy(
-            enabled = signalLossEnabled,
-        )
+        updatedRules[SugarWearAlarmType.HIGH] =
+            defaults.ruleFor(SugarWearAlarmType.HIGH).copy(
+                enabled = highEnabled,
+                thresholdMgDl = highThreshold,
+            )
+        updatedRules[SugarWearAlarmType.LOW] =
+            defaults.ruleFor(SugarWearAlarmType.LOW).copy(
+                enabled = lowEnabled,
+                thresholdMgDl = lowThreshold,
+            )
+        updatedRules[SugarWearAlarmType.RAPID_RISE] =
+            defaults.ruleFor(SugarWearAlarmType.RAPID_RISE).copy(
+                enabled = rapidRiseEnabled,
+            )
+        updatedRules[SugarWearAlarmType.RAPID_FALL] =
+            defaults.ruleFor(SugarWearAlarmType.RAPID_FALL).copy(
+                enabled = rapidFallEnabled,
+            )
+        updatedRules[SugarWearAlarmType.SIGNAL_LOSS] =
+            defaults.ruleFor(SugarWearAlarmType.SIGNAL_LOSS).copy(
+                enabled = signalLossEnabled,
+            )
 
-        val migratedSettings = SugarWearAlarmSettings(
-            globalVibrateOnly = !oldPrefs.getBoolean("sound_enabled", true) && vibrationEnabled,
-            globalMuteAll = !oldPrefs.getBoolean("sound_enabled", true) && !vibrationEnabled,
-            rules = updatedRules,
-        )
+        val migratedSettings =
+            SugarWearAlarmSettings(
+                globalVibrateOnly = !oldPrefs.getBoolean("sound_enabled", true) && vibrationEnabled,
+                globalMuteAll = !oldPrefs.getBoolean("sound_enabled", true) && !vibrationEnabled,
+                rules = updatedRules,
+            )
 
         writeSettings(app, migratedSettings)
 
         // Clear old alarm snapshots/state and legacy notification IDs
         val oldStatePrefs = app.getSharedPreferences(OLD_STATE_PREFERENCES, Context.MODE_PRIVATE)
-        oldStatePrefs.edit().clear().apply()
+        oldStatePrefs.edit { clear() }
 
         val nm = app.getSystemService(NotificationManager::class.java)
         nm?.cancelAll()
@@ -73,15 +80,16 @@ internal object SugarWearAlarmMigration {
         val prefs = app.getSharedPreferences(NEW_PREFERENCES, Context.MODE_PRIVATE)
         val jsonString = prefs.getString("settings_json", null) ?: return SugarWearAlarmDefaults.defaultSettings()
         return try {
-            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString(SugarWearAlarmSettings.serializer(), jsonString)
-        } catch (e: Exception) {
+            json.decodeFromString(SugarWearAlarmSettings.serializer(), jsonString)
+        } catch (error: IllegalArgumentException) {
+            android.util.Log.w("SugarWearAlarmMigration", "Invalid persisted alarm settings: ${error.javaClass.simpleName}")
             SugarWearAlarmDefaults.defaultSettings()
         }
     }
 
     fun writeSettings(context: Context, settings: SugarWearAlarmSettings) {
         val app = context.applicationContext
-        val jsonString = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.encodeToString(SugarWearAlarmSettings.serializer(), settings)
+        val jsonString = json.encodeToString(SugarWearAlarmSettings.serializer(), settings)
         app.getSharedPreferences(NEW_PREFERENCES, Context.MODE_PRIVATE).edit {
             putString("settings_json", jsonString)
             putBoolean(KEY_MIGRATED, true)

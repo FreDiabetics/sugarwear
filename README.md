@@ -2,4 +2,5 @@
   <img src="design-assets/sugarwear/adaptive108/readme.png" width="180" alt="SugarWear">
 </p>
 
-<p align="center">Something is happening here...</p>
+<p align="center">Something is happening here</p>
+<p align="center">. . .</p>

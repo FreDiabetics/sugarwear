@@ -27,9 +27,10 @@ class CgmAlarmSoundProvider : ContentProvider() {
     override fun openAssetFile(uri: Uri, mode: String): AssetFileDescriptor {
         require(mode == "r") { "Alarm sounds are read-only" }
         val pathSegment = uri.lastPathSegment ?: throw FileNotFoundException("Unknown alarm sound")
-        val type = SugarWearAlarmType.fromId(pathSegment)
-            ?: runCatching { SugarWearAlarmType.valueOf(pathSegment.uppercase()) }.getOrNull()
-            ?: throw FileNotFoundException("Unknown alarm sound: $pathSegment")
+        val type =
+            SugarWearAlarmType.fromId(pathSegment)
+                ?: runCatching { SugarWearAlarmType.valueOf(pathSegment.uppercase()) }.getOrNull()
+                ?: throw FileNotFoundException("Unknown alarm sound: $pathSegment")
         return requireNotNull(context).assets.openFd(cgmAlarmSoundAsset(type))
     }
 

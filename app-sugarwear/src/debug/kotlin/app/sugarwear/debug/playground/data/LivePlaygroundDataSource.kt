@@ -20,7 +20,6 @@ class LivePlaygroundDataSource(
     private val context: Context,
     private val scope: CoroutineScope,
 ) : PlaygroundDataSource {
-
     private val _readings = MutableStateFlow<List<CgmReading>>(emptyList())
     override val readings: StateFlow<List<CgmReading>> = _readings.asStateFlow()
 

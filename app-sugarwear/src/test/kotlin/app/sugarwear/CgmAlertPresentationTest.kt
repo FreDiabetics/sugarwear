@@ -10,7 +10,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class CgmAlertPresentationTest {
-
     @Test
     fun `cancel current clears single notification and legacy notifications`() {
         val context = ApplicationProvider.getApplicationContext<Context>()

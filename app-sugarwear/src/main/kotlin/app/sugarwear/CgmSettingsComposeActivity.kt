@@ -109,6 +109,10 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
             val value = source.collectAsStateWithLifecycle().value
             val previous = remember { arrayOfNulls<Any>(1) }
             LaunchedEffect(value) {
+                // A queued write still carries the previous persisted snapshot. Keep the
+                // user's live control until the final snapshot (or an error) arrives.
+                val pending = value as? CgmSettingsIoState<*>
+                if (pending?.loading == true && pending.snapshot != null && pending.error == null) return@LaunchedEffect
                 @Suppress("UNCHECKED_CAST")
                 val old = previous[0] as T?
                 previous[0] = value

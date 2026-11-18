@@ -22,12 +22,13 @@ object PlaygroundDataMapper {
     ): SharedWearCgmGraphInput {
         val palette = CgmAppearanceStore(context).load()
         val settings = CgmDirectToWatchSettingsStore(context)
-        val styleOverride = visualStyle?.let {
-            SharedWearCgmGraphStyle(
-                dotRadiusDp = it.pointRadiusDp.value,
-                dotOutlineWidthDp = it.dotOutlineWidthDp.value,
-            )
-        }
+        val styleOverride =
+            visualStyle?.let {
+                SharedWearCgmGraphStyle(
+                    dotRadiusDp = it.pointRadiusDp.value,
+                    dotOutlineWidthDp = it.dotOutlineWidthDp.value,
+                )
+            }
 
         return cgmSharedGraphInput(
             readings = readings,

@@ -48,14 +48,31 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    navigateBack()
+                }
+            },
+        )
         var wasUnlinking = pairing.state.value.unlinkInFlight
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { status.state.collect { render() } }
                 launch {
                     pairing.state.collect { state ->
-                        if (wasUnlinking && !state.unlinkInFlight) status.refresh()
+                        if (wasUnlinking && !state.unlinkInFlight) {
+                            status.refresh()
+                            if (!state.unlinkFailed) {
+                                startActivity(
+                                    android.content
+                                        .Intent(this@CgmSystemStatusActivity, CgmWatchActivity::class.java)
+                                        .putExtra(CgmWatchActivity.EXTRA_SENSOR_UNLINKED, true),
+                                )
+                                finish()
+                            }
+                        }
                         wasUnlinking = state.unlinkInFlight
                         render()
                         val effect = state.effect as? CgmPairingEffect.Access ?: return@collect
@@ -569,34 +586,23 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
     }
 
     internal fun pauseCollectorWithExitOffer() {
-        status.pause()
-        val palette = CgmAppearanceStore(this).load()
+        status.pause { if (!isFinishing && !isDestroyed) showConfirmedPauseDialog() }
+    }
+
+    private fun showConfirmedPauseDialog() {
         val dialog = android.app.Dialog(this)
-        val content =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(20.dp, 30.dp, 20.dp, 30.dp)
-                setBackgroundColor(palette.settingsArgb(CgmAppearanceRole.MENU_BACKGROUND))
-                addView(
-                    group("SugarWear beenden?", palette).apply {
-                        addView(label("Der Datenempfang ist pausiert. SugarWear jetzt schließen?", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY)))
-                    },
-                )
-                addView(
-                    pill("Beenden", palette) {
-                        dialog.dismiss()
-                        finishAffinity()
-                    }.apply { tag = "pause-exit-confirm" },
-                    buttonParams(),
-                )
-                addView(pill("Geöffnet lassen", palette) { dialog.dismiss() }.apply { tag = "pause-exit-cancel" }, buttonParams())
-            }
-        dialog.setContentView(CgmEdgeFadeScrollView(this).apply { addView(content) }.applyCgmEdgeFade())
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        dialog.setContentView(
+            CgmAlarmFullBleedView(this, CgmAlarmArtwork.PAUSED, onStop = {
+                dialog.dismiss()
+                finishAffinity()
+            }),
+        )
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawableResource(android.R.color.black)
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            applyCgmAlarmFullBleedChrome(this)
         }
     }
 

@@ -12,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class PlaygroundDataMapperTest {
-
     @Test
     fun `toGraphInput creates valid SharedWearCgmGraphInput from synthetic readings`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

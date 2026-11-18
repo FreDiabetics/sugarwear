@@ -34,8 +34,6 @@ class ProductMigrationProvider : ProductDataMigrationProvider() {
             stored.sharedKeyAddress?.let { put("sharedAddress", it) }
         }
 
-    // KTX edit cannot report whether the required synchronous commit succeeded.
-    @Suppress("UseKtx")
     override fun importSecrets(values: Map<String, String>) {
         val ctx = requireNotNull(context)
         val store = CgmCredentialStore(ctx)
@@ -55,13 +53,11 @@ class ProductMigrationProvider : ProductDataMigrationProvider() {
             )
             if (values["sharedKey"] != null && values["sharedAddress"] != null) store.saveSharedKey(requireNotNull(values["sharedAddress"]), decoded("sharedKey"))
         }
-        check(store.commitPendingWrites())
-        check(
-            ctx
-                .getSharedPreferences("g7_setup", android.content.Context.MODE_PRIVATE)
-                .edit()
-                .putBoolean("productAccessReview", true)
-                .commit(),
-        )
+        store.commitPendingWrites()
+        val setupWrite = ctx.getSharedPreferences("g7_setup", android.content.Context.MODE_PRIVATE).edit()
+        setupWrite.putBoolean("productAccessReview", true)
+        if (!setupWrite.commit()) {
+            error("Product access review could not be committed")
+        }
     }
 }

@@ -67,11 +67,12 @@ fun PlaygroundScreen(
                             .background(if (isSelected) Color(0xFF22EB60) else Color.Transparent)
                             .clickable { viewModel.onAction(PlaygroundAction.SelectCategory(category)) }
                             .padding(horizontal = 6.dp, vertical = 4.dp),
-                        style = TextStyle(
-                            color = if (isSelected) Color.Black else Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
+                        style =
+                            TextStyle(
+                                color = if (isSelected) Color.Black else Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
                     )
                 }
             }
@@ -101,11 +102,12 @@ fun PlaygroundScreen(
                                 .background(if (active) Color(0xFF22EB60) else Color.Transparent)
                                 .clickable { viewModel.onAction(PlaygroundAction.SetDataMode(mode)) }
                                 .padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = TextStyle(
-                                color = if (active) Color.Black else Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                            ),
+                            style =
+                                TextStyle(
+                                    color = if (active) Color.Black else Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
                         )
                     }
                 }
@@ -118,11 +120,12 @@ fun PlaygroundScreen(
                         .background(if (uiState.styleOverrides.isModified) Color(0xFFFFD040) else Color(0xFF333333))
                         .clickable { viewModel.onAction(PlaygroundAction.ToggleEditor(open = true)) }
                         .padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = TextStyle(
-                        color = if (uiState.styleOverrides.isModified) Color.Black else Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
+                    style =
+                        TextStyle(
+                            color = if (uiState.styleOverrides.isModified) Color.Black else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
                 )
             }
 

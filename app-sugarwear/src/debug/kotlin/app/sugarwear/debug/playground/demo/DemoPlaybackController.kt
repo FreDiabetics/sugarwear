@@ -40,13 +40,14 @@ class DemoPlaybackController(
     fun play() {
         if (_isPlaying.value || fullDataset.isEmpty()) return
         _isPlaying.value = true
-        playbackJob = scope.launch {
-            while (_isPlaying.value) {
-                val delayMs = (5000L / speedMultiplier.coerceAtLeast(0.1f)).toLong()
-                delay(delayMs.milliseconds)
-                stepForward()
+        playbackJob =
+            scope.launch {
+                while (_isPlaying.value) {
+                    val delayMs = (5000L / speedMultiplier.coerceAtLeast(0.1f)).toLong()
+                    delay(delayMs.milliseconds)
+                    stepForward()
+                }
             }
-        }
     }
 
     fun pause() {

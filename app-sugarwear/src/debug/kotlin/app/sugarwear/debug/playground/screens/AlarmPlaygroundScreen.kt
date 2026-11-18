@@ -57,12 +57,13 @@ fun AlarmPlaygroundScreen(
                         .background(if (isSelected) Color(0xFF22EB60) else Color(0xFF333333))
                         .clickable { activeAlarmType = type }
                         .padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = TextStyle(
-                        color = if (isSelected) Color.Black else Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                    ),
+                    style =
+                        TextStyle(
+                            color = if (isSelected) Color.Black else Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        ),
                 )
             }
         }

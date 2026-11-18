@@ -15,8 +15,11 @@ enum class SugarWearAlarmType(
     RAPID_FALL("rapid_fall", "Schnell fallend"),
     SIGNAL_LOSS("signal_loss", "Signalverlust"),
     TEMPORARY_SENSOR_PROBLEM("temporary_sensor_problem", "Kurzes Sensorproblem"),
-    TECHNICAL_WARNING("technical_warning", "Technische Warnungen"),
+    TECHNICAL_WARNING("technical_warning", "Technisches Problem"),
     ;
+
+    val isMandatory: Boolean
+        get() = this == URGENT_LOW || this == TECHNICAL_WARNING
 
     companion object {
         fun fromId(id: String): SugarWearAlarmType? = entries.firstOrNull { it.id == id }
@@ -24,7 +27,9 @@ enum class SugarWearAlarmType(
 }
 
 @Serializable
-enum class SugarWearAlertDeliveryMode(val labelGerman: String) {
+enum class SugarWearAlertDeliveryMode(
+    val labelGerman: String,
+) {
     SOUND("Ton"),
     VIBRATE("Vibrieren"),
     MATCH_DEVICE("Geräteeinstellungen verwenden"),
@@ -49,9 +54,21 @@ data class SugarWearAlarmSettings(
     val globalVibrateOnly: Boolean = false,
     val globalMuteAll: Boolean = false,
     val rules: Map<SugarWearAlarmType, SugarWearAlarmRule> = emptyMap(),
+    val nightRules: Map<SugarWearAlarmType, SugarWearAlarmRule>? = null,
+    val manualProfile: SugarWearAlarmProfile = SugarWearAlarmProfile.DAY,
+    val schedule: SugarWearAlarmSchedule = SugarWearAlarmSchedule(),
+    val scheduleEnabled: Boolean = false,
 ) {
-    fun ruleFor(type: SugarWearAlarmType): SugarWearAlarmRule =
-        rules[type] ?: SugarWearAlarmDefaults.defaultRule(type)
+    fun forProfile(profile: SugarWearAlarmProfile): SugarWearAlarmSettings =
+        if (profile == SugarWearAlarmProfile.NIGHT && nightRules != null) copy(rules = nightRules) else this
+
+    internal fun activeProfile(now: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): ActiveSugarWearAlarmProfile =
+        if (scheduleEnabled) schedule.activeAt(now, zone) else ActiveSugarWearAlarmProfile(manualProfile)
+
+    fun ruleFor(type: SugarWearAlarmType): SugarWearAlarmRule {
+        val rule = rules[type] ?: SugarWearAlarmDefaults.defaultRule(type)
+        return if (type.isMandatory && !rule.enabled) rule.copy(enabled = true) else rule
+    }
 }
 
 @Serializable
@@ -87,4 +104,7 @@ data class SugarWearAlarmSnapshot(
     val sensorId: String? = null,
     val sessionId: String? = null,
     val alarms: List<SugarWearAlarmInstance> = emptyList(),
+    val sensorErrorSinceEpochMs: Long? = null,
+    val activeProfile: ActiveSugarWearAlarmProfile = ActiveSugarWearAlarmProfile(SugarWearAlarmProfile.DAY),
+    val glucoseProfileStartedAtEpochMs: Long? = null,
 )

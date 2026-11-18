@@ -6,6 +6,7 @@ import java.nio.file.Files
 import java.security.MessageDigest
 import kotlin.test.*
 
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class WatchfaceContractsTest {
     private val root = watchfaceRepositoryRoot()
 

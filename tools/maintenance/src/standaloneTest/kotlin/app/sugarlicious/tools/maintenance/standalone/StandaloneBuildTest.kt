@@ -12,20 +12,20 @@ class StandaloneBuildTest {
     private val root = Path.of(System.getProperty("maintenance.repositoryRoot"))
     private val shared = Path.of(System.getProperty("maintenance.sharedRoot"))
 
-    @Test fun sharedModulesArePinnedSubmoduleSources() {
+    @Test fun standaloneBuildUsesItsOwnLibraryModules() {
         val settings = root.resolve("settings.gradle.kts").readText()
         val moduleText = assertNotNull(Regex("val sharedModules = listOf\\((.*?)\\)").find(settings)).groupValues[1]
         val modules = Regex("\"([^\" ]+)\"").findAll(moduleText).map { it.groupValues[1] }.toSet()
         assertEquals(setOf("core-model", "cgm-protocol", "wear-protocol", "wear-storage", "ui-shared", "complications"), modules)
         assertContains(settings, "project(\":\$module\").projectDir = sharedRoot.resolve(module)")
         assertContains(settings, "include(\":app-sugarwear\", \":watchfaces:vigil\")")
-        modules.forEach { assertFalse(root.resolve(it).exists(), "Shared code copied: $it") }
-        // Maintenance is itself shared; adding it must not copy a second implementation.
+        assertContains(settings, "?: file(\".\")")
+        assertEquals(root, shared)
+        modules.forEach { assertTrue(root.resolve("$it/build.gradle.kts").isRegularFile(), "Local module missing: $it") }
+        listOf("app-mobile", "app-wear").forEach { assertFalse(root.resolve("$it/build.gradle.kts").exists()) }
         assertContains(settings, "include(\":tools:maintenance\")")
         assertContains(settings, "project(\":tools:maintenance\").projectDir = sharedRoot.resolve(\"tools/maintenance\")")
-        val submodule = root.resolve(".gitmodules").readText()
-        assertContains(submodule, "path = shared/sugarlicious")
-        assertContains(submodule, "https://github.com/FreDiabetics/sugarlicious")
+        assertTrue(root.resolve("tools/maintenance/build.gradle.kts").isRegularFile())
     }
 
     @Test fun installerOnlyBuildsOwnedWatchPackages() {
@@ -39,10 +39,10 @@ class StandaloneBuildTest {
         listOf("app-mobile", "app-wear", "uninstall").forEach { assertFalse(it in build) }
     }
 
-    @Test fun ciInitializesSubmodulesAndValidatesOnlyVigil() {
+    @Test fun ciBuildsAndValidatesOnlySugarWearAndVigil() {
         val workflow = root.resolve(".github/workflows/build.yml").readText()
-        listOf("submodules: recursive", "-WatchfaceFiles", "watchfaces/vigil/src/main/res/raw/watchface.xml").forEach { assertContains(workflow, it) }
-        listOf("verify-codefree-watchfaces.ps1", "sugarlicious-direct-to-watch").forEach { assertFalse(it in workflow) }
+        listOf(":watchfaces:vigil:assembleRelease", "-WatchfaceFiles", "watchfaces/vigil/src/main/res/raw/watchface.xml").forEach { assertContains(workflow, it) }
+        listOf("app-mobile", "app-wear", "verify-codefree-watchfaces.ps1", "submodules: recursive").forEach { assertFalse(it in workflow) }
         // The original Python checks are now executed by their canonical Kotlin module.
         assertContains(workflow, ":tools:maintenance:test")
         assertContains(workflow, "verify-codefree-vigil")

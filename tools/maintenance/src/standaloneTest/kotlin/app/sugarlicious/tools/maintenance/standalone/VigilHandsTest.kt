@@ -122,7 +122,7 @@ class VigilHandsTest {
         images.forEach { image ->
             assertEquals(listOf("0", "0", "450", "450"), bounds(image))
             val resource = image.need("Image").attr("resource")
-            assertEquals("0 0 450 450", parseXml(root.resolve("design-assets/vigil/$resource.svg")).attr("viewBox"))
+            assertEquals("0 0 450 450", parseXml(root.resolve("design-assets/alarms/$resource.svg")).attr("viewBox"))
         }
     }
 

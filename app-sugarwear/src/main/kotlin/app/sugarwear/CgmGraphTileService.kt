@@ -206,15 +206,21 @@ class CgmGraphTileService : TileService() {
                         .setPadding(Padding.Builder().setStart(dp(square.cornerRadiusDp)).build())
                         .build(),
                 ).addContent(
-                    label(
-                        cgmGraphTileHeaderLabel(
-                            snapshot.graphHours,
-                            normalizeCgmLocalHistory(snapshot.readings).lastOrNull()?.timestampEpochMs,
-                            snapshot.nowEpochMs,
-                        ),
-                        SugarWearTypography.spec(SugarWearTypographyRole.TILE_TITLE).sizeSp,
-                        titleColor,
-                    ),
+                    LayoutElementBuilders.Row
+                        .Builder()
+                        .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+                        .addContent(label("Verlauf", SugarWearTypography.spec(SugarWearTypographyRole.TILE_TITLE).sizeSp, titleColor, emphasized = false))
+                        .addContent(
+                            label(
+                                cgmGraphTileHeaderLabel(
+                                    snapshot.graphHours,
+                                    normalizeCgmLocalHistory(snapshot.readings).lastOrNull()?.timestampEpochMs,
+                                    snapshot.nowEpochMs,
+                                ).removePrefix("Verlauf"),
+                                SugarWearTypography.spec(SugarWearTypographyRole.TILE_TITLE).sizeSp,
+                                titleColor,
+                            ),
+                        ).build(),
                 ).build()
         val content =
             Column
@@ -314,6 +320,7 @@ class CgmGraphTileService : TileService() {
         value: String,
         sizeSp: Float,
         color: Int,
+        emphasized: Boolean = true,
     ): Text =
         Text
             .Builder()
@@ -326,7 +333,7 @@ class CgmGraphTileService : TileService() {
                         androidx.wear.protolayout.DimensionBuilders
                             .sp(sizeSp),
                     ).setColor(argb(color))
-                    .setWeight(sugarWearTileWeight(emphasized = true))
+                    .setWeight(sugarWearTileWeight(emphasized))
                     .build(),
             ).build()
 

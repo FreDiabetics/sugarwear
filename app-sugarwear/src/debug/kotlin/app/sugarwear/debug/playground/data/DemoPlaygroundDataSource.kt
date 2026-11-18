@@ -18,8 +18,10 @@ class DemoPlaygroundDataSource(
 ) : PlaygroundDataSource {
     override val readings: StateFlow<List<CgmReading>> = controller.readings
 
-    override val latestReading: StateFlow<CgmReading?> = readings.map { it.lastOrNull() }
-        .stateIn(scope, SharingStarted.Lazily, null)
+    override val latestReading: StateFlow<CgmReading?> =
+        readings
+            .map { it.lastOrNull() }
+            .stateIn(scope, SharingStarted.Lazily, null)
 
     override val isLive: Boolean = false
 

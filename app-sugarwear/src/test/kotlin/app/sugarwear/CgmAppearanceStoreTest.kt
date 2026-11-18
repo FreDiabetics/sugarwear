@@ -12,6 +12,18 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class CgmAppearanceStoreTest {
+    @Test fun `trend size slider updates an existing canonical style without losing its colors`() {
+        val store = CgmAppearanceStore(ApplicationProvider.getApplicationContext<Context>())
+        store.setActiveMode(AppearanceMode.DARK)
+        val original = store.trendArrowStyle().copy(sizePercent = 110, fillColor = 0xFF123456.toInt(), outlineEnabled = true)
+        store.saveTrendArrowStyle(AppearanceMode.DARK, original)
+        store.setTrendScalePercent(160)
+        assertEquals(160, store.trendArrowStyle().sizePercent)
+        assertEquals(160, store.trendScalePercent())
+        assertEquals(original.fillColor, store.trendArrowStyle().fillColor)
+        assertTrue(store.trendArrowStyle().outlineEnabled)
+    }
+
     @Test fun `fresh installation defaults to dark mode`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         context

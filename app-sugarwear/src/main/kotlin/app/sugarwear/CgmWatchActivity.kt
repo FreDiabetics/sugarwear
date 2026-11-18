@@ -41,6 +41,7 @@ import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import app.sugarlicious.uishared.TrendDrawableResources
+import app.sugarlicious.uishared.centerOnGlucoseMetadata
 import kotlin.math.roundToInt
 
 internal fun nextDirectGraphHours(current: Int): Int {
@@ -77,7 +78,6 @@ class CgmWatchActivity : ComponentActivity() {
     private val directSettings by lazy { CgmDirectToWatchSettingsStore(this) }
     private var activePalette: CgmAppearancePalette? = null
     private var screenBuilt = false
-    private var pairingGateVisible = false
 
     @javax.inject.Inject internal lateinit var pairingCommands: AndroidCgmPairingCommands
     private val pairingModel by viewModels<SensorConnectionViewModel>()
@@ -120,19 +120,17 @@ class CgmWatchActivity : ComponentActivity() {
         }
     private var pairingErrorCode: String? = null
     private var renderedPairingProgress: CgmPairingProgress? = null
-    private var pairingScrollView: ScrollView? = null
+    private var renderedPairingRadio: Pair<Boolean?, Boolean?>? = null
     private var renderedPairingStep: CgmPairingScreenStep? = null
-    private val pairingScrollPositions = mutableMapOf<CgmPairingScreenStep, Int>()
     private var overviewResumed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var scrollView: ScrollView
     private lateinit var statusHost: LinearLayout
-    private lateinit var alarmHost: LinearLayout
-    private lateinit var signalLossHeader: app.sugarlicious.uishared.SignalLossWarningView
-    private lateinit var collectorStatusTitle: TextView
-    private lateinit var collectorAttemptLabel: TextView
-    private lateinit var resumeButton: View
+    private var stopRequested = false
+    private var renderedTileMode: CgmGlucoseTileMode? = null
+    private val pairingTileSize = CgmPairingTileSize()
     private lateinit var glucoseHost: LinearLayout
+    private lateinit var graphHost: LinearLayout
     private lateinit var graphView: CgmCollectorGraphView
     private lateinit var graphPeriodPill: TextView
 
@@ -159,11 +157,12 @@ class CgmWatchActivity : ComponentActivity() {
                 runCatching { CgmPairingScreenStep.valueOf(it) }.getOrNull()
             }
         restoredStep?.let { pairingModel.open(it) }
+        stopRequested = savedInstanceState?.getBoolean("offer_stop", false) == true
         consumePairingIntent()
         if (setup.getBoolean("productAccessReview", false)) {
             setup.edit { remove("productAccessReview") }
             val access = CgmSystemAccess.snapshot(this)
-            if (!access.bluetoothGranted || !access.notificationsGranted || !access.batteryUnrestricted || !access.exactAlarmsGranted || !access.dndAccessGranted) {
+            if (!access.bluetoothGranted || !access.notificationsGranted || !access.batteryUnrestricted || !access.exactAlarmsGranted) {
                 startActivity(Intent(this, CgmSetupActivity::class.java))
             }
         } else if (!setup.getBoolean("complete", false)) {
@@ -180,6 +179,7 @@ class CgmWatchActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString(KEY_PAIRING_STEP, pairingStep?.name)
+        outState.putBoolean("offer_stop", stopRequested)
         super.onSaveInstanceState(outState)
     }
 
@@ -191,6 +191,10 @@ class CgmWatchActivity : ComponentActivity() {
     }
 
     private fun consumePairingIntent() {
+        if (intent?.getBooleanExtra(EXTRA_SENSOR_UNLINKED, false) == true) {
+            intent.removeExtra(EXTRA_SENSOR_UNLINKED)
+            if (!hasCgmSensorAssociation(CgmSensorStateStore(this).read())) stopRequested = true
+        }
         if (intent?.getBooleanExtra(EXTRA_OPEN_PAIRING, false) == true) {
             intent.removeExtra(EXTRA_OPEN_PAIRING)
             pairingModel.requestOpen()
@@ -233,49 +237,36 @@ class CgmWatchActivity : ComponentActivity() {
                 return
             }
         pairingModel.sensorChanged(state)
-        val currentStep = pairingStep
-        if (currentStep != null) {
-            val nextError = state.lastError?.takeIf { it.occurredAtEpochMs >= pairingStartedAtEpochMs }?.code
-            val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
-            if (!pairingGateVisible ||
-                palette != activePalette ||
-                renderedPairingStep != currentStep ||
-                nextError != pairingErrorCode ||
-                renderedPairingProgress != progress
-            ) {
-                pairingErrorCode = nextError
-                buildPairingGate(palette, state)
-            }
-        } else if (!screenBuilt || pairingGateVisible || palette != activePalette) {
-            pairingGateVisible = false
-
-            buildScreen(palette)
-        } else {
-            refreshLiveContent()
-        }
+        if (!screenBuilt || palette != activePalette) buildScreen(palette) else refreshLiveContent()
     }
 
-    private fun buildPairingGate(
+    private fun renderPairingTile(
         palette: CgmAppearancePalette,
         state: CgmPersistedState,
     ) {
-        renderedPairingStep?.let { previous -> pairingScrollView?.let { pairingScrollPositions[previous] = it.scrollY } }
-        pairingGateVisible = true
-        screenBuilt = false
         activePalette = palette
         val background = palette.argb(CgmAppearanceRole.MENU_BACKGROUND)
         applyCgmSystemChrome(window, background)
         val content =
-            LinearLayout(this).apply {
+            CgmPairingTileLayout(this, pairingTileSize).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                setPadding(28.dp, 8.dp, 28.dp, 16.dp)
-                setBackgroundColor(background)
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                setPadding(12.dp, 12.dp, 12.dp, 16.dp)
+                tag = "glucose-tile-pairing"
+                this.background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
             }
         val step = pairingStep ?: CgmPairingScreenStep.ENTER_CODE
         val pairingFailed = pairingBondAccessFailure != null || isTerminalCgmPairingFailure(state, pairingStartedAtEpochMs, System.currentTimeMillis())
         val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
+        val accessMessage =
+            when {
+                pairingAccessPending -> "Bluetooth-Berechtigung wird benötigt. Bitte die Systemfreigabe bestätigen."
+                state.collectorEnabled && overviewState.snapshot?.bluetoothPermission == false -> "Bluetooth-Berechtigung fehlt. Bitte Geräte in der Nähe für SugarWear erlauben."
+                state.collectorEnabled && overviewState.snapshot?.bluetoothEnabled == false -> "Bluetooth deaktiviert! Bitte Bluetooth in den Systemeinstellungen aktivieren."
+                else -> null
+            }
         renderedPairingProgress = progress
+        renderedPairingRadio = overviewState.snapshot?.bluetoothPermission to overviewState.snapshot?.bluetoothEnabled
         content.addView(
             label(
                 when (step) {
@@ -293,41 +284,7 @@ class CgmWatchActivity : ComponentActivity() {
         )
         if (step == CgmPairingScreenStep.CONNECTING || step == CgmPairingScreenStep.CONNECTED) {
             content.addView(
-                LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER
-                    addView(
-                        ImageView(this@CgmWatchActivity).apply {
-                            setImageResource(R.drawable.ic_sensor_outline)
-                            setColorFilter(palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), PorterDuff.Mode.SRC_IN)
-                            contentDescription = "Sensor"
-                        },
-                        LinearLayout.LayoutParams(40.dp, 40.dp),
-                    )
-                    addView(
-                        CgmConnectionDotsView(this@CgmWatchActivity).apply {
-                            contentDescription = "7 Verbindungsdots"
-                            color =
-                                if (pairingFailed) {
-                                    palette.argb(
-                                        CgmAppearanceRole.GLUCOSE_ERROR,
-                                    )
-                                } else {
-                                    palette.argb(CgmAppearanceRole.MENU_PRIMARY)
-                                }
-                            isAnimating = !pairingFailed && step == CgmPairingScreenStep.CONNECTING && progress.animate
-                        },
-                        LinearLayout.LayoutParams(0, 24.dp, 1f).apply { setMargins(10.dp, 0, 10.dp, 0) },
-                    )
-                    addView(
-                        ImageView(this@CgmWatchActivity).apply {
-                            setImageResource(R.drawable.ic_watch_device)
-                            setColorFilter(palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), PorterDuff.Mode.SRC_IN)
-                            contentDescription = "Smartwatch"
-                        },
-                        LinearLayout.LayoutParams(40.dp, 40.dp),
-                    )
-                },
+                CgmSensorConnectionProgressView(this, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.argb(if (pairingFailed) CgmAppearanceRole.GLUCOSE_ERROR else CgmAppearanceRole.MENU_PRIMARY), !pairingFailed && step == CgmPairingScreenStep.CONNECTING && progress.animate, 28),
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     topMargin = 10.dp
                     gravity = Gravity.CENTER_HORIZONTAL
@@ -340,7 +297,7 @@ class CgmWatchActivity : ComponentActivity() {
                     ) {
                         "Sensor erfolgreich verbunden"
                     } else {
-                        progress.message
+                        accessMessage ?: progress.message
                     },
                     16f,
                     palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
@@ -350,13 +307,16 @@ class CgmWatchActivity : ComponentActivity() {
                     setPadding(4.dp, 9.dp, 4.dp, 6.dp)
                 },
             )
+            if (step == CgmPairingScreenStep.CONNECTING) {
+                (pairingCodeDraft.takeIf { it.length == 4 } ?: overviewState.snapshot?.pairingCode)?.let { content.addView(connectionCodeLabel(it, palette)) }
+            }
             if (step == CgmPairingScreenStep.CONNECTED) {
                 content.addView(
                     ImageView(this).apply {
                         setImageResource(R.drawable.ic_success_check)
                         contentDescription = "Sensor erfolgreich verbunden"
                     },
-                    LinearLayout.LayoutParams(52.dp, 52.dp).apply {
+                    LinearLayout.LayoutParams(32.dp, 32.dp).apply {
                         gravity = Gravity.CENTER_HORIZONTAL
                         bottomMargin = 6.dp
                     },
@@ -385,7 +345,7 @@ class CgmWatchActivity : ComponentActivity() {
                     },
                 )
                 content.addView(
-                    pill("Erneut versuchen", PillStyle.PRIMARY, palette) {
+                    pill("Erneut versuchen") {
                         pairingModel.retry()
                         refreshScreen()
                     },
@@ -397,8 +357,9 @@ class CgmWatchActivity : ComponentActivity() {
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 content.addView(
-                    pill("Zum Menü", PillStyle.SECONDARY, palette) {
-                        pairingModel.close()
+                    pill("Sensorcode korrigieren") {
+                        companionBondAccess.cancel()
+                        pairingModel.correctCode()
                         refreshScreen()
                     },
                     LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -407,7 +368,7 @@ class CgmWatchActivity : ComponentActivity() {
                     },
                 )
                 content.addView(
-                    pill("Abbrechen", PillStyle.SECONDARY, palette) {
+                    pill("Zurück") {
                         if (pairingAccessPending) {
                             pairingModel.cancelPendingAccess()
                             companionBondAccess.cancel()
@@ -486,9 +447,9 @@ class CgmWatchActivity : ComponentActivity() {
                     )
                     contentDescription = "Vierstelliger G7 Verbindungscode"
                 }
-            content.addView(code, LinearLayout.LayoutParams(170.dp, 44.dp).apply { gravity = Gravity.CENTER_HORIZONTAL })
+            content.addView(code, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 44.dp).apply { gravity = Gravity.CENTER_HORIZONTAL })
             content.addView(
-                pill("Verbinden", PillStyle.PRIMARY, palette) {
+                pill("Verbinden") {
                     val entered = code.text?.toString().orEmpty()
                     if (!canStartCgmPairing(pairingStep, pairingStartInFlight, entered)) {
                         if (pairingStartInFlight) return@pill
@@ -497,7 +458,7 @@ class CgmWatchActivity : ComponentActivity() {
                     }
                     code.isEnabled = false
                     pairingModel.start(entered)
-                    buildPairingGate(palette, state)
+                    refreshScreen()
                 },
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     topMargin = 7.dp
@@ -506,29 +467,16 @@ class CgmWatchActivity : ComponentActivity() {
             )
         }
 
-        val newScrollView =
-            CgmEdgeFadeScrollView(this)
-                .apply {
-                    isFillViewport = true
-                    clipToPadding = false
-                    setBackgroundColor(background)
-                    addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-                }.applyCgmEdgeFade()
-        pairingScrollView = newScrollView
+        if (step == CgmPairingScreenStep.ENTER_CODE) {
+            content.addView(
+                pill("Zurück") {
+                    pairingModel.close()
+                    refreshScreen()
+                },
+            )
+        }
         renderedPairingStep = step
-        showScreen(
-            FrameLayout(this).apply {
-                setBackgroundColor(background)
-                addView(
-                    newScrollView,
-                    FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    ),
-                )
-            },
-        )
-        newScrollView.post { newScrollView.scrollTo(0, pairingScrollPositions[step] ?: 0) }
+        glucoseHost.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
     }
 
     private fun buildScreen(palette: CgmAppearancePalette) {
@@ -545,39 +493,15 @@ class CgmWatchActivity : ComponentActivity() {
                 setBackgroundColor(background)
             }
 
-        alarmHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(alarmHost, cardParams(top = 4))
-        signalLossHeader =
-            app.sugarlicious.uishared
-                .SignalLossWarningView(this)
-                .apply { visibility = View.GONE }
-        content.addView(signalLossHeader, cardParams(top = 12))
-        collectorStatusTitle = label("", 16f, android.graphics.Color.WHITE, true).apply { gravity = Gravity.CENTER }
-        collectorAttemptLabel = label("", 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)).apply { gravity = Gravity.CENTER }
-        content.addView(collectorStatusTitle, cardParams(top = 12))
-        content.addView(collectorAttemptLabel, cardParams(top = 2))
-        resumeButton =
-            android.widget.Button(this).apply {
-                text = "Fortsetzen"
-                app.sugarlicious.uishared.WearSettingsUi.actionButton(
-                    this,
-                    palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE),
-                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                )
-                setOnClickListener {
-                    if (overviewState.snapshot?.persisted?.collectorEnabled == false) {
-                        isEnabled = false
-                        sensorStatusModel.resumeCollector()
-                    }
-                }
-                tag = "overview-resume-collector"
-                visibility = View.GONE
+        renderedTileMode = null
+        glucoseHost =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                tag = "glucose-host"
             }
-        content.addView(resumeButton, cardParams(top = 6))
-        glucoseHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(glucoseHost, cardParams(top = 4))
-        val graphReadings = overviewState.snapshot?.graphReadings.orEmpty()
-        content.addView(graphTile(graphReadings, palette), cardParams(top = 7))
+        graphHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(graphHost, cardParams(top = 18))
         content.addView(header())
 
         content.addView(
@@ -620,50 +544,67 @@ class CgmWatchActivity : ComponentActivity() {
             addView(statusHost)
         }
 
+    private fun buildAlarmCard(alarm: SugarWearAlarmInstance, palette: CgmAppearancePalette): View {
+        val persisted = overviewState.snapshot?.persisted ?: CgmPersistedState()
+        val reading =
+            persisted.lastReading?.takeIf {
+                (alarm.sensorId == null || alarm.sensorId == it.sensorId) &&
+                    (alarm.sessionId == null || alarm.sessionId == it.sessionId) &&
+                    cgmReadingBelongsToSession(persisted, it) &&
+                    it.status == CgmReadingStatus.VALID &&
+                    !it.displayOnly &&
+                    it.glucoseMgDl.isFinite() &&
+                    overviewState.now - it.timestampEpochMs in 0 until CGM_SIGNAL_LOSS_AFTER_MS
+            }
+        val thresholds = CgmGraphColorStore(this).readThresholds()
+        val role =
+            when (reading?.let { thresholds.classify(it.glucoseMgDl) }) {
+                CgmRangeClass.VERY_HIGH, CgmRangeClass.HIGH -> CgmAppearanceRole.GLUCOSE_HIGH
+                CgmRangeClass.VERY_LOW, CgmRangeClass.LOW -> CgmAppearanceRole.GLUCOSE_LOW
+                CgmRangeClass.IN_RANGE -> CgmAppearanceRole.GLUCOSE_IN_RANGE
+                null -> CgmAppearanceRole.GLUCOSE_NO_SOURCE
+            }
+        return CgmAlarmFullBleedView(
+            this,
+            cgmAlarmArtwork(alarm.type) ?: CgmAlarmArtwork.SENSOR_ERROR,
+            reading,
+            palette.argb(role),
+            appearanceStore.trendArrowStyle().renderSpec(),
+            mode = CgmAlarmContentMode.IN_GLUCOSE_TILE,
+            titleOverride = if (alarm.type == SugarWearAlarmType.TECHNICAL_WARNING) cgmAlarmHeadline(alarm.type) else null,
+            onAcknowledge = {
+                CgmAlarmCoordinator.acknowledgeEpisode(this, alarm)
+                overviewModel.retry()
+            },
+        ).apply {
+            tag = "glucose-tile-alarm"
+            minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
+            background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
+            clipToOutline = true
+        }
+    }
+
+    private fun connectionCodeLabel(code: String, palette: CgmAppearancePalette) =
+        label(code, 24f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
+            gravity = Gravity.CENTER
+            tag = "connection-sensor-code"
+            setPadding(0, 6.dp, 0, 6.dp)
+        }
+
+    private fun addPausedValue(tile: LinearLayout, historical: CgmReading?, palette: CgmAppearancePalette) {
+        tile.addView(
+            label(historical?.let { "Letzter Messwert: ${kotlin.math.round(it.glucoseMgDl).toInt()} mg/dL" } ?: "Kein letzter Messwert verfügbar", 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)).apply {
+                gravity = Gravity.CENTER
+                tag = "paused-historical-value"
+            },
+        )
+    }
+
     private fun glucoseTile(
-        reading: CgmReading?,
+        transition: CgmUiSensorTransition?,
+        warningText: String?,
         palette: CgmAppearancePalette,
     ): LinearLayout {
-        val now = overviewState.now
-        val basePresentation =
-            wearGlucoseCardPresentation(
-                WearGlucoseCardInput(
-                    valueMgDl = reading?.glucoseMgDl,
-                    displayUnit = GlucoseUnit.MG_DL,
-                    deltaMgDl = reading?.deltaMgDl,
-                    trend = reading?.trend ?: Trend.UNKNOWN,
-                    measuredAtEpochMs = reading?.timestampEpochMs,
-                    quality =
-                        when (reading?.status) {
-                            CgmReadingStatus.VALID -> CgmQuality.VALID
-                            CgmReadingStatus.SENSOR_ERROR -> CgmQuality.SENSOR_ERROR
-                            CgmReadingStatus.INVALID, null -> CgmQuality.INVALID
-                        },
-                    sourceLabel = "",
-                ),
-                CgmGraphColorStore(this).readThresholds(),
-                now,
-                showSignalLossLabel = false,
-            )
-        val boundary = reading?.takeIf { it.status == CgmReadingStatus.VALID }?.glucoseMgDl.let(::cgmBoundaryDisplay)
-        val presentation =
-            if (boundary == null) {
-                basePresentation
-            } else {
-                basePresentation.copy(
-                    value = boundary.label,
-                    trend = null,
-                    primaryMeta = "",
-                )
-            }
-        val valueColor =
-            when {
-                presentation.freshness == app.sugarlicious.model.Freshness.SIGNAL_LOSS -> 0xFF9E9E9E.toInt()
-                !presentation.displayable -> palette.argb(CgmAppearanceRole.GLUCOSE_NO_SOURCE)
-                presentation.rangeClass == CgmRangeClass.VERY_LOW || presentation.rangeClass == CgmRangeClass.LOW -> palette.argb(CgmAppearanceRole.GLUCOSE_LOW)
-                presentation.rangeClass == CgmRangeClass.VERY_HIGH || presentation.rangeClass == CgmRangeClass.HIGH -> palette.argb(CgmAppearanceRole.GLUCOSE_HIGH)
-                else -> palette.argb(CgmAppearanceRole.GLUCOSE_IN_RANGE)
-            }
         val tile =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -682,6 +623,235 @@ class CgmWatchActivity : ComponentActivity() {
                         WearGlucoseCardStyle.CARD_RADIUS_DP,
                     )
             }
+
+        val now = overviewState.now
+        val persisted = overviewState.snapshot?.persisted ?: CgmPersistedState()
+        val bluetoothPermission = overviewState.snapshot?.bluetoothPermission == true
+        val bluetoothEnabled = overviewState.snapshot?.bluetoothEnabled == true
+        val display = cgmOverviewPresentation(persisted, overviewState.snapshot?.credentialsPresent == true, transition, now, bluetoothEnabled, bluetoothPermission, overviewState.snapshot?.lastValidReading)
+        val isPaused = display.mode == CgmOverviewMode.PAUSED
+        val noActiveSensor = display.mode == CgmOverviewMode.NO_SENSOR
+        val isResumeInFlight = display.mode == CgmOverviewMode.CONNECTING
+        val isBluetoothOff = display.mode == CgmOverviewMode.BLUETOOTH_OFF
+        val isSensorError = display.mode == CgmOverviewMode.SENSOR_ERROR
+        val isSignalLoss = display.mode == CgmOverviewMode.SIGNAL_LOSS
+        val isWarningState = display.mode != CgmOverviewMode.LIVE || warningText == "Anzeigedaten konnten nicht geladen werden"
+
+        if (isWarningState) {
+            val iconRes: Int
+            val iconTint: Int?
+            val titleText: String
+            var subtitleText: String? = display.phase.takeUnless { isResumeInFlight }
+
+            when {
+                isBluetoothOff -> {
+                    iconRes = R.drawable.ic_status_bluetooth
+                    iconTint = palette.argb(CgmAppearanceRole.STATUS_ICON)
+                    titleText = "Bluetooth\ndeaktiviert!"
+                    subtitleText = "Bitte aktivieren Sie\nIhr Bluetooth in den\nEinstellungen"
+                }
+                display.mode == CgmOverviewMode.PERMISSION_REQUIRED -> {
+                    iconRes = R.drawable.ic_status_bluetooth
+                    iconTint = palette.argb(CgmAppearanceRole.STATUS_ICON)
+                    titleText = "Bluetooth-Berechtigung erforderlich"
+                }
+                isSensorError -> {
+                    iconRes = R.drawable.ic_status_sensor_error
+                    iconTint = null
+                    titleText = "Sensorfehler!"
+                    subtitleText = "Diese Phase kann bis zu 3h dauern."
+                }
+                isSignalLoss -> {
+                    iconRes = R.drawable.ic_status_signal_loss
+                    iconTint = null
+                    titleText = "Signalverlust"
+                    subtitleText = "Bleiben Sie in Reichweite des Sensors"
+                }
+                isPaused -> {
+                    iconRes = R.drawable.ic_status_paused
+                    iconTint = null
+                    titleText = "Datenempfang pausiert"
+                }
+                noActiveSensor -> {
+                    iconRes = R.drawable.ic_artwork_low
+                    iconTint = null
+                    titleText = "Kein aktiver Sensor verbunden"
+                }
+                else -> {
+                    iconRes = app.sugarlicious.uishared.R.drawable.ic_alert
+                    iconTint = 0xFFFF5C69.toInt()
+                    titleText =
+                        if (isResumeInFlight) {
+                            "Sensor verbinden"
+                        } else {
+                            display.phase ?: warningText ?: "Keine aktuellen Daten"
+                        }
+                }
+            }
+
+            val statusIconLayout = cgmStatusIconLayout(iconRes)
+            val iconDensity = resources.displayMetrics.density * if (iconRes == R.drawable.ic_status_bluetooth) 0.65f else 1f
+            val fallbackIconSize = if (noActiveSensor) 40.dp else 66.dp
+            tile.addView(
+                LinearLayout(this@CgmWatchActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(0, 4.dp, 0, 4.dp)
+                    addView(
+                        ImageView(this@CgmWatchActivity).apply {
+                            setImageResource(iconRes)
+                            visibility = if (isResumeInFlight) View.GONE else View.VISIBLE
+                            if (iconTint != null) {
+                                imageTintList =
+                                    android.content.res.ColorStateList
+                                        .valueOf(iconTint)
+                            } else {
+                                imageTintList = null
+                            }
+                            adjustViewBounds = statusIconLayout == null
+                            scaleType = if (statusIconLayout == null) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.MATRIX
+                            if (statusIconLayout != null) imageMatrix = statusIconLayout.matrix(iconDensity, drawable.intrinsicWidth)
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        },
+                        LinearLayout.LayoutParams(statusIconLayout?.width(iconDensity) ?: fallbackIconSize, statusIconLayout?.height(iconDensity) ?: fallbackIconSize).apply {
+                            bottomMargin = 8.dp
+                            gravity = Gravity.CENTER_HORIZONTAL
+                        },
+                    )
+                    addView(
+                        label(titleText, 16f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply {
+                            gravity = Gravity.CENTER
+                        },
+                    )
+                    if (!subtitleText.isNullOrBlank() && subtitleText != titleText) {
+                        addView(
+                            label(subtitleText, 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)).apply {
+                                gravity = Gravity.CENTER
+                                setPadding(0, 4.dp, 0, 0)
+                            },
+                        )
+                    }
+                },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+
+            if (isResumeInFlight) {
+                val phaseText = display.phase.orEmpty()
+                val inlineProgress =
+                    LinearLayout(this@CgmWatchActivity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(0, 8.dp, 0, 0)
+
+                        addView(
+                            CgmSensorConnectionProgressView(this@CgmWatchActivity, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.argb(CgmAppearanceRole.MENU_PRIMARY), display.animate, 28),
+                            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+                        )
+
+                        addView(
+                            label(phaseText, 16f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply {
+                                gravity = Gravity.CENTER
+                                setPadding(4.dp, 9.dp, 4.dp, 6.dp)
+                            },
+                        )
+                    }
+                overviewState.snapshot?.pairingCode?.let { code ->
+                    inlineProgress.addView(connectionCodeLabel(code, palette))
+                }
+                tile.addView(
+                    inlineProgress,
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+                )
+                tile.addView(
+                    pill("Sensorcode korrigieren") {
+                        companionBondAccess.cancel()
+                        pairingModel.correctCode()
+                        refreshScreen()
+                    },
+                )
+                tile.addView(pill("Zurück") { sensorStatusModel.pause() })
+            } else if (isPaused) {
+                addPausedValue(
+                    tile,
+                    overviewState.snapshot?.lastValidReading?.takeIf {
+                        cgmReadingBelongsToSession(persisted, it) && it.status == CgmReadingStatus.VALID && !it.displayOnly && it.glucoseMgDl.isFinite() && it.timestampEpochMs <= now
+                    } ?: display.reading,
+                    palette,
+                )
+                val resumeBtn =
+                    CgmTileActionButton(this@CgmWatchActivity).apply {
+                        setText(R.string.cgm_action_resume)
+                        setOnClickListener {
+                            sensorStatusModel.resumeCollector()
+                        }
+                        tag = "overview-resume-collector"
+                    }
+                tile.addView(
+                    resumeBtn,
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        topMargin = 10.dp
+                    },
+                )
+            } else if (noActiveSensor) {
+                tile.addView(
+                    pill("Sensor verbinden") {
+                        pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
+                        refreshScreen()
+                    },
+                )
+            }
+
+            if (display.mode in setOf(CgmOverviewMode.SENSOR_ERROR, CgmOverviewMode.SIGNAL_LOSS, CgmOverviewMode.BLUETOOTH_OFF, CgmOverviewMode.PERMISSION_REQUIRED)) {
+                overviewState.snapshot?.lastValidReading?.takeIf { cgmReadingBelongsToSession(persisted, it) && it.status == CgmReadingStatus.VALID }?.let {
+                    tile.addView(
+                        label("Letzter Messwert · ${((now - it.timestampEpochMs).coerceAtLeast(0L) / 60_000L)} Min.", 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)).apply {
+                            gravity = Gravity.CENTER
+                            tag = "glucose-status-age"
+                        },
+                    )
+                }
+            }
+            return tile
+        }
+
+        val liveReading = display.reading ?: return tile
+        val basePresentation =
+            wearGlucoseCardPresentation(
+                WearGlucoseCardInput(
+                    valueMgDl = liveReading.glucoseMgDl,
+                    displayUnit = GlucoseUnit.MG_DL,
+                    deltaMgDl = liveReading.deltaMgDl,
+                    trend = liveReading.trend,
+                    measuredAtEpochMs = liveReading.timestampEpochMs,
+                    quality = CgmQuality.VALID,
+                    sourceLabel = "",
+                ),
+                CgmGraphColorStore(this).readThresholds(),
+                now,
+                showSignalLossLabel = false,
+            )
+        val boundary = cgmBoundaryDisplay(liveReading.glucoseMgDl)
+        val presentation =
+            if (boundary == null) {
+                basePresentation
+            } else {
+                basePresentation.copy(
+                    value = boundary.label,
+                    trend = null,
+                    primaryMeta = "",
+                )
+            }
+
+        val valueColor =
+            when {
+                presentation.freshness == app.sugarlicious.model.Freshness.SIGNAL_LOSS -> 0xFF9E9E9E.toInt()
+                !presentation.displayable -> palette.argb(CgmAppearanceRole.GLUCOSE_NO_SOURCE)
+                presentation.rangeClass == CgmRangeClass.VERY_LOW || presentation.rangeClass == CgmRangeClass.LOW -> palette.argb(CgmAppearanceRole.GLUCOSE_LOW)
+                presentation.rangeClass == CgmRangeClass.VERY_HIGH || presentation.rangeClass == CgmRangeClass.HIGH -> palette.argb(CgmAppearanceRole.GLUCOSE_HIGH)
+                else -> palette.argb(CgmAppearanceRole.GLUCOSE_IN_RANGE)
+            }
+
         tile.addView(
             LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -697,33 +867,33 @@ class CgmWatchActivity : ComponentActivity() {
                         true,
                     ),
                 )
-                presentation.trend?.let { addView(trendIndicator(it, valueColor)) }
+                presentation.trend?.let { addView(trendIndicator(it)) }
             },
         )
 
+        // Normal metadata pill (Delta and Age)
         fun metadataRow(value: String, icon: Int): LinearLayout =
             LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL or Gravity.START
                 isBaselineAligned = false
                 val iconSide = (20 * resources.configuration.fontScale * resources.displayMetrics.density).toInt()
+                val metadataText =
+                    label(value, app.sugarlicious.model.SugarWearTypography.GLUCOSE_METADATA_SP, palette.argb(CgmAppearanceRole.METADATA_PILL_VALUE), true).apply {
+                        includeFontPadding = false
+                        text = app.sugarlicious.uishared.glucoseMetadataText(value)
+                    }
                 addView(
-                    android.widget.ImageView(this@CgmWatchActivity).apply {
+                    ImageView(this@CgmWatchActivity).apply {
                         setImageResource(icon)
-                        imageTintList =
-                            android.content.res.ColorStateList
-                                .valueOf(0xFFB5B5B5.toInt())
-                        importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        centerOnGlucoseMetadata(metadataText)
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     },
                     LinearLayout.LayoutParams(iconSide, iconSide).apply { marginEnd = 5.dp },
                 )
-                addView(
-                    label(value, app.sugarlicious.model.SugarWearTypography.GLUCOSE_METADATA_SP, palette.argb(CgmAppearanceRole.METADATA_PILL_VALUE), true).apply {
-                        text = app.sugarlicious.uishared.glucoseMetadataText(value)
-                    },
-                )
+                addView(metadataText)
             }
-        // Both rows share the same left-hand icon column inside the full-width pill.
+
         val metadata =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -765,22 +935,24 @@ class CgmWatchActivity : ComponentActivity() {
         presentation: CgmWarmupPresentation,
         palette: CgmAppearancePalette,
     ): LinearLayout {
-        val tile = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
-            setPadding(
-                WearGlucoseCardStyle.HORIZONTAL_PADDING_DP.dp,
-                WearGlucoseCardStyle.VERTICAL_PADDING_DP.dp,
-                WearGlucoseCardStyle.HORIZONTAL_PADDING_DP.dp,
-                WearGlucoseCardStyle.VERTICAL_PADDING_DP.dp,
-            )
-            background = rounded(
-                palette.argb(CgmAppearanceRole.MENU_SURFACE),
-                palette.argb(CgmAppearanceRole.MENU_BORDER),
-                WearGlucoseCardStyle.CARD_RADIUS_DP,
-            )
-        }
+        val tile =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
+                setPadding(
+                    WearGlucoseCardStyle.HORIZONTAL_PADDING_DP.dp,
+                    WearGlucoseCardStyle.VERTICAL_PADDING_DP.dp,
+                    WearGlucoseCardStyle.HORIZONTAL_PADDING_DP.dp,
+                    WearGlucoseCardStyle.VERTICAL_PADDING_DP.dp,
+                )
+                background =
+                    rounded(
+                        palette.argb(CgmAppearanceRole.MENU_SURFACE),
+                        palette.argb(CgmAppearanceRole.MENU_BORDER),
+                        WearGlucoseCardStyle.CARD_RADIUS_DP,
+                    )
+            }
 
         when (presentation) {
             is CgmWarmupPresentation.CountingDown -> {
@@ -798,7 +970,10 @@ class CgmWatchActivity : ComponentActivity() {
                         CgmWarmupTokens.DESCRIPTION_TEXT_SP,
                         palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
                         false,
-                    ).apply { gravity = Gravity.CENTER; setPadding(0, CgmWarmupTokens.TEXT_SPACING_DP.dp, 0, CgmWarmupTokens.SECTION_SPACING_DP.dp) },
+                    ).apply {
+                        gravity = Gravity.CENTER
+                        setPadding(0, CgmWarmupTokens.TEXT_SPACING_DP.dp, 0, CgmWarmupTokens.SECTION_SPACING_DP.dp)
+                    },
                 )
                 tile.addView(
                     label(
@@ -816,7 +991,10 @@ class CgmWatchActivity : ComponentActivity() {
                         16f,
                         palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
                         false,
-                    ).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, CgmWarmupTokens.SECTION_SPACING_DP.dp) },
+                    ).apply {
+                        gravity = Gravity.CENTER
+                        setPadding(0, 0, 0, CgmWarmupTokens.SECTION_SPACING_DP.dp)
+                    },
                 )
                 tile.addView(
                     label(
@@ -843,10 +1021,6 @@ class CgmWatchActivity : ComponentActivity() {
     }
 
     private fun refreshLiveContent(preserveScroll: Boolean = true) {
-        if (pairingGateVisible) {
-            refreshScreen()
-            return
-        }
         if (!screenBuilt) {
             refreshScreen()
             return
@@ -857,88 +1031,102 @@ class CgmWatchActivity : ComponentActivity() {
             return
         }
         preserveScrollPosition(preserveScroll) {
-            val snapshot = overviewState.snapshot ?: return
+            val snapshot = overviewState.snapshot ?: if (pairingStep != null) CgmOverviewSnapshot(CgmPersistedState(), false, emptyList(), null, bluetoothPermission = false, bluetoothEnabled = false) else return
             val state = snapshot.persisted
-            val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent)
-
-            alarmHost.removeAllViews()
-            alarmHost.visibility = if (snapshot.pendingAlarms.isEmpty()) View.GONE else View.VISIBLE
-            snapshot.pendingAlarms.forEach { alarm ->
-                val accent = if (alarm.type == SugarWearAlarmType.HIGH || alarm.type == SugarWearAlarmType.RAPID_RISE) 0xFFFFD040.toInt() else 0xFFFF5C69.toInt()
-                alarmHost.addView(
-                    LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL
-                        gravity = Gravity.CENTER_HORIZONTAL
-                        setPadding(16.dp, 16.dp, 16.dp, 16.dp)
-                        background =
-                            android.graphics.drawable.GradientDrawable().apply {
-                                setColor(palette.argb(CgmAppearanceRole.MENU_SURFACE))
-                                cornerRadius = 24.dp.toFloat()
-                            }
-                        // 1. Icon oben groß
-                        addView(
-                            ImageView(this@CgmWatchActivity).apply {
-                                setImageResource(app.sugarlicious.uishared.R.drawable.ic_alert)
-                                imageTintList =
-                                    android.content.res.ColorStateList
-                                        .valueOf(accent)
-                            },
-                            LinearLayout.LayoutParams(54.dp, 54.dp).apply { bottomMargin = 4.dp },
-                        )
-
-                        // 2. Alarmtyp groß
-                        addView(label(cgmAlarmHeadline(alarm.type), 18f, accent, true).apply { gravity = Gravity.CENTER })
-
-                        // Details
-                        addView(label("Tippen: Quittieren oder Schlummern", 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY)).apply { gravity = Gravity.CENTER })
-                        setOnClickListener { startActivity(CgmAlarmActivity.intent(this@CgmWatchActivity, alarm.type)) }
-                    },
-                    cardParams(top = 6),
-                )
-            }
+            val lastReading = state.lastReading
+            val effectiveNow = maxOf(overviewState.now, lastReading?.timestampEpochMs ?: 0L)
+            val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent, effectiveNow)
 
             statusHost.removeAllViews()
-            if (unlinkFailed) {
-                statusHost.addView(label("Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
-                unlinkFailureReason?.let { statusHost.addView(label(it, 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR))) }
-                statusHost.addView(
-                    pill("Entkopplung erneut versuchen", PillStyle.SECONDARY, palette) {
-                        performSensorUnlink()
-                    },
+            val warning =
+                if (overviewState.failed) {
+                    "Anzeigedaten konnten nicht geladen werden"
+                } else if (state.sensor != null && state.lastReading?.status == CgmReadingStatus.VALID && pillState != CgmStatusPillState.PAUSED) {
+                    null
+                } else {
+                    cgmSensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)
+                }
+            val warmup =
+                CgmWarmupPolicy.evaluate(
+                    sensor = state.sensor,
+                    reading = state.lastReading,
+                    collectorEnabled = state.collectorEnabled,
+                    nowEpochMs = overviewState.now,
                 )
-            }
-            val warning = if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden" else cgmSensorWarning(pillState, state.lastReading?.status == CgmReadingStatus.VALID)
-            signalLossHeader.visibility = if (warning == null) View.GONE else View.VISIBLE
-            warning?.let(signalLossHeader::setMessage)
-            (signalLossHeader.getChildAt(0) as ImageView).setImageResource(
-                if (pillState == CgmStatusPillState.PAUSED) R.drawable.ic_reception_paused else app.sugarlicious.uishared.R.drawable.ic_alert,
-            )
-            resumeButton.visibility = if (!overviewState.failed && pillState == CgmStatusPillState.PAUSED) View.VISIBLE else View.GONE
-            resumeButton.isEnabled = true
-            signalLossHeader.setOnClickListener(if (overviewState.failed) View.OnClickListener { overviewModel.retry() } else null)
-            val attempt = collectorAttemptPresentation(state, snapshot.transition, overviewState.now)
-            collectorStatusTitle.text = if (pillState == CgmStatusPillState.PAUSED) "Datenempfang pausiert" else attempt?.title.orEmpty()
-            collectorAttemptLabel.text = attempt?.phase.orEmpty()
-            collectorStatusTitle.visibility = if (warning != null || collectorStatusTitle.text.isBlank()) View.GONE else View.VISIBLE
-            collectorAttemptLabel.visibility = if (attempt == null) View.GONE else View.VISIBLE
-            val warmup = CgmWarmupPolicy.evaluate(
-                sensor = state.sensor,
-                reading = state.lastReading,
-                collectorEnabled = state.collectorEnabled,
-                nowEpochMs = overviewState.now,
-            )
-            glucoseHost.removeAllViews()
-            if (warmup is CgmWarmupPresentation.NotWarmingUp) {
+
+            val mode = cgmGlucoseTileMode(snapshot.pendingAlarms.isNotEmpty(), pairingStep, stopRequested || pairingModel.state.value.offerStop, unlinkFailed)
+            val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
+            val pairingUnchanged =
+                mode == CgmGlucoseTileMode.PAIRING &&
+                    renderedTileMode == mode &&
+                    renderedPairingStep == pairingStep &&
+                    pairingErrorCode == pairingFailureMessage &&
+                    (pairingStep == CgmPairingScreenStep.ENTER_CODE || (renderedPairingProgress == progress && renderedPairingRadio == (snapshot.bluetoothPermission to snapshot.bluetoothEnabled)))
+            if (!pairingUnchanged) {
+                glucoseHost.removeAllViews()
                 glucoseHost.addView(
-                    label("Gewebeglukose", 11f, 0xFFFFFFFF.toInt(), false).apply {
+                    label("Glukose", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
                         gravity = Gravity.START or Gravity.CENTER_VERTICAL
                         setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
                     },
                 )
-                glucoseHost.addView(glucoseTile(state.lastReading.takeIf { state.collectorEnabled && !overviewState.failed }, palette))
-            } else {
-                glucoseHost.addView(warmupTile(warmup, palette))
+                when (mode) {
+                    CgmGlucoseTileMode.ALARM -> glucoseHost.addView(buildAlarmCard(snapshot.pendingAlarms.first(), palette))
+                    CgmGlucoseTileMode.UNLINK_ERROR ->
+                        glucoseHost.addView(
+                            LinearLayout(this).apply {
+                                orientation = LinearLayout.VERTICAL
+                                gravity = Gravity.CENTER
+                                minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
+                                setPadding(10.dp, 8.dp, 10.dp, 8.dp)
+                                background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
+                                addView(label("Entkopplung durch Android nicht bestätigt. Sensor bleibt pausiert und kann nicht als vollständig getrennt gelten. Auf Samsung-Uhren sind BLE-Geräte im Bluetooth-Menü oft nicht sichtbar; bitte die Entkopplung hier erneut versuchen. Die Glukosehistorie bleibt erhalten.", 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR)))
+                                unlinkFailureReason?.let { addView(label(it, 11f, palette.argb(CgmAppearanceRole.GLUCOSE_ERROR))) }
+                                addView(pill("Entkopplung erneut versuchen") { performSensorUnlink() })
+                            },
+                        )
+                    CgmGlucoseTileMode.PAIRING -> {
+                        renderPairingTile(palette, state)
+                        pairingErrorCode = pairingFailureMessage
+                    }
+                    CgmGlucoseTileMode.STOP ->
+                        glucoseHost.addView(
+                            LinearLayout(this).apply {
+                                orientation = LinearLayout.VERTICAL
+                                gravity = Gravity.CENTER
+                                tag = "glucose-tile-unlinked"
+                                minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
+                                setPadding(10.dp, 8.dp, 10.dp, 8.dp)
+                                background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
+                                addView(label("Sensor getrennt", 18f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                                addView(pill("App Stoppen") { finishAffinity() })
+                                addView(
+                                    pill("Zurück") {
+                                        stopRequested = false
+                                        pairingModel.dismissStop()
+                                        refreshLiveContent()
+                                    },
+                                )
+                            },
+                        )
+                    CgmGlucoseTileMode.SENSOR ->
+                        if (warmup is CgmWarmupPresentation.NotWarmingUp) {
+                            glucoseHost.addView(glucoseTile(snapshot.transition, warning, palette))
+                        } else {
+                            glucoseHost.addView(warmupTile(warmup, palette))
+                        }
+                }
+                renderedTileMode = mode
             }
+
+            graphHost.removeAllViews()
+            graphHost.addView(
+                label("Glukoseverlauf", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                    setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
+                },
+            )
+            graphHost.addView(graphTile(snapshot.graphReadings, palette))
             updateGraphOnly(preserveScroll = false)
         }
     }
@@ -980,7 +1168,11 @@ class CgmWatchActivity : ComponentActivity() {
     }
 
     internal fun handleSystemBack() {
-        if (pairingStep == CgmPairingScreenStep.ENTER_CODE) {
+        if (stopRequested || pairingModel.state.value.offerStop) {
+            stopRequested = false
+            pairingModel.dismissStop()
+            refreshLiveContent()
+        } else if (pairingStep == CgmPairingScreenStep.ENTER_CODE) {
             pairingModel.close()
             refreshScreen()
         } else if (pairingStep == CgmPairingScreenStep.CONNECTING) {
@@ -1002,12 +1194,7 @@ class CgmWatchActivity : ComponentActivity() {
                     ?.persisted
                     ?.lastReading
                     ?.timestampEpochMs
-            val ageMinutes = latestTimestamp?.let { ((overviewState.now - it).coerceAtLeast(0L) / 60_000L) }
-            graphPeriodPill.text =
-                buildString {
-                    append(hours).append('h')
-                    if (ageMinutes != null) append(" • ").append(ageMinutes).append('m')
-                }
+            graphPeriodPill.text = cgmGraphScaleAgeLabel(hours, latestTimestamp, overviewState.now)
             val readings = overviewState.snapshot?.graphReadings.orEmpty()
             graphView.bind(
                 readings = readings,
@@ -1052,10 +1239,11 @@ class CgmWatchActivity : ComponentActivity() {
                 label("${hours}h", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
                     tag = "graph-scale-control"
                     contentDescription = "Graphskalierung"
-                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                    setPadding(4.dp, 0, 0, 0)
+                    gravity = Gravity.CENTER
+                    includeFontPadding = false
+                    setPadding(CgmGraphOverlayStyle.HORIZONTAL_PADDING_DP.dp, 0, CgmGraphOverlayStyle.HORIZONTAL_PADDING_DP.dp, 0)
                     minWidth = 0
-                    minHeight = 0
+                    minHeight = CgmGraphOverlayStyle.MIN_HEIGHT_DP.dp
                     setOnClickListener {
                         advanceGraphScale(directSettings.graphHours())
                         updateGraphOnly()
@@ -1064,9 +1252,9 @@ class CgmWatchActivity : ComponentActivity() {
             graphView.onHeaderColorChanged = { graphPeriodPill.setTextColor(it) }
             addView(
                 graphPeriodPill,
-                FrameLayout.LayoutParams(72.dp, 34.dp, Gravity.TOP or Gravity.START).apply {
-                    topMargin = 3.dp
-                    marginStart = 4.dp
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
+                    topMargin = CgmGraphOverlayStyle.INSET_DP.dp
+                    marginStart = CgmGraphOverlayStyle.INSET_DP.dp
                 },
             )
         }
@@ -1077,46 +1265,16 @@ class CgmWatchActivity : ComponentActivity() {
         directSettings.saveGraphHours(next)
     }
 
-    private enum class PillStyle { PRIMARY, SECONDARY, DANGER }
-
-    private fun pill(
-        textValue: String,
-        style: PillStyle,
-        palette: CgmAppearancePalette,
-        action: () -> Unit,
-    ) = TextView(this).apply {
-        text = textValue
-        textSize = 11f
-        gravity = Gravity.CENTER
-        minHeight = 40.dp
-        setPadding(13.dp, 8.dp, 13.dp, 8.dp)
-        app.sugarlicious.uishared.SystemTypography
-            .apply(this, true)
-        val (fill, textColor, stroke) =
-            when (style) {
-                PillStyle.PRIMARY ->
-                    Triple(
-                        palette.argb(CgmAppearanceRole.MENU_PRIMARY),
-                        palette.argb(CgmAppearanceRole.MENU_BACKGROUND),
-                        palette.argb(CgmAppearanceRole.MENU_PRIMARY),
-                    )
-                PillStyle.SECONDARY ->
-                    Triple(
-                        palette.argb(CgmAppearanceRole.MENU_SURFACE),
-                        palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                        palette.argb(CgmAppearanceRole.MENU_BORDER),
-                    )
-                PillStyle.DANGER ->
-                    Triple(
-                        withAlpha(palette.argb(CgmAppearanceRole.GLUCOSE_ERROR), 36),
-                        palette.argb(CgmAppearanceRole.GLUCOSE_ERROR),
-                        palette.argb(CgmAppearanceRole.GLUCOSE_ERROR),
-                    )
-            }
-        setTextColor(textColor)
-        background = rounded(fill, stroke, 999f)
-        setOnClickListener { action() }
-    }
+    private fun pill(textValue: String, action: () -> Unit) =
+        CgmTileActionButton(this).apply {
+            text = textValue
+            layoutParams =
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    topMargin = 6.dp
+                }
+            setOnClickListener { action() }
+        }
 
     private fun label(
         textValue: String,
@@ -1181,7 +1339,6 @@ class CgmWatchActivity : ComponentActivity() {
 
     private fun trendIndicator(
         trend: Trend,
-        color: Int,
     ) = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
@@ -1245,6 +1402,7 @@ class CgmWatchActivity : ComponentActivity() {
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     companion object {
+        internal const val EXTRA_SENSOR_UNLINKED = "g7.sensor_unlinked"
         internal const val EXTRA_OPEN_PAIRING = "g7.open_pairing"
         const val PERMISSION_REQUEST = 7
         const val KEY_PAIRING_STEP = "pairing_step"

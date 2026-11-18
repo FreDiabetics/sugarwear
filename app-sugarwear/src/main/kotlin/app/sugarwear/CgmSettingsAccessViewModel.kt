@@ -45,13 +45,14 @@ internal class CgmSettingsAccessRepository(
 
     fun prepareChannels() = CgmAlarmNotifier.prepareCurrentChannels(app)
 
-    fun edit(edit: CgmAlarmSettingsEdit) {
-        val settings = applyCgmAlarmSettingsEdit(CgmAlarmSettingsStore.read(app), edit)
+    fun edit(edit: CgmAlarmSettingsEdit, profile: SugarWearAlarmProfile) {
+        val settings = applyCgmAlarmSettingsEdit(CgmAlarmSettingsStore.read(app), edit, profile)
         CgmAlarmSettingsStore.write(app, settings)
-        CgmAlarmNotifier.ensureAllChannels(app, settings)
+        CgmAlarmNotifier.prepareCurrentChannels(app)
     }
 
-    fun test(type: SugarWearAlarmType) = CgmAlarmNotifier.showTest(app, type, CgmAlarmSettingsStore.read(app))
+    fun test(type: SugarWearAlarmType, profile: SugarWearAlarmProfile) =
+        CgmAlarmNotifier.showTest(app, type, CgmAlarmSettingsStore.read(app).forProfile(profile))
 
     fun volume(enabled: Boolean, percent: Int?) = CgmAlarmVolume.configure(app, enabled, percent ?: CgmAlarmVolume.percent(app))
 
@@ -98,6 +99,7 @@ internal class CgmSettingsAccessRepository(
 internal data class CgmAlarmNavigationState(
     val selectedAlarm: SugarWearAlarmType? = null,
     val alarmPage: String? = null,
+    val editedAlarmProfile: SugarWearAlarmProfile? = null,
 )
 
 @dagger.hilt.android.lifecycle.HiltViewModel
@@ -129,12 +131,16 @@ internal class CgmSettingsAccessViewModel(
         navigationState.value = navigation.value.copy(alarmPage = page)
     }
 
-    fun edit(edit: CgmAlarmSettingsEdit) {
-        worker.submit({ repository.edit(edit) })
+    fun editAlarmProfile(profile: SugarWearAlarmProfile) {
+        navigationState.value = navigation.value.copy(editedAlarmProfile = profile)
     }
 
-    fun test(type: SugarWearAlarmType) {
-        worker.submit({ repository.test(type) })
+    fun edit(edit: CgmAlarmSettingsEdit, profile: SugarWearAlarmProfile = SugarWearAlarmProfile.DAY) {
+        worker.submit({ repository.edit(edit, profile) })
+    }
+
+    fun test(type: SugarWearAlarmType, profile: SugarWearAlarmProfile = SugarWearAlarmProfile.DAY) {
+        worker.submit({ repository.test(type, profile) })
     }
 
     fun volume(enabled: Boolean, percent: Int? = null) {

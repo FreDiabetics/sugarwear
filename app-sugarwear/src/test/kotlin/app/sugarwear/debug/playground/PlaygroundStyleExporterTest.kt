@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaygroundStyleExporterTest {
-
     @Test
     fun `exportToJson contains target production file paths`() {
         val overrides = PlaygroundStyleOverrides()

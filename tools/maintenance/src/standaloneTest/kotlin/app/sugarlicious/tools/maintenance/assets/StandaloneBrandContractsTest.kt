@@ -16,7 +16,7 @@ class StandaloneBrandContractsTest {
         val symbol = parse(root.resolve("design-assets/sugarwear/adaptive108/foreground.svg")).documentElement
         val visible = source.all("path").last().getAttribute("d")
         assertEquals(visible, symbol.child("path").getAttribute("d"))
-        val runtime = parse(root.resolve("shared/sugarlicious/ui-shared/src/main/res/drawable/ic_sugarwear_filled.xml")).documentElement
+        val runtime = parse(root.resolve("ui-shared/src/main/res/drawable/ic_sugarwear_filled.xml")).documentElement
         val paths = runtime.all("path")
         assertEquals(1, paths.size)
         assertEquals(visible, paths.single().getAttributeNS(ANDROID, "pathData"))

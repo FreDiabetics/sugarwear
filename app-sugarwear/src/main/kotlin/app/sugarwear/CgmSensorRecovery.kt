@@ -9,9 +9,13 @@ internal data class CgmBondCandidate(
 
 internal sealed interface CgmRecoveryState {
     data object NotRequired : CgmRecoveryState
+
     data object BluetoothUnavailable : CgmRecoveryState
+
     data object PermissionRequired : CgmRecoveryState
+
     data object NoCandidate : CgmRecoveryState
+
     data class CandidateSelectionRequired(
         val candidates: List<CgmBondCandidate>,
     ) : CgmRecoveryState
@@ -45,9 +49,10 @@ internal object CgmSensorRecoveryPlanner {
         if (!permissionGranted) return CgmRecoveryState.PermissionRequired
         if (candidates.isEmpty()) return CgmRecoveryState.NoCandidate
 
-        val recordedMatch = recordedAddress?.let { addr ->
-            candidates.firstOrNull { it.address.equals(addr, ignoreCase = true) }
-        }
+        val recordedMatch =
+            recordedAddress?.let { addr ->
+                candidates.firstOrNull { it.address.equals(addr, ignoreCase = true) }
+            }
 
         if (recordedMatch != null) {
             return if (recordedMatch.isBonded) {

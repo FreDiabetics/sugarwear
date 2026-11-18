@@ -60,8 +60,7 @@ fun TilePlaygroundScreen(
                 .background(Color(0xFF242424))
                 .clickable {
                     DebugTileController.requestTileUpdate(context)
-                }
-                .padding(vertical = 12.dp),
+                }.padding(vertical = 12.dp),
             style = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center),
         )
     }

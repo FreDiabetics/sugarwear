@@ -17,6 +17,21 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
 class WearSettingsControlsTest {
+    @Test
+    fun `contour step buttons advance by the actual stored precision`() {
+        val slider =
+            SeekBar(context).apply {
+                max = 275
+                progress = 0
+            }
+        val writes = mutableListOf<Int>()
+        val row = WearSettingsUi.inlineSlider(slider, 5) { writes += it }
+        stepButton(row, "+").performClick()
+        stepButton(row, "+").performClick()
+        stepButton(row, "−").performClick()
+        assertEquals(listOf(5, 10, 5), writes)
+    }
+
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
     private fun stepButton(root: android.view.View, text: String): android.widget.Button {

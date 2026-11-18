@@ -5,7 +5,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class PlaygroundCatalogTest {
-
     @Test
     fun `catalog registers primary entries for home graph alarms notifications tiles`() {
         assertNotNull(PlaygroundCatalog.findById("entry_home"))

@@ -88,6 +88,7 @@ internal fun connectCgmSensorToThisWatch(
     start: (Context) -> Unit = { CgmCollectorService.start(it) },
 ): CgmSensor {
     val sensor = prepare(context, pairingCode)
+    CgmCollectorUiTransitionStore.record(context, CgmUiSensorAction.PAIR)
     start(context)
     return sensor
 }
@@ -140,7 +141,7 @@ internal fun unlinkCgmSensor(
         DiagnosticEventStore(app).clear()
     }
     val runtimePreferences = app.getSharedPreferences("g7_runtime_recovery", Context.MODE_PRIVATE)
-    check(runtimePreferences.edit().clear().commit()) { "G7 runtime recovery cleanup failed" }
+    runtimePreferences.clearSynchronously("G7 runtime recovery cleanup failed")
     // A detached sensor's retained readings must not be displayed as current.
     app.contentResolver.notifyChange(CgmReadingProvider.STATE_URI, null)
     app.contentResolver.notifyChange(CgmReadingProvider.CONTENT_URI, null)

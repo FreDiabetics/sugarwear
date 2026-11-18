@@ -41,47 +41,50 @@ object DemoGlucoseFactory {
                 break
             }
 
-            val rawGlucose = when (scenario) {
-                DemoScenario.STABLE -> scenario.startGlucoseMgDl + sin(i * 0.3) * 3.0
-                DemoScenario.SLOW_RISE -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
-                DemoScenario.FAST_RISE -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
-                DemoScenario.SLOW_FALL -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
-                DemoScenario.FAST_FALL -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
-                DemoScenario.HYPOGLYCEMIA -> (scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl).coerceAtLeast(scenario.minGlucoseMgDl)
-                DemoScenario.HYPERGLYCEMIA -> (scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl).coerceAtMost(scenario.maxGlucoseMgDl)
-                DemoScenario.FLUCTUATING -> 110.0 + sin(i * 0.4) * 55.0
-                DemoScenario.MISSING_VALUES -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
-                DemoScenario.STALE_DATA -> scenario.startGlucoseMgDl
-                DemoScenario.DISCONNECTED -> 0.0
-            }
+            val rawGlucose =
+                when (scenario) {
+                    DemoScenario.STABLE -> scenario.startGlucoseMgDl + sin(i * 0.3) * 3.0
+                    DemoScenario.SLOW_RISE -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
+                    DemoScenario.FAST_RISE -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
+                    DemoScenario.SLOW_FALL -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
+                    DemoScenario.FAST_FALL -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
+                    DemoScenario.HYPOGLYCEMIA -> (scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl).coerceAtLeast(scenario.minGlucoseMgDl)
+                    DemoScenario.HYPERGLYCEMIA -> (scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl).coerceAtMost(scenario.maxGlucoseMgDl)
+                    DemoScenario.FLUCTUATING -> 110.0 + sin(i * 0.4) * 55.0
+                    DemoScenario.MISSING_VALUES -> scenario.startGlucoseMgDl + i * scenario.deltaPerIntervalMgDl
+                    DemoScenario.STALE_DATA -> scenario.startGlucoseMgDl
+                    DemoScenario.DISCONNECTED -> 0.0
+                }
 
             val clampedGlucose = rawGlucose.coerceIn(40.0, 400.0)
             val delta = if (result.isNotEmpty()) clampedGlucose - result.last().glucoseMgDl else 0.0
 
-            val trend = when {
-                delta > 5.0 -> Trend.DOUBLE_UP
-                delta > 2.5 -> Trend.SINGLE_UP
-                delta > 1.0 -> Trend.FORTY_FIVE_UP
-                delta < -5.0 -> Trend.DOUBLE_DOWN
-                delta < -2.5 -> Trend.SINGLE_DOWN
-                delta < -1.0 -> Trend.FORTY_FIVE_DOWN
-                else -> Trend.FLAT
-            }
+            val trend =
+                when {
+                    delta > 5.0 -> Trend.DOUBLE_UP
+                    delta > 2.5 -> Trend.SINGLE_UP
+                    delta > 1.0 -> Trend.FORTY_FIVE_UP
+                    delta < -5.0 -> Trend.DOUBLE_DOWN
+                    delta < -2.5 -> Trend.SINGLE_DOWN
+                    delta < -1.0 -> Trend.FORTY_FIVE_DOWN
+                    else -> Trend.FLAT
+                }
 
-            val reading = CgmReading(
-                id = "DEMO-$timestamp-$i",
-                source = DataSourceId.DEXCOM_G7_WATCH,
-                sensorId = DUMMY_SENSOR_ID,
-                sessionId = DUMMY_SESSION_ID,
-                glucoseMgDl = clampedGlucose,
-                timestampEpochMs = timestamp,
-                receivedAtEpochMs = timestamp + 100L,
-                deltaMgDl = delta,
-                trend = trend,
-                sequenceNumber = (i + 1).toLong(),
-                status = CgmReadingStatus.VALID,
-                origin = CgmReadingOrigin.LIVE,
-            )
+            val reading =
+                CgmReading(
+                    id = "DEMO-$timestamp-$i",
+                    source = DataSourceId.DEXCOM_G7_WATCH,
+                    sensorId = DUMMY_SENSOR_ID,
+                    sessionId = DUMMY_SESSION_ID,
+                    glucoseMgDl = clampedGlucose,
+                    timestampEpochMs = timestamp,
+                    receivedAtEpochMs = timestamp + 100L,
+                    deltaMgDl = delta,
+                    trend = trend,
+                    sequenceNumber = (i + 1).toLong(),
+                    status = CgmReadingStatus.VALID,
+                    origin = CgmReadingOrigin.LIVE,
+                )
             result.add(reading)
         }
 

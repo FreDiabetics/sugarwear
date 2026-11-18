@@ -34,7 +34,7 @@ internal class CgmSensorStateStore(
     fun reset() =
         synchronized(lifecycleLock) {
             lifecycleGeneration++
-            check(preferences.edit().clear().commit()) { "G7 sensor state could not be removed" }
+            preferences.clearSynchronously("G7 sensor state could not be removed")
         }
 
     /** Reject an in-flight cycle's snapshot after an intentional pause. */

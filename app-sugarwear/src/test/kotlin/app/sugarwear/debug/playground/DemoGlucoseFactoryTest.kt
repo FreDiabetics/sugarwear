@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DemoGlucoseFactoryTest {
-
     @Test
     fun `createReadingsForScenario produces deterministic glucose list`() {
         val readings = DemoGlucoseFactory.createReadingsForScenario(DemoScenario.STABLE, count = 10)

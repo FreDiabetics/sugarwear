@@ -32,9 +32,13 @@ val maintenanceArgsFile = providers.gradleProperty("maintenanceArgsFile")
 tasks.named<JavaExec>("run") {
     maintenanceArgsFile.orNull?.let { args("--arguments-file", it) }
 }
+val ownsSugarliciousProduct = rootProject.findProject(":app-mobile") != null
 tasks.test {
     nativePath.orNull?.let { environment("PATH", it) }
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // Live Mobile, Orbit and ApeX assets are only present in the Sugarlicious repository.
+        if (!ownsSugarliciousProduct) excludeTags("sugarlicious-product")
+    }
     systemProperty("maintenance.repositoryRoot", rootProject.projectDir.absolutePath)
     systemProperty("maintenance.sharedRoot", projectDir.parentFile.parentFile.absolutePath)
 }

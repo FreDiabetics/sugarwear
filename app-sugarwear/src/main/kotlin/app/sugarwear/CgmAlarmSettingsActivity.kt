@@ -1,6 +1,5 @@
 package app.sugarwear
 
-import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -12,7 +11,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.viewModels
-import androidx.core.net.toUri
 import app.sugarlicious.uishared.SharedNumberEditor
 import java.util.Locale
 
@@ -33,7 +31,14 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         bindSettingsState(access.state, { old, new -> old.snapshot != new.snapshot || old.error != new.error }, ::render)
         bindSettingsState(access.navigation, render = ::render)
 
-        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    navigateBack()
+                }
+            },
+        )
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
             CgmEdgeFadeScrollView(this)
@@ -59,36 +64,24 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         val palette = checkNotNull(access.state.value.snapshot).palette
         val background = palette.settingsArgb(CgmAppearanceRole.MENU_BACKGROUND)
         applyCgmSystemChrome(window, background)
-        val settings = checkNotNull(access.state.value.snapshot).alarms
+        val configured = checkNotNull(access.state.value.snapshot).alarms
+        val activeProfile = configured.activeProfile(System.currentTimeMillis()).profile
+        val editedProfile = access.navigation.value.editedAlarmProfile ?: activeProfile
+        val settings = configured.forProfile(editedProfile)
 
         root.apply {
             removeAllViews()
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            app.sugarlicious.uishared.WearSettingsUi.pagePadding(this)
+            app.sugarlicious.uishared.WearSettingsUi
+                .pagePadding(this)
             setBackgroundColor(background)
             addView(topBar(palette), fullWidth())
 
             val alarmAccess = checkNotNull(access.state.value.snapshot).alarmAccess
-            val warning = if (!settings.globalMuteAll) cgmAlarmAudioWarning(alarmAccess) else null
-            if (warning != null && alarmPage != "Systemzugriff") {
-                addView(
-                    card(palette).apply {
-                        addView(label("Alarmton blockiert", 12f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
-                        addView(label(warning, 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-                        cgmAlarmSettingsAction(alarmAccess)?.let { target ->
-                            addView(actionButton(target.label, palette) { CgmAlarmSystemAccess.openRecommendedSettings(this@CgmAlarmSettingsActivity, alarmAccess) })
-                        }
-                    },
-                    cardParams(7),
-                )
-            }
-
             val selected = selectedAlarm
             if (selected != null) {
                 addView(alarmDetailCard(selected, settings, palette), cardParams(7))
-            } else if (alarmPage == "Systemzugriff") {
-                addView(dndCard(palette), cardParams(7))
             } else if (alarmPage == "Ruhemodi") {
                 addView(quietModesCard(settings, palette), cardParams(7))
             } else {
@@ -97,82 +90,102 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                     card(palette).apply {
                         addView(toggle("SugarWear-Alarme", checkNotNull(access.state.value.snapshot).localAlarmsEnabled, palette) { access.localAlarms(it) })
                         addView(label("Unabhängig von der Glukosequelle in Sugarlicious. Bei pausiertem Sensor bleiben Alarme aus.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-                        if (!alarmAccess.fullScreenAllowed && android.os.Build.VERSION.SDK_INT >= 34) {
-                            addView(
-                                actionButton("Vollbildalarme erlauben", palette) {
-                                    CgmSystemAccess.open(this@CgmAlarmSettingsActivity, listOf(Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, "package:$packageName".toUri())))
-                                },
-                            )
-                        }
                     },
                     cardParams(7),
                 )
                 addView(pauseAlarmsCard(palette), cardParams(7))
+                addView(alarmProfilesCard(configured, activeProfile, editedProfile, palette), cardParams(7))
 
                 // Section 1: General/Quiet Modes
-                val generalRows = listOf("Ruhemodi", "Systemzugriff").map { title ->
-                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, title, null, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
-                        alarmPage = title
-                        scrollView.scrollTo(0, 0)
-                        render()
+                val generalRows =
+                    listOf("Ruhemodi").map { title ->
+                        app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, title, null, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
+                            alarmPage = title
+                            scrollView.scrollTo(0, 0)
+                            render()
+                        }
                     }
-                }
                 addView(
-                    app.sugarlicious.uishared.WearSettingsUi.navigationGroup(this@CgmAlarmSettingsActivity, generalRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    app.sugarlicious.uishared.WearSettingsUi
+                        .navigationGroup(this@CgmAlarmSettingsActivity, generalRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
                     cardParams(10),
                 )
 
                 // Section 2: Glucose Warnings
                 addView(label("GEWEBEGLUKOSE-WARNUNGEN", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true).apply { setPadding(0, 8.dp, 0, 4.dp) })
-                val glucoseAlarmTypes = listOf(
-                    SugarWearAlarmType.URGENT_LOW,
-                    SugarWearAlarmType.URGENT_LOW_SOON,
-                    SugarWearAlarmType.LOW,
-                    SugarWearAlarmType.HIGH,
-                    SugarWearAlarmType.RAPID_RISE,
-                    SugarWearAlarmType.RAPID_FALL,
-                )
-                val glucoseRows = glucoseAlarmTypes.map { type ->
-                    val rule = settings.ruleFor(type)
-                    val statusText = if (type == SugarWearAlarmType.URGENT_LOW) "55 mg/dL (Aktiv)" else if (rule.enabled) "Aktiv" else "Aus"
-                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), statusText, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
-                        selectedAlarm = type
-                        scrollView.scrollTo(0, 0)
-                        render()
+                val glucoseAlarmTypes =
+                    listOf(
+                        SugarWearAlarmType.URGENT_LOW,
+                        SugarWearAlarmType.URGENT_LOW_SOON,
+                        SugarWearAlarmType.LOW,
+                        SugarWearAlarmType.HIGH,
+                        SugarWearAlarmType.RAPID_RISE,
+                        SugarWearAlarmType.RAPID_FALL,
+                    )
+                val glucoseRows =
+                    glucoseAlarmTypes.map { type ->
+                        val rule = settings.ruleFor(type)
+                        val statusText =
+                            if (type == SugarWearAlarmType.URGENT_LOW) {
+                                "55 mg/dL (Aktiv)"
+                            } else if (rule.enabled) {
+                                "Aktiv"
+                            } else {
+                                "Aus"
+                            }
+                        app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), statusText, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
+                            access.editAlarmProfile(editedProfile)
+                            selectedAlarm = type
+                            scrollView.scrollTo(0, 0)
+                            render()
+                        }
                     }
-                }
                 addView(
-                    app.sugarlicious.uishared.WearSettingsUi.navigationGroup(this@CgmAlarmSettingsActivity, glucoseRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    app.sugarlicious.uishared.WearSettingsUi
+                        .navigationGroup(this@CgmAlarmSettingsActivity, glucoseRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
                     cardParams(6),
                 )
 
                 // Section 3: System Warnings
                 addView(label("SYSTEMWARNUNGEN", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true).apply { setPadding(0, 8.dp, 0, 4.dp) })
-                val systemAlarmTypes = listOf(
-                    SugarWearAlarmType.SIGNAL_LOSS,
-                    SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM,
-                    SugarWearAlarmType.TECHNICAL_WARNING,
-                )
-                val systemRows = systemAlarmTypes.map { type ->
-                    val rule = settings.ruleFor(type)
-                    val statusText = if (type == SugarWearAlarmType.TECHNICAL_WARNING) "Aktiv" else if (rule.enabled) "Aktiv" else "Aus"
-                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), statusText, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
-                        selectedAlarm = type
-                        scrollView.scrollTo(0, 0)
-                        render()
+                val systemAlarmTypes =
+                    listOf(
+                        SugarWearAlarmType.SIGNAL_LOSS,
+                        SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM,
+                        SugarWearAlarmType.TECHNICAL_WARNING,
+                    )
+                val systemRows =
+                    systemAlarmTypes.map { type ->
+                        val rule = settings.ruleFor(type)
+                        val statusText =
+                            if (type == SugarWearAlarmType.TECHNICAL_WARNING) {
+                                "Aktiv"
+                            } else if (rule.enabled) {
+                                "Aktiv"
+                            } else {
+                                "Aus"
+                            }
+                        app.sugarlicious.uishared.WearSettingsUi.navigationRow(this@CgmAlarmSettingsActivity, cgmAlarmTitle(type), statusText, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)) {
+                            access.editAlarmProfile(editedProfile)
+                            selectedAlarm = type
+                            scrollView.scrollTo(0, 0)
+                            render()
+                        }
                     }
-                }
                 addView(
-                    app.sugarlicious.uishared.WearSettingsUi.navigationGroup(this@CgmAlarmSettingsActivity, systemRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
+                    app.sugarlicious.uishared.WearSettingsUi
+                        .navigationGroup(this@CgmAlarmSettingsActivity, systemRows, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)),
                     cardParams(6),
                 )
 
                 // Section 4: Reset
                 addView(
                     card(palette).apply {
-                        addView(actionButton("Warnungseinstellungen zurücksetzen", palette) {
-                            edit(CgmAlarmSettingsEdit.ResetAll)
-                        })
+                        addView(
+                            actionButton("Warnungseinstellungen zurücksetzen", palette) {
+                                edit(CgmAlarmSettingsEdit.ResetAll)
+                            },
+                        )
                     },
                     cardParams(10),
                 )
@@ -191,39 +204,6 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             addView(toggle("Alle stumm", settings.globalMuteAll, palette) { edit(CgmAlarmSettingsEdit.GlobalMuteAll(it)) })
             addView(label("Im Modus 'Vibrieren' werden alle Alarme nur als Vibration ausgegeben. Bei 'Alle stumm' werden Ton und Vibration unterdrückt. Fachliche Alarmzustände bleiben aktiv.", 8.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
         }
-
-    private fun dndCard(palette: CgmAppearancePalette): LinearLayout {
-        val status = checkNotNull(access.state.value.snapshot).alarmAccess
-        val granted = status.policyAccessGranted
-        return card(palette).apply {
-            addView(label("NICHT STÖREN", 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
-            addView(
-                label(
-                    cgmAlarmAccessLabel(status),
-                    12f,
-                    if (granted && status.dndAllowsAlarmAudio == true) palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY) else palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                    true,
-                ),
-            )
-            addView(
-                label(
-                    cgmAlarmAccessGuidance(status),
-                    8.5f,
-                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
-                ),
-            )
-            addView(label(cgmAlarmAudioPolicyLabel(status), 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
-            cgmAlarmSettingsAction(status)?.let { target ->
-                addView(actionButton(target.label, palette) { CgmAlarmSystemAccess.openRecommendedSettings(this@CgmAlarmSettingsActivity, status) })
-            }
-            addView(label(if (checkNotNull(access.state.value.snapshot).access.batteryUnrestricted) "Doze-Akkuexemption erlaubt" else "Doze-Akkuexemption fehlt", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-            addView(
-                actionButton("Berechtigungen und Alarmkanäle", palette) {
-                    startActivity(Intent(this@CgmAlarmSettingsActivity, CgmPermissionsActivity::class.java))
-                },
-            )
-        }
-    }
 
     private var pauseDurationMinutes = 60
 
@@ -252,27 +232,30 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             } else {
                 if (pauseDurationMinutes !in 15..720) pauseDurationMinutes = snapshot.lastPauseDurationMinutes
                 addView(label("Schlummert alle Alarme außer Niedriger Wert (dringend) für die gewählte Dauer.", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
-                val durationText = if (pauseDurationMinutes >= 60 && pauseDurationMinutes % 60 == 0) {
-                    "${pauseDurationMinutes / 60} Std."
-                } else {
-                    "$pauseDurationMinutes Min."
-                }
+                val durationText =
+                    if (pauseDurationMinutes >= 60 && pauseDurationMinutes % 60 == 0) {
+                        "${pauseDurationMinutes / 60} Std."
+                    } else {
+                        "$pauseDurationMinutes Min."
+                    }
                 addView(
                     stepper("Pausendauer", durationText, palette, {
-                        pauseDurationMinutes = when {
-                            pauseDurationMinutes > 240 -> pauseDurationMinutes - 120
-                            pauseDurationMinutes > 60 -> pauseDurationMinutes - 60
-                            pauseDurationMinutes > 30 -> pauseDurationMinutes - 15
-                            else -> maxOf(15, pauseDurationMinutes - 5)
-                        }
+                        pauseDurationMinutes =
+                            when {
+                                pauseDurationMinutes > 240 -> pauseDurationMinutes - 120
+                                pauseDurationMinutes > 60 -> pauseDurationMinutes - 60
+                                pauseDurationMinutes > 30 -> pauseDurationMinutes - 15
+                                else -> maxOf(15, pauseDurationMinutes - 5)
+                            }
                         render()
                     }, {
-                        pauseDurationMinutes = when {
-                            pauseDurationMinutes >= 240 -> minOf(720, pauseDurationMinutes + 120)
-                            pauseDurationMinutes >= 60 -> pauseDurationMinutes + 60
-                            pauseDurationMinutes >= 30 -> pauseDurationMinutes + 15
-                            else -> pauseDurationMinutes + 5
-                        }
+                        pauseDurationMinutes =
+                            when {
+                                pauseDurationMinutes >= 240 -> minOf(720, pauseDurationMinutes + 120)
+                                pauseDurationMinutes >= 60 -> pauseDurationMinutes + 60
+                                pauseDurationMinutes >= 30 -> pauseDurationMinutes + 15
+                                else -> pauseDurationMinutes + 5
+                            }
                         render()
                     }),
                 )
@@ -296,7 +279,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             addView(label(cgmAlarmTitle(type).uppercase(Locale.GERMAN), 8f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
 
             // Non-disableable check
-            if (type == SugarWearAlarmType.URGENT_LOW || type == SugarWearAlarmType.TECHNICAL_WARNING) {
+            if (type.isMandatory) {
                 addView(label("Immer aktiv (nicht deaktivierbar)", 12f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
             } else {
                 addView(toggle("Alarm aktiv", rule.enabled, palette) { edit(CgmAlarmSettingsEdit.AlarmEnabled(type, it)) })
@@ -341,12 +324,13 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                             }
                         },
                     )
-                    val delayText = when {
-                        rule.highDelayMinutes == 0 -> "Aus (0 min)"
-                        rule.highDelayMinutes < 60 -> "${rule.highDelayMinutes} min"
-                        rule.highDelayMinutes % 60 == 0 -> "${rule.highDelayMinutes / 60} Std."
-                        else -> "${rule.highDelayMinutes / 60} Std. ${rule.highDelayMinutes % 60} min"
-                    }
+                    val delayText =
+                        when {
+                            rule.highDelayMinutes == 0 -> "Aus (0 min)"
+                            rule.highDelayMinutes < 60 -> "${rule.highDelayMinutes} min"
+                            rule.highDelayMinutes % 60 == 0 -> "${rule.highDelayMinutes / 60} Std."
+                            else -> "${rule.highDelayMinutes / 60} Std. ${rule.highDelayMinutes % 60} min"
+                        }
                     addView(
                         stepper("Erste Warnung verzögern", delayText, palette, {
                             val delta = if (rule.highDelayMinutes > 60) 15 else 5
@@ -437,11 +421,12 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
 
             // Delivery Mode Selection
             addView(label("Ausgabemodus: ${rule.deliveryMode.labelGerman}", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply { setPadding(0, 6.dp, 0, 2.dp) })
-            val modes = listOf(
-                SugarWearAlertDeliveryMode.MATCH_DEVICE,
-                SugarWearAlertDeliveryMode.SOUND,
-                SugarWearAlertDeliveryMode.VIBRATE,
-            )
+            val modes =
+                listOf(
+                    SugarWearAlertDeliveryMode.MATCH_DEVICE,
+                    SugarWearAlertDeliveryMode.SOUND,
+                    SugarWearAlertDeliveryMode.VIBRATE,
+                )
             modes.forEach { mode ->
                 addView(
                     actionButton("${if (rule.deliveryMode == mode) "✓ " else ""}${mode.labelGerman}", palette) {
@@ -453,14 +438,91 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
             // Test Button
             addView(
                 actionButton("Test-Ton abspielen", palette) {
-                    access.test(type)
+                    access.test(type, editedProfile())
                 },
             )
         }
 
     private fun edit(edit: CgmAlarmSettingsEdit) {
-        access.edit(edit)
+        access.edit(edit, editedProfile())
         render()
+    }
+
+    private fun editedProfile(): SugarWearAlarmProfile =
+        access.navigation.value.editedAlarmProfile
+            ?: checkNotNull(access.state.value.snapshot).alarms.activeProfile(System.currentTimeMillis()).profile
+
+    private fun alarmProfilesCard(
+        settings: SugarWearAlarmSettings,
+        active: SugarWearAlarmProfile,
+        edited: SugarWearAlarmProfile,
+        palette: CgmAppearancePalette,
+    ): LinearLayout =
+        card(palette).apply {
+            val primary = palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY)
+            val secondary = palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)
+            addView(label("Alarmprofile", 14f, primary, true))
+            addView(label("Aktiv: ${active.label} · Bearbeiten: ${edited.label}", 11f, secondary))
+            addView(
+                actionButton("Profil bearbeiten: ${if (edited == SugarWearAlarmProfile.DAY) "Nacht" else "Tag"}", palette) {
+                    access.editAlarmProfile(if (edited == SugarWearAlarmProfile.DAY) SugarWearAlarmProfile.NIGHT else SugarWearAlarmProfile.DAY)
+                },
+            )
+            val schedule = settings.schedule
+            if (active != edited || settings.scheduleEnabled) {
+                addView(actionButton("${edited.label} manuell aktivieren", palette) { edit(CgmAlarmSettingsEdit.ManualProfile(edited)) })
+            }
+            addView(
+                toggle("Zeitplan", settings.scheduleEnabled, palette) { enabled ->
+                    if (enabled) {
+                        edit(CgmAlarmSettingsEdit.Schedule(schedule))
+                    } else {
+                        edit(CgmAlarmSettingsEdit.ManualProfile(active))
+                    }
+                },
+            )
+            if (settings.scheduleEnabled) {
+                addView(actionButton("Tag ab ${timeLabel(schedule.dayStartsMinute)}", palette) { editProfileTime(schedule, SugarWearAlarmProfile.DAY) })
+                addView(actionButton("Nacht ab ${timeLabel(schedule.nightStartsMinute)}", palette) { editProfileTime(schedule, SugarWearAlarmProfile.NIGHT) })
+            }
+        }
+
+    private fun editProfileTime(schedule: SugarWearAlarmSchedule, profile: SugarWearAlarmProfile) {
+        val night = profile == SugarWearAlarmProfile.NIGHT
+        val minute = if (night) schedule.nightStartsMinute else schedule.dayStartsMinute
+        val otherMinute = if (night) schedule.dayStartsMinute else schedule.nightStartsMinute
+        val scrollY = scrollView.scrollY
+        SharedNumberEditor.showText(
+            activity = this,
+            title = "${profile.label} ab (HHMM)",
+            current = timeLabel(minute).replace(":", ""),
+            inputType = InputType.TYPE_CLASS_NUMBER,
+            validate = { text ->
+                val parsed = profileMinute(text)
+                when {
+                    parsed == null -> "Uhrzeit als HHMM eingeben"
+                    parsed == otherMinute -> "Tag und Nacht brauchen verschiedene Startzeiten"
+                    else -> null
+                }
+            },
+            onValue = { text ->
+                profileMinute(text)?.let {
+                    val updated = if (night) schedule.copy(nightStartsMinute = it) else schedule.copy(dayStartsMinute = it)
+                    edit(CgmAlarmSettingsEdit.Schedule(updated))
+                }
+            },
+            onDismiss = { restoreScrollPosition(scrollY) },
+        )
+    }
+
+    private fun timeLabel(minute: Int): String = String.format(Locale.ROOT, "%02d:%02d", minute / 60, minute % 60)
+
+    private fun profileMinute(text: String): Int? {
+        val digits = text.trim()
+        if (digits.length !in 3..4 || !digits.all { it in '0'..'9' }) return null
+        val time = digits.toInt()
+        if (time / 100 > 23 || time % 100 > 59) return null
+        return time / 100 * 60 + time % 100
     }
 
     private fun topBar(palette: CgmAppearancePalette) = cgmSettingsHeader(selectedAlarm?.let(::cgmAlarmTitle) ?: alarmPage ?: "Alarme", palette) { navigateBack() }
@@ -515,12 +577,14 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         palette: CgmAppearancePalette,
         changed: (Boolean) -> Unit,
     ) = app.sugarlicious.uishared.ScrollSafeSwitch(this).apply {
-        app.sugarlicious.uishared.WearSettingsUi.toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+        app.sugarlicious.uishared.WearSettingsUi
+            .toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
         text = title
         isChecked = checked
         setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
         textSize = 15f
-        app.sugarlicious.uishared.SystemTypography.apply(this, true)
+        app.sugarlicious.uishared.SystemTypography
+            .apply(this, true)
         setOnCheckedChangeListener { _, value -> changed(value) }
     }
 
@@ -549,10 +613,12 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         text = title
         textSize = 14f
         minimumHeight = 40.dp
-        app.sugarlicious.uishared.SystemTypography.apply(this, true)
+        app.sugarlicious.uishared.SystemTypography
+            .apply(this, true)
         isAllCaps = false
         setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
-        app.sugarlicious.uishared.WearSettingsUi.actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+        app.sugarlicious.uishared.WearSettingsUi
+            .actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
         setOnClickListener { action() }
     }
 
@@ -571,9 +637,12 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
     ) = TextView(this).apply {
         includeFontPadding = false
         text = value
-        textSize = app.sugarlicious.uishared.WearSettingsUi.textSize(size)
+        textSize =
+            app.sugarlicious.uishared.WearSettingsUi
+                .textSize(size)
         setTextColor(color)
-        app.sugarlicious.uishared.SystemTypography.apply(this, bold)
+        app.sugarlicious.uishared.SystemTypography
+            .apply(this, bold)
     }
 
     private fun rounded(

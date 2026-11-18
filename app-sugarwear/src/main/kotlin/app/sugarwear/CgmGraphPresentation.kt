@@ -10,6 +10,15 @@ import app.sugarlicious.uishared.SharedWearCgmGraphInput
 import app.sugarlicious.uishared.SharedWearCgmGraphPalette
 import app.sugarlicious.uishared.SharedWearCgmGraphStyle
 
+/** Geometry shared by the scale control and its background contrast sample.
+ * 12dp clears the rounded graph corner without changing the plot geometry.
+ */
+internal object CgmGraphOverlayStyle {
+    const val INSET_DP = 12
+    const val HORIZONTAL_PADDING_DP = 10
+    const val MIN_HEIGHT_DP = 36
+}
+
 /** Shared SugarWear adapter. Both the in-app Canvas and Graph Tile use this exact input. */
 internal fun cgmSharedGraphInput(
     readings: List<CgmReading>,
@@ -77,11 +86,12 @@ internal fun cgmSharedGraphInput(
                 targetText = colors.targetValue,
                 emptyText = colors.signalLoss,
             ),
-        style = (styleOverride ?: settings.graphStyle()).copy(
-            dotOutlineWidthDp = 0.95f,
-            historicalDotOutlineWidthDp = 0.95f,
-            currentDotOutlineWidthDp = 0.95f,
-        ),
+        style =
+            (styleOverride ?: settings.graphStyle()).copy(
+                dotOutlineWidthDp = 0.95f,
+                historicalDotOutlineWidthDp = 0.95f,
+                currentDotOutlineWidthDp = 0.95f,
+            ),
         emptyLabel = emptyLabel,
         topLeftLabel = topLeftLabel,
         outsideClipColor = outsideClipColor ?: colors.graphBackground,

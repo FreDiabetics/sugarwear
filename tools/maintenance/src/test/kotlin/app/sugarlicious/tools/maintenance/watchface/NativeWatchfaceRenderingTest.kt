@@ -8,6 +8,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Source contracts preserved from test_native_watchface_rendering.py. */
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class NativeWatchfaceRenderingTest {
     private val root = watchfaceRepositoryRoot()
 

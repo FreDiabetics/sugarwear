@@ -3,6 +3,7 @@ package app.sugarlicious.tools.maintenance.watchface
 import java.nio.file.Path
 import kotlin.test.*
 
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class SecondsMotionTest {
     @Test fun `tick choice preserves color off ambient and all four handset choices`() {
         val res = Path.of(System.getProperty("maintenance.sharedRoot")).resolve("watchfaces/sugarlicious-orbit/src/main/res")

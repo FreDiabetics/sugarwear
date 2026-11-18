@@ -6,8 +6,7 @@ package app.sugarwear.debug.playground
 object PlaygroundNavigation {
     val categories: List<PlaygroundCategory> = PlaygroundCategory.entries
 
-    fun defaultEntryForCategory(category: PlaygroundCategory): PlaygroundEntry {
-        return PlaygroundCatalog.getByCategory(category).firstOrNull()
+    fun defaultEntryForCategory(category: PlaygroundCategory): PlaygroundEntry =
+        PlaygroundCatalog.getByCategory(category).firstOrNull()
             ?: PlaygroundCatalog.entries.first()
-    }
 }

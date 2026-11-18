@@ -11,6 +11,15 @@ internal data class SugarWearAlarmEvaluationResult(
 )
 
 internal object SugarWearAlarmEngine {
+    private val glucoseAlarmTypes =
+        setOf(
+            SugarWearAlarmType.URGENT_LOW,
+            SugarWearAlarmType.URGENT_LOW_SOON,
+            SugarWearAlarmType.LOW,
+            SugarWearAlarmType.HIGH,
+            SugarWearAlarmType.RAPID_RISE,
+            SugarWearAlarmType.RAPID_FALL,
+        )
 
     fun evaluate(
         reading: CgmReading?,
@@ -20,40 +29,48 @@ internal object SugarWearAlarmEngine {
         previousState: Map<SugarWearAlarmType, SugarWearAlarmInstance>,
         settings: SugarWearAlarmSettings,
         nowEpochMs: Long = System.currentTimeMillis(),
+        evaluateGlucose: Boolean = true,
     ): SugarWearAlarmEvaluationResult {
         val updated = mutableMapOf<SugarWearAlarmType, SugarWearAlarmInstance>()
         val newlyActive = mutableListOf<SugarWearAlarmType>()
         val resolved = mutableListOf<SugarWearAlarmType>()
 
         SugarWearAlarmType.entries.forEach { type ->
+            if (!evaluateGlucose && type in glucoseAlarmTypes) {
+                previousState[type]?.let { updated[type] = it }
+                return@forEach
+            }
+
             val rule = settings.ruleFor(type)
-            val isMet = isConditionMet(
-                type = type,
-                rule = rule,
-                reading = reading,
-                technicalError = technicalError,
-                signalLossDurationMinutes = signalLossDurationMinutes,
-                sensorErrorDurationMinutes = sensorErrorDurationMinutes,
-            )
+            val isMet =
+                isConditionMet(
+                    type = type,
+                    rule = rule,
+                    reading = reading,
+                    technicalError = technicalError,
+                    signalLossDurationMinutes = signalLossDurationMinutes,
+                    sensorErrorDurationMinutes = sensorErrorDurationMinutes,
+                )
 
             val prev = previousState[type]
             val prevActive = prev?.state == SugarWearAlarmState.ACTIVE
             val glucoseVal = reading?.takeIf { it.status == CgmReadingStatus.VALID }?.glucoseMgDl
 
-            val nextInstance = SugarWearAlarmStateMachine.update(
-                previous = prev,
-                type = type,
-                rule = rule,
-                conditionMet = isMet,
-                glucoseMgDl = glucoseVal,
-                sensorId = reading?.sensorId,
-                sessionId = reading?.sessionId,
-                source = reading?.origin?.name,
-                measuredAtEpochMs = reading?.timestampEpochMs,
-                receivedAtEpochMs = reading?.receivedAtEpochMs,
-                technicalErrorSignature = technicalError?.let { cgmErrorSignature(it) },
-                nowEpochMs = nowEpochMs,
-            )
+            val nextInstance =
+                SugarWearAlarmStateMachine.update(
+                    previous = prev,
+                    type = type,
+                    rule = rule,
+                    conditionMet = isMet,
+                    glucoseMgDl = glucoseVal,
+                    sensorId = reading?.sensorId,
+                    sessionId = reading?.sessionId,
+                    source = reading?.origin?.name,
+                    measuredAtEpochMs = reading?.timestampEpochMs,
+                    receivedAtEpochMs = reading?.receivedAtEpochMs,
+                    technicalErrorSignature = technicalError?.let { cgmErrorSignature(it) },
+                    nowEpochMs = nowEpochMs,
+                )
 
             updated[type] = nextInstance
 

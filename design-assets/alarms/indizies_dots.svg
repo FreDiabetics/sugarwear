@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Watchface" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 450">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <g id="indizies">
+    <g id="dots">
+      <g>
+        <circle class="cls-1" cx="268.44" cy="22.58" r="3.28"/>
+        <circle class="cls-1" cx="181.56" cy="427.42" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="289.36" cy="28.23" r="3.28"/>
+        <circle class="cls-1" cx="160.64" cy="421.77" r="3.28"/>
+      </g>
+      <circle class="cls-1" cx="309.58" cy="36.04" r="3.28"/>
+      <circle class="cls-1" cx="347.02" cy="57.75" r="3.28"/>
+      <g>
+        <circle class="cls-1" cx="363.83" cy="71.42" r="3.28"/>
+        <circle class="cls-1" cx="86.17" cy="378.58" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="379.12" cy="86.77" r="3.28"/>
+        <circle class="cls-1" cx="70.88" cy="363.23" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="422.02" cy="161.41" r="3.28"/>
+        <circle class="cls-1" cx="27.98" cy="288.59" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="427.59" cy="182.35" r="3.28"/>
+        <circle class="cls-1" cx="22.41" cy="267.65" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="427.42" cy="268.44" r="3.28"/>
+        <circle class="cls-1" cx="22.58" cy="181.56" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="421.77" cy="289.36" r="3.28"/>
+        <circle class="cls-1" cx="28.23" cy="160.64" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="378.58" cy="363.83" r="3.28"/>
+        <circle class="cls-1" cx="71.42" cy="86.17" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="363.23" cy="379.12" r="3.28"/>
+        <circle class="cls-1" cx="86.77" cy="70.88" r="3.28"/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="288.59" cy="422.02" r="3.28"/>
+        <text/>
+      </g>
+      <g>
+        <circle class="cls-1" cx="267.65" cy="427.59" r="3.28"/>
+        <circle class="cls-1" cx="182.35" cy="22.41" r="3.28"/>
+      </g>
+    </g>
+  </g>
+</svg>

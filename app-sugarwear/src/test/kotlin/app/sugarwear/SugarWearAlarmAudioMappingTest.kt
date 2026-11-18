@@ -11,7 +11,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class SugarWearAlarmAudioMappingTest {
-
     @Test
     fun `high alarm maps explicitly to high_alert mp4 asset`() {
         assertEquals("alarms/high_alert.mp4", SugarWearAlarmDefaults.audioAssetPath(SugarWearAlarmType.HIGH))

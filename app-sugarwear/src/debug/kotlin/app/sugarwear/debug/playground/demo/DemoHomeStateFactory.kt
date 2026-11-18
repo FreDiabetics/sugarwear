@@ -15,23 +15,26 @@ object DemoHomeStateFactory {
         nowEpochMs: Long = System.currentTimeMillis(),
     ): CgmOverviewState {
         val lastReading = readings.lastOrNull()
-        val dummySensor = CgmSensor(
-            sensorId = "DEMO-G7-SENSOR",
-            sessionId = "DEMO-SESSION-1001",
-        )
+        val dummySensor =
+            CgmSensor(
+                sensorId = "DEMO-G7-SENSOR",
+                sessionId = "DEMO-SESSION-1001",
+            )
 
-        val persistedState = CgmPersistedState(
-            sensor = dummySensor,
-            lastReading = lastReading,
-            collectorEnabled = true,
-        )
+        val persistedState =
+            CgmPersistedState(
+                sensor = dummySensor,
+                lastReading = lastReading,
+                collectorEnabled = true,
+            )
 
-        val snapshot = CgmOverviewSnapshot(
-            persisted = persistedState,
-            credentialsPresent = true,
-            graphReadings = readings,
-            transition = null,
-        )
+        val snapshot =
+            CgmOverviewSnapshot(
+                persisted = persistedState,
+                credentialsPresent = true,
+                graphReadings = readings,
+                transition = null,
+            )
 
         return CgmOverviewState(
             now = nowEpochMs,

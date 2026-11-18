@@ -114,8 +114,8 @@ internal class CgmCollectorGraphView
                     TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 1f, resources.displayMetrics),
                     input,
                 ) ?: return
-            // Match the surface underneath the centre of the scale/age overlay (3dp + 34dp / 2).
-            val labelY = 20f * density
+            // Match the surface underneath the centre of the scale/age control.
+            val labelY = (CgmGraphOverlayStyle.INSET_DP + CgmGraphOverlayStyle.MIN_HEIGHT_DP / 2f) * density
             val visibleHistory =
                 input.history.filter {
                     it.measuredAtEpochMs in input.timeWindow.startEpochMs..input.timeWindow.endEpochMs &&

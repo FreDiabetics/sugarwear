@@ -29,7 +29,9 @@ class AssetToolsTest {
         assertFailsWith<IllegalArgumentException> { nativeHand(BufferedImage(51, 275, BufferedImage.TYPE_INT_ARGB)) }
     }
 
-    @Test fun actualNativeHandStripsAndAccentsRetainSourceGeometry() {
+    @org.junit.jupiter.api.Tag("sugarlicious-product")
+    @Test
+    fun actualNativeHandStripsAndAccentsRetainSourceGeometry() {
         val output = shared.resolve("tools/maintenance/build/reports/assets-parity/hands")
         handTool(listOf("--output", output.toString()), shared)
         val reference = shared.resolve("watchfaces/sugarlicious-orbit/reference/hands")
@@ -62,7 +64,9 @@ class AssetToolsTest {
         assertEquals(300, ImageIO.read(output.resolve("orbit_hand_preview_17.png").toFile()).width)
     }
 
-    @Test fun brandSourcePathAndSafeMotifArePreservedInProductOwnedOutputs() {
+    @org.junit.jupiter.api.Tag("sugarlicious-product")
+    @Test
+    fun brandSourcePathAndSafeMotifArePreservedInProductOwnedOutputs() {
         val root = Files.createTempDirectory("brand-import")
         val sources = root.resolve("sources")
         Files.createDirectories(sources)

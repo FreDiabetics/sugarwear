@@ -4,7 +4,9 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import app.sugarlicious.model.CgmGraphHistoryPresentation
 import app.sugarlicious.model.CgmGraphPolicy
+import app.sugarlicious.model.CgmGraphSensorIdentity
 import app.sugarlicious.model.CgmQuality
 import app.sugarlicious.model.CgmRangeClass
 import app.sugarlicious.model.CgmThresholds
@@ -124,6 +126,7 @@ data class SharedWearCgmGraphInput(
     val emptyLabel: String = "",
     val topLeftLabel: String = "",
     val outsideClipColor: Int = palette.background,
+    val activeIdentity: CgmGraphSensorIdentity? = CgmGraphHistoryPresentation.latestIdentity(history),
 )
 
 data class SharedWearCgmGraphMetrics(
@@ -313,7 +316,8 @@ object SharedWearCgmGraphRenderer {
         canvas.drawRect(metrics.axisLeftPx, visual.top, visual.right, metrics.highY, fill)
         canvas.drawRect(metrics.axisLeftPx, metrics.lowY, visual.right, visual.bottom, fill)
         drawSplitArea(metrics.highY, metrics.lowY, palette.targetArea)
-        when (CgmGraphPolicy.rangeExcursion(history, input.thresholds).takeIf { input.style.rangeBackgroundEnabled }) {
+        val activeHistory = history.filter { !CgmGraphHistoryPresentation.isRetired(it, input.activeIdentity) }
+        when (CgmGraphPolicy.rangeExcursion(activeHistory, input.thresholds).takeIf { input.style.rangeBackgroundEnabled }) {
             RangeExcursion.HIGH -> {
                 drawSplitArea(visual.top, metrics.highY, palette.highArea)
             }
@@ -366,12 +370,23 @@ object SharedWearCgmGraphRenderer {
 
         val liveX = metrics.xFor(input.timeWindow, input.timeWindow.liveEdgeEpochMs)
         val radius = input.style.dotRadiusDp.coerceIn(1.5f, 6f) * density
-        history.forEachIndexed { index, sample ->
-            val isCurrent = index == history.lastIndex
+        val currentSample = history.lastOrNull { !CgmGraphHistoryPresentation.isRetired(it, input.activeIdentity) }
+        history.sortedBy { if (CgmGraphHistoryPresentation.isRetired(it, input.activeIdentity)) 0 else 1 }.forEach { sample ->
+            val isCurrent = sample == currentSample
             // "Current" controls styling only. Every point, including the newest one, belongs to
             // its real sensor event time; it must drift left as the wall-clock viewport advances.
             val x = metrics.sampleXFor(input.timeWindow, sample.measuredAtEpochMs)
             val y = metrics.yFor(sample.valueMgDl)
+            if (CgmGraphHistoryPresentation.isRetired(sample, input.activeIdentity)) {
+                fill.style = Paint.Style.STROKE
+                fill.strokeWidth = CgmGraphHistoryPresentation.RETIRED_OUTLINE_WIDTH_DP * density
+                fill.color =
+                    androidx.core.graphics.ColorUtils
+                        .setAlphaComponent(palette.dotInRange, CgmGraphHistoryPresentation.RETIRED_ALPHA)
+                canvas.drawCircle(x, y, radius, fill)
+                fill.style = Paint.Style.FILL
+                return@forEach
+            }
             val outline = effectiveDotOutlineWidthDp(input.style, isCurrent)?.times(density)
             if (outline != null) {
                 fill.color = palette.dotOutline
@@ -411,7 +426,7 @@ object SharedWearCgmGraphRenderer {
             val area =
                 if (7f * density in metrics.highY..metrics.lowY) {
                     palette.targetArea
-                } else if (input.style.rangeBackgroundEnabled && CgmGraphPolicy.rangeExcursion(history, input.thresholds) == RangeExcursion.HIGH) {
+                } else if (input.style.rangeBackgroundEnabled && CgmGraphPolicy.rangeExcursion(activeHistory, input.thresholds) == RangeExcursion.HIGH) {
                     palette.highArea
                 } else {
                     android.graphics.Color.TRANSPARENT

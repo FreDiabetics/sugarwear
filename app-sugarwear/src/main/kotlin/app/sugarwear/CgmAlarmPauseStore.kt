@@ -17,7 +17,10 @@ internal object CgmAlarmPauseStore {
     }
 
     fun lastPauseDurationMinutes(context: Context): Int =
-        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_LAST_DURATION, 60).coerceIn(15, 720)
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_LAST_DURATION, 60)
+            .coerceIn(15, 720)
 
     fun isPaused(
         context: Context,

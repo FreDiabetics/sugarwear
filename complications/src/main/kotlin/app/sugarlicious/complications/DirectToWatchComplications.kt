@@ -374,11 +374,43 @@ object DirectToWatchPreferences {
         requestUpdates(context)
     }
 
+    /** Explicit canonical overrides win; existing handoffs remain readable during migration. */
+    private fun graphPreferences(context: Context, name: String): android.content.SharedPreferences {
+        val stored = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+        val legacy = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+        val reference =
+            app.sugarlicious.uishared.SugarWearDisplayDefaults
+                .preferences(context, name)
+        return object : android.content.SharedPreferences by reference {
+            override fun getInt(key: String?, defValue: Int): Int {
+                val legacyKey = if (key?.startsWith("dark.") == true) "graph_color_${key.removePrefix("dark.")}" else key
+                return when {
+                    stored.contains(key) -> stored.getInt(key, defValue)
+                    legacy.contains(legacyKey) -> legacy.getInt(legacyKey, defValue)
+                    else -> reference.getInt(key, defValue)
+                }
+            }
+
+            override fun getFloat(key: String?, defValue: Float): Float =
+                when {
+                    stored.contains(key) -> stored.getFloat(key, defValue)
+                    legacy.contains(key) -> legacy.getFloat(key, defValue)
+                    else -> reference.getFloat(key, defValue)
+                }
+
+            override fun getBoolean(key: String?, defValue: Boolean): Boolean =
+                when {
+                    stored.contains(key) -> stored.getBoolean(key, defValue)
+                    legacy.contains(key) -> legacy.getBoolean(key, defValue)
+                    else -> reference.getBoolean(key, defValue)
+                }
+        }
+    }
+
     fun graphColors(context: Context): WatchGraphColors {
         val defaults = DirectToWatchGraphColorDefaults.create()
         val p =
-            app.sugarlicious.uishared.SugarWearDisplayDefaults
-                .preferences(context, "g7_graph_colors")
+            graphPreferences(context, "g7_graph_colors")
         val prefix = "dark."
         return WatchGraphColors(
             graphBackground = p.getInt(prefix + "background", p.getInt("graph_color_background", defaults.graphBackground)),
@@ -415,7 +447,8 @@ object DirectToWatchPreferences {
             app.sugarlicious.uishared.SugarWearDisplayDefaults
                 .preferences(context, "g7_graph_colors")
         val prefix = "dark."
-        p.edit()
+        p
+            .edit()
             .putInt(prefix + "background", colors.graphBackground)
             .putInt(prefix + "range_low", colors.rangeLow)
             .putInt(prefix + "range_in", colors.rangeInRange)
@@ -446,8 +479,7 @@ object DirectToWatchPreferences {
     fun graphStyle(context: Context): SharedWearCgmGraphStyle {
         val defaults = DirectToWatchGraphDefaults.vigilStyle()
         val p =
-            app.sugarlicious.uishared.SugarWearDisplayDefaults
-                .preferences(context, "g7_direct_to_watch_settings")
+            graphPreferences(context, "g7_direct_to_watch_settings")
         return defaults.copy(
             dotRadiusDp = p.getFloat("graph_style_dot_radius", defaults.dotRadiusDp).coerceIn(1.5f, 6f),
             dotOutlineEnabled = true,
@@ -476,7 +508,8 @@ object DirectToWatchPreferences {
         val p =
             app.sugarlicious.uishared.SugarWearDisplayDefaults
                 .preferences(context, "g7_direct_to_watch_settings")
-        p.edit()
+        p
+            .edit()
             .putFloat("graph_style_dot_radius", style.dotRadiusDp.coerceIn(1.5f, 6f))
             .putBoolean("graph_style_dot_outline_enabled", true)
             .putBoolean("graph_style_historical_dot_outline_enabled", style.historicalDotOutlineEnabled)
@@ -496,16 +529,19 @@ object DirectToWatchPreferences {
     }
 
     fun resetGraphAppearance(context: Context) {
-        val p =
-            app.sugarlicious.uishared.SugarWearDisplayDefaults
-                .preferences(context, "g7_direct_to_watch_settings")
-        p
-            .edit()
-            .apply {
-                p.all.keys
-                    .filter { it.startsWith("graph_color_") || it.startsWith("graph_style_") }
-                    .forEach(::remove)
-            }.apply()
+        listOf(NAME, "g7_direct_to_watch_settings", "g7_graph_colors").forEach { name ->
+            val preferences = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+            preferences
+                .edit()
+                .apply {
+                    preferences.all.keys
+                        .filter {
+                            it.startsWith("graph_color_") ||
+                                it.startsWith("graph_style_") ||
+                                (name == "g7_graph_colors" && (it.startsWith("dark.") || it.startsWith("light.")))
+                        }.forEach(::remove)
+                }.apply()
+        }
         requestUpdates(context)
     }
 

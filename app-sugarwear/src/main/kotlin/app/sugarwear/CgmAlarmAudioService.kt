@@ -15,6 +15,48 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 
+private var connectionBeepPlayer: MediaPlayer? = null
+
+internal fun stopConnectionBeep() {
+    connectionBeepPlayer?.release()
+    connectionBeepPlayer = null
+}
+
+internal fun playConnectionBeep(context: Context) {
+    if (CgmAlarmAudioService.isPlaying() || CgmAlarmCoordinator.pendingNotices(context).any { it.state == SugarWearAlarmState.ACTIVE }) return
+    var pendingPlayer: MediaPlayer? = null
+    runCatching {
+        val player = MediaPlayer()
+        stopConnectionBeep()
+        connectionBeepPlayer = player
+        pendingPlayer = player
+        val attributes =
+            AudioAttributes
+                .Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        player.setAudioAttributes(attributes)
+        context.assets.openFd("alarms/alerts_sounds_beep.mp4").use {
+            player.setDataSource(it.fileDescriptor, it.startOffset, it.length)
+        }
+        player.setOnCompletionListener { if (connectionBeepPlayer === it) stopConnectionBeep() }
+        player.setOnErrorListener { mp, _, _ ->
+            if (connectionBeepPlayer === mp) stopConnectionBeep()
+            true
+        }
+        player.setOnPreparedListener {
+            if (connectionBeepPlayer === it) {
+                if (CgmAlarmAudioService.isPlaying()) stopConnectionBeep() else it.start()
+            }
+        }
+        player.prepareAsync()
+    }.onFailure {
+        if (connectionBeepPlayer === pendingPlayer) stopConnectionBeep() else pendingPlayer?.release()
+        android.util.Log.e("ConnectionBeep", "Failed to play connection sound", it)
+    }
+}
+
 /** Plays bundled alarms directly: Wear's notification UI substitutes its own notification chime. */
 class CgmAlarmAudioService : Service() {
     private var player: MediaPlayer? = null
@@ -52,6 +94,7 @@ class CgmAlarmAudioService : Service() {
         }
         val current = activeType
         if (current != null && !activeTest && (test || priority(type) < priority(current))) return START_NOT_STICKY
+        stopConnectionBeep()
         releasePlayer()
         activeType = type
         playingType = type
@@ -130,6 +173,8 @@ class CgmAlarmAudioService : Service() {
     companion object {
         private const val CHANNEL = "g7_alarm_playback"
         private var playingType: SugarWearAlarmType? = null
+
+        internal fun isPlaying(): Boolean = playingType != null
 
         fun play(context: Context, type: SugarWearAlarmType, test: Boolean = false) {
             runCatching { context.startForegroundService(Intent(context, CgmAlarmAudioService::class.java).putExtra("type", type.name).putExtra("test", test)) }

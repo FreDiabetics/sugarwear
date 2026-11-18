@@ -24,10 +24,10 @@ class CgmCollectorAttemptPresentationTest {
         assertNull(collectorAttemptPresentation(state, action, 220_000))
     }
 
-    @Test fun `resume shows real phases until a new successful sensor connection`() {
+    @Test fun `resume keeps waiting after connection until a fresh live value`() {
         val action = CgmUiSensorTransition(CgmUiSensorAction.RESUME, 100_000)
         val state = CgmPersistedState(collectorEnabled = true, protocolState = CgmProtocolState.SCANNING, lastSuccessfulConnectionEpochMs = 90_000)
         assertEquals("Sensor suchen", collectorAttemptPresentation(state, action, 110_000)!!.phase)
-        assertNull(collectorAttemptPresentation(state.copy(lastSuccessfulConnectionEpochMs = 105_000), action, 110_000))
+        assertEquals("Verbunden – warte auf Glukosewert", collectorAttemptPresentation(state.copy(lastSuccessfulConnectionEpochMs = 105_000), action, 110_000)!!.phase)
     }
 }

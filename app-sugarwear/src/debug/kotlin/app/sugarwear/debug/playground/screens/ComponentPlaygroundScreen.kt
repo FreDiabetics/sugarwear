@@ -59,9 +59,10 @@ fun ComponentPlaygroundScreen(
                         isAnimating = true
                     }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(24.dp),
             )
         }
     }

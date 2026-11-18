@@ -10,6 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** Live source contracts formerly covered by tools/tests/test_brand_assets.py. */
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class SourceBrandContractsTest {
     private val root = Path.of(System.getProperty("maintenance.sharedRoot"))
     private val targets =

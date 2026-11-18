@@ -66,8 +66,14 @@ internal class CgmSystemStatusRepository(
     fun recordUnlink() = CgmCollectorUiTransitionStore.record(app, CgmUiSensorAction.UNLINK)
 
     fun setCollectorEnabled(enabled: Boolean) {
-        CgmCollectorUiTransitionStore.record(app, if (enabled) CgmUiSensorAction.RESUME else CgmUiSensorAction.PAUSE)
-        if (enabled) CgmCollectorService.start(app) else CgmCollectorService.stop(app)
+        if (enabled) {
+            CgmCollectorUiTransitionStore.record(app, CgmUiSensorAction.RESUME)
+            CgmCollectorService.start(app)
+        } else {
+            val wasEnabled = CgmSensorStateStore(app).read().collectorEnabled
+            CgmCollectorService.stop(app)
+            if (wasEnabled || CgmCollectorUiTransitionStore.read(app)?.action != CgmUiSensorAction.PAUSE) CgmCollectorUiTransitionStore.record(app, CgmUiSensorAction.PAUSE)
+        }
     }
 }
 
@@ -129,8 +135,8 @@ internal class CgmSystemStatusViewModel
             worker.submit({ repository.recordUnlink() }, completed)
         }
 
-        fun pause() {
-            worker.submit({ repository.setCollectorEnabled(false) }, refreshDelayMs = 350L)
+        fun pause(completed: () -> Unit = {}) {
+            worker.submit({ repository.setCollectorEnabled(false) }, completed = { if (!worker.snapshot().sensor.collectorEnabled) completed() }, refreshDelayMs = 350L)
         }
 
         fun resumeCollector() {

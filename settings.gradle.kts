@@ -15,9 +15,9 @@ rootProject.name = "SugarWear"
 val localSharedRoot = file("local.properties").takeIf { it.isFile }?.inputStream()?.use { input ->
     java.util.Properties().apply { load(input) }.getProperty("sharedSourceRoot")
 }
-val sharedRoot = (providers.gradleProperty("sharedSourceRoot").orNull ?: localSharedRoot)?.let(::file) ?: file("shared/sugarlicious")
+val sharedRoot = (providers.gradleProperty("sharedSourceRoot").orNull ?: localSharedRoot)?.let(::file) ?: file(".")
 check(sharedRoot.resolve("core-model/build.gradle.kts").isFile) {
-    "Shared sources missing. Run git submodule update --init --recursive."
+    "SugarWear modules missing. Check sharedSourceRoot or restore the local modules."
 }
 val sharedModules = listOf("core-model", "cgm-protocol", "wear-protocol", "wear-storage", "ui-shared", "complications")
 sharedModules.forEach { module ->

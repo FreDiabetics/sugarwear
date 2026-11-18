@@ -7,7 +7,9 @@ import app.sugarlicious.sensor.protocol.CgmSensorState
 
 internal sealed interface CgmWarmupPresentation {
     data object NotWarmingUp : CgmWarmupPresentation
+
     data object UnknownRemainingTime : CgmWarmupPresentation
+
     data class CountingDown(
         val remainingMinutes: Long,
         val expectedEndEpochMs: Long,

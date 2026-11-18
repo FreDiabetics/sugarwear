@@ -4,6 +4,7 @@ import java.nio.file.Path
 import kotlin.io.path.*
 import kotlin.test.*
 
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class ProductInstallerTest {
     private val root = Path.of(System.getProperty("maintenance.sharedRoot", System.getProperty("user.dir")))
 

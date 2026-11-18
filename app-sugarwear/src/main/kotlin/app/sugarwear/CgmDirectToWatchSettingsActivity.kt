@@ -41,7 +41,14 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
         bindSettingsState(settings.state, render = ::render)
         bindSettingsState(appearance.state, render = ::render)
 
-        onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    navigateBack()
+                }
+            },
+        )
         selectedCategory = savedInstanceState?.getString("settings-category")
         pageRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
@@ -496,6 +503,7 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
     ) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(10.dp, 8.dp, 10.dp, 8.dp)
+        val step = if (title == AppearanceTerminology.GRAPH_HISTORICAL_DOT_OUTLINE_WIDTH || title == AppearanceTerminology.GRAPH_CURRENT_DOT_OUTLINE_WIDTH) 5 else 1
         var selectedValue = initial.coerceIn(min, max)
         val value = label(format(selectedValue), 11f, p.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true)
         addView(value)
@@ -522,8 +530,8 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
                                 progress: Int,
                                 fromUser: Boolean,
                             ) {
-                                val selected =
-                                    progress + min
+                                val selected = ((progress.toFloat() / step).roundToInt() * step + min).coerceIn(min, max)
+                                if (bar?.progress != selected - min) bar?.progress = selected - min
                                 selectedValue = selected
                                 value.text = format(selected)
                                 if (fromUser) save(selected)
@@ -535,7 +543,7 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
                         },
                     )
                 }.let { slider ->
-                    app.sugarlicious.uishared.WearSettingsUi.inlineSlider(slider) { raw ->
+                    app.sugarlicious.uishared.WearSettingsUi.inlineSlider(slider, step) { raw ->
                         val selected = raw + min
                         selectedValue = selected
                         value.text = format(selected)

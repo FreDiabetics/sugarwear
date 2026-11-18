@@ -9,7 +9,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CgmWarmupPresentationTest {
-
     @Test
     fun `returns NotWarmingUp when sensor is null or collector disabled`() {
         val warmup = CgmWarmupPolicy.evaluate(sensor = null, reading = null, collectorEnabled = false, nowEpochMs = 1_000_000L)

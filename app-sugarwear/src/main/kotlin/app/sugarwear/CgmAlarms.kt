@@ -11,6 +11,7 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import androidx.core.content.edit
+import androidx.core.net.toUri
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
@@ -19,11 +20,20 @@ import kotlinx.serialization.json.Json
 internal object CgmAlarmSettingsStore {
     fun read(context: Context): SugarWearAlarmSettings = SugarWearAlarmMigration.migrateIfNeeded(context)
 
+    fun readActive(context: Context, now: Long = System.currentTimeMillis()): SugarWearAlarmSettings =
+        read(context).let { it.forProfile(it.activeProfile(now).profile) }
+
     fun write(
         context: Context,
         settings: SugarWearAlarmSettings,
-    ) {
+    ) = synchronized(CgmSensorStateStore.lifecycleLock) {
+        val previous = read(context)
+        val now = System.currentTimeMillis()
         SugarWearAlarmMigration.writeSettings(context, settings)
+        if (previous.manualProfile != settings.manualProfile || previous.schedule != settings.schedule || previous.scheduleEnabled != settings.scheduleEnabled) {
+            CgmAlarmCoordinator.onProfileConfigurationChanged(context, previous.activeProfile(now), settings.activeProfile(now), now)
+        }
+        CgmSignalLossMonitor.scheduleFromState(context, CgmSensorStateStore(context).read(), now)
     }
 }
 
@@ -31,7 +41,36 @@ internal object CgmAlarmCoordinator {
     private const val PREFERENCES = "g7_cgm_alarm_state"
     private const val KEY_STATE = "state_v2"
     private const val KEY_NOTICES = "pending_notices_v2"
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private val json =
+        Json {
+            ignoreUnknownKeys = true
+            explicitNulls = false
+        }
+
+    fun acknowledgeEpisode(context: Context, expected: SugarWearAlarmInstance): Boolean =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            if (!matchesEpisode(context, expected.type, cgmAlarmEpisodeKey(expected))) return@synchronized false
+            acknowledge(context, expected.type)
+            true
+        }
+
+    fun matchesEpisode(context: Context, type: SugarWearAlarmType, key: String): Boolean {
+        val current = pendingNotices(context).firstOrNull { it.type == type } ?: return false
+        val sensor = CgmSensorStateStore(context).read().sensor
+        if (sensor != null && (sensor.sensorId != current.sensorId || (sensor.sessionId != null && sensor.sessionId != current.sessionId))) return false
+        return cgmAlarmEpisodeKey(current) == key
+    }
+
+    fun onProfileConfigurationChanged(
+        context: Context,
+        previous: ActiveSugarWearAlarmProfile,
+        next: ActiveSugarWearAlarmProfile,
+        now: Long,
+    ) {
+        val snapshot = read(context)
+        val updated = snapshot.withActiveProfile(previous, now).withActiveProfile(next, now, configurationChanged = true)
+        if (updated != snapshot) save(context, updated)
+    }
 
     fun onReading(
         context: Context,
@@ -77,21 +116,24 @@ internal object CgmAlarmCoordinator {
     ) = synchronized(CgmSensorStateStore.lifecycleLock) {
         dismissNotice(context, type)
         val snapshot = read(context)
-        val next = snapshot.alarms.map { alarm ->
-            if (alarm.type == type && (alarm.state == SugarWearAlarmState.ACTIVE || alarm.state == SugarWearAlarmState.PENDING_DELAY)) {
-                val rule = CgmAlarmSettingsStore.read(context).ruleFor(type)
-                val snoozeUntil = if (rule.snoozeEnabled && rule.snoozeMinutes > 0) nowEpochMs + rule.snoozeMinutes * 60_000L else null
-                alarm.copy(
-                    state = if (snoozeUntil != null) SugarWearAlarmState.SNOOZED else SugarWearAlarmState.ACKNOWLEDGED,
-                    acknowledgedAtEpochMs = nowEpochMs,
-                    snoozedUntilEpochMs = snoozeUntil,
-                )
-            } else {
-                alarm
+        val dismissesAudibleAlarm = CgmAlarmArbitrator.select(snapshot.alarms)?.type == type
+        val next =
+            snapshot.alarms.map { alarm ->
+                if (alarm.type == type && (alarm.state == SugarWearAlarmState.ACTIVE || alarm.state == SugarWearAlarmState.PENDING_DELAY)) {
+                    val rule = CgmAlarmSettingsStore.readActive(context, nowEpochMs).ruleFor(type)
+                    val snoozeUntil = if (rule.snoozeEnabled && rule.snoozeMinutes > 0) nowEpochMs + rule.snoozeMinutes * 60_000L else null
+                    alarm.copy(
+                        state = if (snoozeUntil != null) SugarWearAlarmState.SNOOZED else SugarWearAlarmState.ACKNOWLEDGED,
+                        acknowledgedAtEpochMs = nowEpochMs,
+                        snoozedUntilEpochMs = snoozeUntil,
+                    )
+                } else {
+                    alarm
+                }
             }
-        }
         save(context, snapshot.copy(alarms = next))
         CgmAlarmNotifier.cancel(context, type)
+        if (dismissesAudibleAlarm) context.getSystemService(android.os.Vibrator::class.java)?.cancel()
         CgmAlarmRepeatScheduler.cancel(context, type)
     }
 
@@ -103,9 +145,12 @@ internal object CgmAlarmCoordinator {
     fun pendingNotices(context: Context): List<SugarWearAlarmInstance> =
         synchronized(CgmSensorStateStore.lifecycleLock) {
             val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-            val saved = preferences.getString(KEY_NOTICES, null)?.let {
-                runCatching { json.decodeFromString<List<SugarWearAlarmInstance>>(it) }.getOrNull()
-            }.orEmpty()
+            val saved =
+                preferences
+                    .getString(KEY_NOTICES, null)
+                    ?.let {
+                        runCatching { json.decodeFromString<List<SugarWearAlarmInstance>>(it) }.getOrNull()
+                    }.orEmpty()
             val activeList = read(context).alarms.filter { it.state == SugarWearAlarmState.ACTIVE }
             val list = (saved + activeList).distinctBy { it.type }.sortedByDescending { SugarWearAlarmDefaults.priority(it.type) }
             list.filterNot { CgmAlarmPauseStore.isPaused(context, it.type) }
@@ -126,18 +171,24 @@ internal object CgmAlarmCoordinator {
         synchronized(CgmSensorStateStore.lifecycleLock) {
             if (CgmAlarmPauseStore.isPaused(context, type)) return@synchronized
             val alarm = read(context).alarms.firstOrNull { it.type == type && it.state == SugarWearAlarmState.ACTIVE } ?: return@synchronized
-            CgmAlarmNotifier.show(context, alarm, CgmAlarmSettingsStore.read(context), onlyAlertOnce = true)
+            val settings = CgmAlarmSettingsStore.readActive(context)
+            if (settings.ruleFor(type).enabled) CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
         }
 
     fun snooze(context: Context, type: SugarWearAlarmType, now: Long = System.currentTimeMillis()) =
         synchronized(CgmSensorStateStore.lifecycleLock) {
             val snapshot = read(context)
             dismissNotice(context, type)
-            val rule = CgmAlarmSettingsStore.read(context).ruleFor(type)
-            val until = now + CgmAlarmDelivery.snoozeMinutes(context, type) * 60_000L
-            save(context, snapshot.copy(alarms = snapshot.alarms.map {
-                if (it.type == type) it.copy(state = SugarWearAlarmState.SNOOZED, snoozedUntilEpochMs = until) else it
-            }))
+            val until = now + CgmAlarmDelivery.snoozeMinutes(context, type, now) * 60_000L
+            save(
+                context,
+                snapshot.copy(
+                    alarms =
+                        snapshot.alarms.map {
+                            if (it.type == type) it.copy(state = SugarWearAlarmState.SNOOZED, snoozedUntilEpochMs = until) else it
+                        },
+                ),
+            )
             CgmAlarmNotifier.cancel(context, type)
             CgmAlarmRepeatScheduler.scheduleAt(context, type, until)
         }
@@ -152,28 +203,33 @@ internal object CgmAlarmCoordinator {
             CgmAlarmRepeatScheduler.cancel(context, type)
             return@synchronized
         }
-        val settings = CgmAlarmSettingsStore.read(context)
-        val snapshot = read(context)
+        val (snapshot, settings) = readRuntime(context, nowEpochMs)
         val alarm = snapshot.alarms.firstOrNull { it.type == type } ?: return@synchronized
+        if (!settings.ruleFor(type).enabled) {
+            CgmAlarmNotifier.cancel(context, type)
+            CgmAlarmRepeatScheduler.cancel(context, type)
+            return@synchronized
+        }
         if (alarm.state == SugarWearAlarmState.SNOOZED && alarm.snoozedUntilEpochMs?.let { nowEpochMs >= it } == true) {
             evaluate(context, reading = CgmSensorStateStore(context).read().lastReading, nowEpochMs = nowEpochMs)
             return@synchronized
         }
         if (alarm.state != SugarWearAlarmState.ACTIVE && alarm.state != SugarWearAlarmState.SNOOZED) return@synchronized
         CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
-        val updated = snapshot.alarms.map {
-            if (it.type == type) it.copy(lastNotifiedAtEpochMs = nowEpochMs) else it
-        }
+        val updated =
+            snapshot.alarms.map {
+                if (it.type == type) it.copy(lastNotifiedAtEpochMs = nowEpochMs) else it
+            }
         save(context, snapshot.copy(alarms = updated))
-        val rule = settings.ruleFor(type)
-        val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type).takeIf { it > 0 } ?: rule.snoozeMinutes
+        val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type, nowEpochMs)
         CgmAlarmRepeatScheduler.schedule(context, type, repeatMinutes)
     }
 
     fun clearSuppressed(context: Context) =
         synchronized(CgmSensorStateStore.lifecycleLock) {
             val notices = pendingNotices(context)
-            save(context, SugarWearAlarmSnapshot())
+            val snapshot = read(context)
+            save(context, snapshot.copy(sensorId = null, sessionId = null, alarms = emptyList(), sensorErrorSinceEpochMs = null))
             saveNotices(context, notices)
             CgmAlarmNotifier.cancelAll(context)
             CgmAlarmRepeatScheduler.cancelAll(context)
@@ -182,7 +238,7 @@ internal object CgmAlarmCoordinator {
     fun clearForSensorRemoval(context: Context) {
         clearSuppressed(context)
         val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-        check(preferences.edit().clear().commit()) { "SugarWear alarm runtime cleanup failed" }
+        preferences.clearSynchronously("SugarWear alarm runtime cleanup failed")
     }
 
     fun restore(
@@ -193,10 +249,9 @@ internal object CgmAlarmCoordinator {
             clearSuppressed(context)
             return@synchronized
         }
-        val settings = CgmAlarmSettingsStore.read(context)
-        val snapshot = read(context)
+        val (snapshot, settings) = readRuntime(context, nowEpochMs)
         SugarWearAlarmType.entries.forEach { type ->
-            if (CgmAlarmPauseStore.isPaused(context, type, nowEpochMs)) {
+            if (!settings.ruleFor(type).enabled || CgmAlarmPauseStore.isPaused(context, type, nowEpochMs)) {
                 CgmAlarmNotifier.cancel(context, type)
                 CgmAlarmRepeatScheduler.cancel(context, type)
                 return@forEach
@@ -208,7 +263,7 @@ internal object CgmAlarmCoordinator {
                 CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
                 val rule = settings.ruleFor(type)
                 if (rule.snoozeEnabled) {
-                    val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type).takeIf { it > 0 } ?: rule.snoozeMinutes
+                    val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type, nowEpochMs)
                     val intervalMs = repeatMinutes * 60_000L
                     val nextRepeat = (alarm.lastNotifiedAtEpochMs ?: alarm.triggeredAtEpochMs ?: nowEpochMs) + intervalMs
                     CgmAlarmRepeatScheduler.scheduleAt(context, type, maxOf(nextRepeat, nowEpochMs + 1_000L))
@@ -228,45 +283,61 @@ internal object CgmAlarmCoordinator {
         technicalError: CgmCollectorError? = null,
         nowEpochMs: Long,
     ) {
-        val settings = CgmAlarmSettingsStore.read(context)
-        val previous = read(context)
+        val (previous, settings) = readRuntime(context, nowEpochMs)
         val stateStore = CgmSensorStateStore(context).read()
         val currentReading = reading ?: stateStore.lastReading
 
-        val sameSession = currentReading == null ||
-            previous.alarms.isEmpty() ||
-            (previous.sensorId == currentReading.sensorId && previous.sessionId == currentReading.sessionId)
+        val sameSession =
+            currentReading == null ||
+                previous.alarms.isEmpty() ||
+                (previous.sensorId == currentReading.sensorId && previous.sessionId == currentReading.sessionId)
         if (!sameSession) {
             CgmAlarmNotifier.cancelAll(context)
             CgmAlarmRepeatScheduler.cancelAll(context)
         }
 
-        val previousMap = if (sameSession) {
-            previous.alarms.associateBy(SugarWearAlarmInstance::type).mapValues { (_, alarm) ->
-                if (alarm.state == SugarWearAlarmState.SNOOZED && alarm.snoozedUntilEpochMs?.let { nowEpochMs >= it } == true) {
-                    alarm.copy(state = SugarWearAlarmState.INACTIVE)
-                } else alarm
+        val previousMap =
+            if (sameSession) {
+                previous.alarms.associateBy(SugarWearAlarmInstance::type).mapValues { (_, alarm) ->
+                    if (alarm.state == SugarWearAlarmState.SNOOZED && alarm.snoozedUntilEpochMs?.let { nowEpochMs >= it } == true) {
+                        alarm.copy(state = SugarWearAlarmState.INACTIVE)
+                    } else {
+                        alarm
+                    }
+                }
+            } else {
+                emptyMap()
             }
-        } else emptyMap()
 
         val lastReadingAt = currentReading?.timestampEpochMs
-        val signalLossDuration = if (lastReadingAt != null && lastReadingAt > 0) {
-            (nowEpochMs - lastReadingAt) / 60_000L
-        } else 0L
+        val signalLossDuration =
+            if (lastReadingAt != null && lastReadingAt > 0) {
+                (nowEpochMs - lastReadingAt) / 60_000L
+            } else {
+                0L
+            }
 
-        val sensorErrorDuration = if (currentReading?.status == CgmReadingStatus.SENSOR_ERROR && lastReadingAt != null) {
-            (nowEpochMs - lastReadingAt) / 60_000L
-        } else 0L
+        // Fresh error packets prove radio contact, but do not restart a continuous sensor fault.
+        // Keep this anchor in the existing session-bound alarm snapshot across process restarts.
+        val sensorErrorSince =
+            if (currentReading?.status == CgmReadingStatus.SENSOR_ERROR) {
+                (previous.sensorErrorSinceEpochMs.takeIf { sameSession } ?: lastReadingAt ?: nowEpochMs).coerceAtMost(nowEpochMs)
+            } else {
+                null
+            }
+        val sensorErrorDuration = sensorErrorSince?.let { (nowEpochMs - it).coerceAtLeast(0L) / 60_000L } ?: 0L
 
-        val result = SugarWearAlarmEngine.evaluate(
-            reading = currentReading,
-            technicalError = technicalError,
-            signalLossDurationMinutes = signalLossDuration,
-            sensorErrorDurationMinutes = sensorErrorDuration,
-            previousState = previousMap,
-            settings = settings,
-            nowEpochMs = nowEpochMs,
-        )
+        val result =
+            SugarWearAlarmEngine.evaluate(
+                reading = currentReading,
+                technicalError = technicalError,
+                signalLossDurationMinutes = signalLossDuration,
+                sensorErrorDurationMinutes = sensorErrorDuration,
+                previousState = previousMap,
+                settings = settings,
+                nowEpochMs = nowEpochMs,
+                evaluateGlucose = previous.acceptsGlucoseFrom(currentReading?.timestampEpochMs),
+            )
 
         val withNotifications = result.updatedInstances.toMutableMap()
         val notices = pendingNotices(context).associateBy { it.type }.toMutableMap()
@@ -294,7 +365,7 @@ internal object CgmAlarmCoordinator {
                     withNotifications[type] = current.copy(lastNotifiedAtEpochMs = nowEpochMs)
                     val rule = settings.ruleFor(type)
                     if (rule.snoozeEnabled) {
-                        val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type).takeIf { it > 0 } ?: rule.snoozeMinutes
+                        val repeatMinutes = CgmAlarmDelivery.snoozeMinutes(context, type, nowEpochMs)
                         CgmAlarmRepeatScheduler.schedule(context, type, repeatMinutes)
                     }
                 }
@@ -304,7 +375,12 @@ internal object CgmAlarmCoordinator {
                     CgmAlarmRepeatScheduler.cancel(context, type)
                 }
                 current?.state == SugarWearAlarmState.ACTIVE -> {
-                    CgmAlarmNotifier.show(context, current, settings, onlyAlertOnce = true, reading = currentReading)
+                    if (settings.ruleFor(type).enabled) {
+                        CgmAlarmNotifier.show(context, current, settings, onlyAlertOnce = true, reading = currentReading)
+                    } else {
+                        CgmAlarmNotifier.cancel(context, type)
+                        CgmAlarmRepeatScheduler.cancel(context, type)
+                    }
                 }
             }
         }
@@ -315,9 +391,52 @@ internal object CgmAlarmCoordinator {
                 sensorId = currentReading?.sensorId ?: previous.sensorId,
                 sessionId = currentReading?.sessionId ?: previous.sessionId,
                 alarms = withNotifications.values.sortedBy { SugarWearAlarmDefaults.priority(it.type) },
+                sensorErrorSinceEpochMs = sensorErrorSince,
+                activeProfile = previous.activeProfile,
+                glucoseProfileStartedAtEpochMs = previous.glucoseProfileStartedAtEpochMs,
             ),
         )
         saveNotices(context, notices.values.toList())
+    }
+
+    /** Additional deadlines for the existing monitor, independent of the overview's 16-minute label. */
+    fun nextTimedEvaluationAt(context: Context, state: app.sugarlicious.sensor.protocol.CgmPersistedState, now: Long): Long? =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            if (!state.collectorEnabled || !CgmAlertPolicyStore.alarmsEnabled(context, now)) return@synchronized null
+            val reading = state.lastReading ?: return@synchronized null
+            val snapshot = read(context)
+            val sameSession = snapshot.sensorId == reading.sensorId && snapshot.sessionId == reading.sessionId
+            val configured = CgmAlarmSettingsStore.read(context)
+            val settings = configured.forProfile(configured.activeProfile(now).profile)
+            val alarmDeadline =
+                listOf(SugarWearAlarmType.SIGNAL_LOSS, SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM)
+                    .mapNotNull { type ->
+                        val rule = settings.ruleFor(type)
+                        if (!rule.enabled || CgmAlarmPauseStore.isPaused(context, type, now)) return@mapNotNull null
+                        val alarm = snapshot.alarms.firstOrNull { it.type == type }.takeIf { sameSession }
+                        if (alarm?.state in setOf(SugarWearAlarmState.ACTIVE, SugarWearAlarmState.ACKNOWLEDGED, SugarWearAlarmState.SNOOZED)) return@mapNotNull null
+                        val since =
+                            when (type) {
+                                SugarWearAlarmType.SIGNAL_LOSS -> reading.timestampEpochMs
+                                SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> {
+                                    if (reading.status != CgmReadingStatus.SENSOR_ERROR) return@mapNotNull null
+                                    snapshot.sensorErrorSinceEpochMs.takeIf { sameSession } ?: reading.timestampEpochMs
+                                }
+                                else -> return@mapNotNull null
+                            }
+                        since + rule.durationMinutes * 60_000L
+                    }.minOrNull()
+            val profileDeadline = configured.schedule.takeIf { configured.scheduleEnabled }?.nextChangeAfter(now)
+            listOfNotNull(alarmDeadline, profileDeadline).minOrNull()
+        }
+
+    private fun readRuntime(context: Context, now: Long): Pair<SugarWearAlarmSnapshot, SugarWearAlarmSettings> {
+        val configured = CgmAlarmSettingsStore.read(context)
+        val selection = configured.activeProfile(now)
+        val previous = read(context)
+        val updated = previous.withActiveProfile(selection, now)
+        if (updated != previous) save(context, updated)
+        return updated to configured.forProfile(selection.profile)
     }
 
     private fun read(context: Context): SugarWearAlarmSnapshot =
@@ -341,17 +460,18 @@ internal object CgmAlarmNotifier {
     private const val CHANNEL_PREFIX = "sugarwear_alarm_v9_"
     private const val CHANNEL_FAMILY_PREFIX = "sugarwear_alarm_"
 
-    private fun notificationId(type: SugarWearAlarmType): Int = when (type) {
-        SugarWearAlarmType.URGENT_LOW -> 7101
-        SugarWearAlarmType.URGENT_LOW_SOON -> 7102
-        SugarWearAlarmType.LOW -> 7103
-        SugarWearAlarmType.HIGH -> 7104
-        SugarWearAlarmType.RAPID_RISE -> 7105
-        SugarWearAlarmType.RAPID_FALL -> 7106
-        SugarWearAlarmType.SIGNAL_LOSS -> 7107
-        SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> 7108
-        SugarWearAlarmType.TECHNICAL_WARNING -> 7109
-    }
+    private fun notificationId(type: SugarWearAlarmType): Int =
+        when (type) {
+            SugarWearAlarmType.URGENT_LOW -> 7101
+            SugarWearAlarmType.URGENT_LOW_SOON -> 7102
+            SugarWearAlarmType.LOW -> 7103
+            SugarWearAlarmType.HIGH -> 7104
+            SugarWearAlarmType.RAPID_RISE -> 7105
+            SugarWearAlarmType.RAPID_FALL -> 7106
+            SugarWearAlarmType.SIGNAL_LOSS -> 7107
+            SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> 7108
+            SugarWearAlarmType.TECHNICAL_WARNING -> 7109
+        }
 
     fun show(
         context: Context,
@@ -362,24 +482,38 @@ internal object CgmAlarmNotifier {
     ) {
         val channelId = channelId(context, alarm.type, settings)
         ensureAllChannels(context, settings)
-        val open = PendingIntent.getActivity(
-            context,
-            notificationId(alarm.type),
-            CgmAlarmActivity.intent(context, alarm.type),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        val open =
+            PendingIntent.getActivity(
+                context,
+                notificationId(alarm.type),
+                CgmAlarmActivity
+                    .intent(context, alarm.type)
+                    .putExtra("episode", cgmAlarmEpisodeKey(alarm))
+                    .setData("sugarwear:alarm/${android.net.Uri.encode(cgmAlarmEpisodeKey(alarm))}".toUri()),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+        val presentationReading =
+            (reading ?: CgmSensorStateStore(context).read().lastReading)?.takeIf {
+                (alarm.sensorId == null || alarm.sensorId == it.sensorId) && (alarm.sessionId == null || alarm.sessionId == it.sessionId)
+            }
         if (!onlyAlertOnce) playAlarm(context, alarm.type, settings)
         val icon = Icon.createWithResource(context, app.sugarlicious.uishared.R.drawable.ic_alert)
+        val body =
+            when {
+                alarm.type == SugarWearAlarmType.TECHNICAL_WARNING -> "Bitte den Systemstatus prüfen."
+                alarm.triggerGlucoseMgDl != null -> "${kotlin.math.round(alarm.triggerGlucoseMgDl).toInt()} mg/dL"
+                else -> cgmAlarmValue(presentationReading)
+            }
         context.getSystemService(NotificationManager::class.java).notify(
             notificationId(alarm.type),
-            Notification.Builder(context, channelId)
-                .setSmallIcon(app.sugarlicious.uishared.R.drawable.ic_alert)
-                .setColor(color(alarm.type))
+            Notification
+                .Builder(context, channelId)
+                .setSmallIcon(R.drawable.ic_cgm_notification)
+                .setColor(color(context, alarm.type))
                 .setContentTitle(cgmAlarmHeadline(alarm.type))
-                .setContentText(audioAwareBody(context, reading?.let { cgmAlarmValue(it) } ?: cgmAlarmReadingText(context), settings))
+                .setContentText(audioAwareBody(context, body, settings))
                 .setContentIntent(open)
                 .setCategory(Notification.CATEGORY_ALARM)
-                .setFullScreenIntent(if (onlyAlertOnce) null else open, true)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setOngoing(true)
                 .setAutoCancel(false)
@@ -411,9 +545,10 @@ internal object CgmAlarmNotifier {
         playAlarm(context, type, settings, test = true)
         context.getSystemService(NotificationManager::class.java).notify(
             testNotificationId(type),
-            Notification.Builder(context, channelId)
-                .setSmallIcon(app.sugarlicious.uishared.R.drawable.ic_alert)
-                .setColor(color(type))
+            Notification
+                .Builder(context, channelId)
+                .setSmallIcon(R.drawable.ic_cgm_notification)
+                .setColor(color(context, type))
                 .setContentTitle("Test · ${cgmAlarmTitle(type)}")
                 .setContentText(audioAwareBody(context, "Sound, Vibration und Nicht-stören-Verhalten dieses Alarms werden geprüft.", settings))
                 .setCategory(Notification.CATEGORY_ALARM)
@@ -432,7 +567,7 @@ internal object CgmAlarmNotifier {
 
     fun prepareCurrentChannels(context: Context) {
         CgmAlarmVolume.recoverExpired(context)
-        val settings = CgmAlarmSettingsStore.read(context)
+        val settings = CgmAlarmSettingsStore.readActive(context)
         SugarWearAlarmType.entries.forEach { type -> ensureChannel(context, channelId(context, type, settings), type, settings) }
     }
 
@@ -456,7 +591,10 @@ internal object CgmAlarmNotifier {
         if ((settings.globalVibrateOnly || rule.deliveryMode == SugarWearAlertDeliveryMode.VIBRATE || mode == "vibrate") && mode != "mute") {
             context.getSystemService(android.os.Vibrator::class.java)?.vibrate(
                 android.os.VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1),
-                android.os.VibrationAttributes.Builder().setUsage(android.os.VibrationAttributes.USAGE_ALARM).build(),
+                android.os.VibrationAttributes
+                    .Builder()
+                    .setUsage(android.os.VibrationAttributes.USAGE_ALARM)
+                    .build(),
             )
         }
     }
@@ -467,27 +605,28 @@ internal object CgmAlarmNotifier {
         type: SugarWearAlarmType,
         settings: SugarWearAlarmSettings,
     ) {
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(channelId) != null) return
+        manager.createNotificationChannel(
             NotificationChannel(channelId, cgmAlarmTitle(type), NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Eigenständiger SugarWear-Alarm: ${cgmAlarmTitle(type)}"
                 enableVibration(false)
-                val alarmAudio = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
+                val alarmAudio =
+                    AudioAttributes
+                        .Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
                 setSound(null, alarmAudio)
-                setBypassDnd(CgmAlarmSystemAccess.isAccessGranted(context))
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             },
         )
     }
 
-    private fun color(type: SugarWearAlarmType): Int =
-        if (type in setOf(SugarWearAlarmType.URGENT_LOW, SugarWearAlarmType.URGENT_LOW_SOON, SugarWearAlarmType.LOW, SugarWearAlarmType.SIGNAL_LOSS, SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM, SugarWearAlarmType.TECHNICAL_WARNING)) {
-            0xFFFF5C69.toInt()
-        } else {
-            0xFFFFD040.toInt()
-        }
+    private fun color(context: Context, type: SugarWearAlarmType): Int =
+        CgmAppearanceStore(context).load().argb(
+            if (type in setOf(SugarWearAlarmType.HIGH, SugarWearAlarmType.RAPID_RISE)) CgmAppearanceRole.GLUCOSE_HIGH else CgmAppearanceRole.GLUCOSE_LOW,
+        )
 
     internal fun channelId(
         context: Context,
@@ -498,9 +637,15 @@ internal object CgmAlarmNotifier {
             append(CHANNEL_PREFIX)
             append(type.id)
             append("_m")
-            append(if (settings.globalMuteAll) '0' else if (settings.globalVibrateOnly) 'v' else '1')
-            append("_d")
-            append(if (CgmAlarmSystemAccess.isAccessGranted(context)) '1' else '0')
+            append(
+                if (settings.globalMuteAll) {
+                    '0'
+                } else if (settings.globalVibrateOnly) {
+                    'v'
+                } else {
+                    '1'
+                },
+            )
         }
 
     private const val TEST_NOTIFICATION_BASE = 7_300
@@ -580,15 +725,17 @@ class CgmAlarmAcknowledgeReceiver : BroadcastReceiver() {
         if (intent.action == CgmAlarmDelivery.ACTION) {
             val type = intent.getStringExtra(EXTRA_TYPE)?.let { runCatching { SugarWearAlarmType.valueOf(it) }.getOrNull() } ?: return
             val operation = intent.getStringExtra("operation") ?: return
+            val episode = intent.getStringExtra("episode") ?: return
             val pending = goAsync()
             CgmReceiverWork
-                .dispatcher { app, _ -> CgmAlarmDelivery.perform(app, type, operation) }
+                .dispatcher { app, _ -> CgmAlarmDelivery.perform(app, type, operation, episode) }
                 .dispatch(context, intent.action, onFinished = pending::finish)
             return
         }
         if (intent.action != ACTION_ACKNOWLEDGE) return
         val type = intent.getStringExtra(EXTRA_TYPE)?.let { runCatching { SugarWearAlarmType.valueOf(it) }.getOrNull() } ?: return
-        CgmAlarmCoordinator.acknowledge(context, type)
+        val episode = intent.getStringExtra("episode") ?: return
+        CgmAlarmDelivery.perform(context, type, "ack", episode)
     }
 
     companion object {

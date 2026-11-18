@@ -1,6 +1,5 @@
 package app.sugarwear
 
-import android.app.NotificationManager
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -125,25 +124,31 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
         card("Einrichtung", "Schritt für Schritt", "Alle benötigten Freigaben erneut prüfen. Bestehende Sensordaten bleiben erhalten.", "Einrichtung öffnen") {
             startActivity(android.content.Intent(this, CgmSetupActivity::class.java))
         }
-        card("Bluetooth", status(state.bluetoothGranted), "Geräte in der Nähe: Sensorempfang und Verbindung. Kein Standortzugriff erforderlich.", "Berechtigungen öffnen") {
-            requestOrOpen(setOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT), CgmSystemAccess.appSettingsIntents(packageName))
-        }
         card("Benachrichtigungen", status(state.notificationsGranted), "Collectorstatus und Glukosealarme. Nach dauerhafter Ablehnung in den App-Einstellungen erlauben.", "Benachrichtigungen öffnen") {
             requestOrOpen(setOf(android.Manifest.permission.POST_NOTIFICATIONS), CgmSystemAccess.notificationSettingsIntents(packageName))
-        }
-        card("Hintergrundbetrieb", status(state.batteryUnrestricted), "Die Akkuausnahme schützt den direkten Sensorempfang im Ruhemodus. Hersteller können diese Auswahl einschränken.", "Akkueinstellungen öffnen") {
-            if (!CgmBackgroundAccess.openBatterySettings(this)) unavailable()
         }
         card("Genaue Alarme", status(state.exactAlarmsGranted), "Für zeitgenaue Wiederverbindung, Sensorfenster und Alarmwiederholung.", "Alarmzugriff öffnen") {
             open(CgmSystemAccess.exactAlarmSettingsIntents(packageName))
         }
-        val alarm = checkNotNull(access.state.value.snapshot).alarmAccess
-        card("Nicht stören", cgmAlarmAccessLabel(alarm), "${cgmAlarmAudioPolicyLabel(alarm)}. ${cgmAlarmAccessGuidance(alarm)}", cgmAlarmSettingsAction(alarm)?.label) {
-            if (CgmAlarmSystemAccess.openRecommendedSettings(this, alarm) != CgmSettingsOpenResult.OPENED) unavailable()
+        card("Bluetooth", status(state.bluetoothGranted), "Geräte in der Nähe: Sensorempfang und Verbindung. Kein Standortzugriff erforderlich.", "Berechtigungen öffnen") {
+            requestOrOpen(setOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT), CgmSystemAccess.appSettingsIntents(packageName))
         }
-        val ready = state.alarmChannels.count { it.importance != null && it.importance > NotificationManager.IMPORTANCE_NONE && it.bypassDnd }
-        card("Alarmkanäle", "$ready von ${state.alarmChannels.size} mit Nicht-Stören-Ausnahme", "Alle Alarmkanäle gemeinsam verwalten. SugarWear spielt die eigenen Alarmtöne direkt ab.", "Alarmkanäle öffnen") {
-            open(CgmSystemAccess.notificationSettingsIntents(packageName))
+
+        val backgroundStatusText =
+            buildString {
+                append("App-Inaktivität: ")
+                append(
+                    when (state.autoRevokeStatus) {
+                        CgmBackgroundRestrictionStatus.ALLOWED -> "Beschränkung deaktiviert"
+                        CgmBackgroundRestrictionStatus.RESTRICTED -> "Beschränkung aktiv"
+                        CgmBackgroundRestrictionStatus.UNKNOWN -> "Nicht prüfbar"
+                    },
+                )
+                append("\nAkkuoptimierung: ")
+                append(if (state.batteryUnrestricted) "Ausgenommen" else "Aktiv")
+            }
+        card("Hintergrundbetrieb/Akkuoptimierungen", backgroundStatusText, "App-Inaktivitätsbeschränkungen und Akkuoptimierungen werden getrennt geprüft.", "Akkueinstellungen öffnen") {
+            if (!CgmBackgroundAccess.openBatterySettings(this)) unavailable()
         }
         scroll.post { scroll.scrollTo(0, y) }
     }

@@ -4,7 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CgmAlarmArbitratorTest {
-
     @Test
     fun `urgent low has highest priority over low and high`() {
         val urgentLow = SugarWearAlarmInstance(type = SugarWearAlarmType.URGENT_LOW, state = SugarWearAlarmState.ACTIVE)

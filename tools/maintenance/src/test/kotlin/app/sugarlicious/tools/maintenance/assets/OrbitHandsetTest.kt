@@ -5,6 +5,7 @@ import java.nio.file.Path
 import javax.imageio.ImageIO
 import kotlin.test.*
 
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class OrbitHandsetTest {
     @Test fun `current authored outlines match installed resources without an obsolete accent`() {
         val root = Path.of(System.getProperty("maintenance.sharedRoot"))

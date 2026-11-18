@@ -256,7 +256,9 @@ object WearSettingsUi {
         }
 
     /** Only button steps persist here; native gesture callbacks remain owned by the caller. */
-    fun inlineSlider(slider: SeekBar, onStep: (Int) -> Unit): LinearLayout =
+    fun inlineSlider(slider: SeekBar, onStep: (Int) -> Unit): LinearLayout = inlineSlider(slider, 1, onStep)
+
+    fun inlineSlider(slider: SeekBar, step: Int, onStep: (Int) -> Unit): LinearLayout =
         LinearLayout(slider.context).apply {
             orientation = LinearLayout.VERTICAL
 
@@ -270,7 +272,7 @@ object WearSettingsUi {
                     setPadding(0, 0, 0, 0)
                     setOnClickListener {
                         if (!slider.isEnabled) return@setOnClickListener
-                        val value = (slider.progress + delta).coerceIn(slider.min, slider.max)
+                        val value = (slider.progress + delta * step.coerceAtLeast(1)).coerceIn(slider.min, slider.max)
                         if (value != slider.progress) {
                             slider.progress = value
                             onStep(value)

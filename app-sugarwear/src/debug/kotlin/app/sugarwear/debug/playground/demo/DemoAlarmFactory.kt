@@ -19,19 +19,20 @@ object DemoAlarmFactory {
         trend: Trend = Trend.SINGLE_DOWN,
         nowEpochMs: Long = System.currentTimeMillis(),
     ): CgmAlarmScreenState {
-        val testReading = CgmReading(
-            id = "DEMO-ALARM-READING",
-            source = DataSourceId.DEXCOM_G7_WATCH,
-            sensorId = "DEMO-SENSOR",
-            sessionId = "DEMO-SESSION",
-            glucoseMgDl = glucoseMgDl,
-            timestampEpochMs = nowEpochMs - 60_000L,
-            receivedAtEpochMs = nowEpochMs,
-            deltaMgDl = -3.0,
-            trend = trend,
-            status = CgmReadingStatus.VALID,
-            origin = CgmReadingOrigin.LIVE,
-        )
+        val testReading =
+            CgmReading(
+                id = "DEMO-ALARM-READING",
+                source = DataSourceId.DEXCOM_G7_WATCH,
+                sensorId = "DEMO-SENSOR",
+                sessionId = "DEMO-SESSION",
+                glucoseMgDl = glucoseMgDl,
+                timestampEpochMs = nowEpochMs - 60_000L,
+                receivedAtEpochMs = nowEpochMs,
+                deltaMgDl = -3.0,
+                trend = trend,
+                status = CgmReadingStatus.VALID,
+                origin = CgmReadingOrigin.LIVE,
+            )
 
         return CgmAlarmScreenState(
             type = type,

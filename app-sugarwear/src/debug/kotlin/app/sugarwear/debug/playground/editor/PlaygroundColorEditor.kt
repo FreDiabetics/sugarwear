@@ -19,18 +19,19 @@ fun PlaygroundColorEditor(
     graphStyle: GraphVisualStyle,
     onGraphStyleChange: (GraphVisualStyle) -> Unit,
 ) {
-    val presets = listOf(
-        Color(0xFF22EB60),
-        Color(0xFFFF5C69),
-        Color(0xFFFFD040),
-        Color(0xFF4CAF50),
-        Color(0xFFD32F2F),
-        Color(0xFFF57C00),
-        Color(0xFF2196F3),
-        Color(0xFF9C27B0),
-        Color(0xFFFFFFFF),
-        Color(0xFF000000),
-    )
+    val presets =
+        listOf(
+            Color(0xFF22EB60),
+            Color(0xFFFF5C69),
+            Color(0xFFFFD040),
+            Color(0xFF4CAF50),
+            Color(0xFFD32F2F),
+            Color(0xFFF57C00),
+            Color(0xFF2196F3),
+            Color(0xFF9C27B0),
+            Color(0xFFFFFFFF),
+            Color(0xFF000000),
+        )
 
     Column(
         Modifier

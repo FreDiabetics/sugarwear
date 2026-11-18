@@ -54,6 +54,7 @@ internal data class CgmPairingUiState(
     val startedAt: Long = Long.MAX_VALUE,
     val failureMessage: String? = null,
     val unlinkInFlight: Boolean = false,
+    val offerStop: Boolean = false,
     val unlinkFailed: Boolean = false,
     val unlinkFailureReason: String? = null,
     val effect: CgmPairingEffect? = null,
@@ -79,6 +80,7 @@ internal class SensorConnectionViewModel(
     private var generation = 0L
     private var pendingCode: String? = null
     private var closeAfterUnlink = false
+    private var editAfterUnlink = false
     private var latestSensor = CgmPersistedState()
     private var openRequested = false
     private var visible = false
@@ -102,10 +104,12 @@ internal class SensorConnectionViewModel(
 
     fun start(code: String): Boolean {
         if (!canStartCgmPairing(state.value.step, state.value.startInFlight, code)) return false
+        editAfterUnlink = false
         pendingCode = code
         mutableState.update {
             it.copy(
                 step = CgmPairingScreenStep.CONNECTING,
+                draft = code,
                 startInFlight = true,
                 accessPending = true,
                 bondReady = false,
@@ -158,7 +162,7 @@ internal class SensorConnectionViewModel(
                         commands.connect(code)
                         if (token == generation) {
                             pendingCode = null
-                            mutableState.update { it.copy(startInFlight = false, draft = "") }
+                            mutableState.update { it.copy(startInFlight = false) }
                             sensorChanged(latestSensor)
                         }
                     }
@@ -195,9 +199,26 @@ internal class SensorConnectionViewModel(
         updateClock()
     }
 
+    fun correctCode() {
+        if (state.value.unlinkInFlight) return
+        editAfterUnlink = true
+        unlink()
+    }
+
     private fun finishUnlink(detached: Boolean) {
-        mutableState.update { it.copy(unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
-        if (closeAfterUnlink && detached) close()
+        mutableState.update { it.copy(offerStop = detached, unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
+        if (editAfterUnlink && detached) {
+            editAfterUnlink = false
+            latestSensor = CgmPersistedState()
+            mutableState.update { CgmPairingUiState(step = CgmPairingScreenStep.ENTER_CODE) }
+            updateClock()
+        } else if (closeAfterUnlink && detached) {
+            close()
+        }
+    }
+
+    fun dismissStop() {
+        mutableState.update { it.copy(offerStop = false) }
     }
 
     fun cancelPendingAccess() {
@@ -308,6 +329,7 @@ internal class SensorConnectionViewModel(
 
     fun close() {
         ++generation
+        editAfterUnlink = false
         pendingCode = null
         completionJob?.cancel()
         completionJob = null

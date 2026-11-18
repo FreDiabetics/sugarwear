@@ -5,6 +5,7 @@ import javax.xml.parsers.DocumentBuilderFactory
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
+@org.junit.jupiter.api.Tag("sugarlicious-product")
 class CollectorVisibilityContractTest {
     @Test fun `Wear declares visibility for the separately installed collector provider`() {
         val root = Path.of(System.getProperty("maintenance.sharedRoot"))

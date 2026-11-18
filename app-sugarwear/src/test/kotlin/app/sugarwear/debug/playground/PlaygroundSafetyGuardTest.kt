@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaygroundSafetyGuardTest {
-
     @Test
     fun `isActionAllowedInPlayground blocks forbidden commands`() {
         assertTrue(PlaygroundSafetyGuard.isActionAllowedInPlayground("select_scenario"))

@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DemoScenarioCatalogTest {
-
     @Test
     fun `allScenarios contains stable and hypo scenarios`() {
         val scenarios = DemoScenarioCatalog.allScenarios

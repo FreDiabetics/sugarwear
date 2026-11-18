@@ -22,23 +22,23 @@ import org.robolectric.annotation.Config
 class CgmSetupActivityTest {
     @get:org.junit.Rule val mainDispatcher = CgmMainDispatcherRule()
 
-    @Test fun `first run explains Bluetooth without automatically pairing or granting access`() {
+    @Test fun `first run explains notifications without automatically granting access`() {
         val app = ApplicationProvider.getApplicationContext<Application>()
-        shadowOf(app).denyPermissions(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+        shadowOf(app).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val controller = Robolectric.buildActivity(CgmSetupActivity::class.java).setup().visible()
         val activity = controller.get()
         try {
             awaitCgmSettingsUi(activity) {
-                descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Bluetooth" }
+                descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Benachrichtigungen" }
             }
             val texts = descendants(activity.window.decorView).filterIsInstance<TextView>().map { it.text.toString() }.toList()
-            assertTrue(texts.contains("Bluetooth"))
+            assertTrue(texts.contains("Benachrichtigungen"))
             assertTrue(texts.contains("Noch nicht erlaubt"))
             assertFalse(app.getSharedPreferences("g7_setup", Context.MODE_PRIVATE).getBoolean("complete", false))
-            assertTrue(CgmSystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.BLUETOOTH_SCAN))
+            assertTrue(CgmSystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.POST_NOTIFICATIONS))
             descendants(activity.window.decorView).filterIsInstance<Button>().first { it.text == "Später einrichten" }.performClick()
-            assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text == "Benachrichtigungen" })
-            assertTrue(CgmSystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.BLUETOOTH_SCAN))
+            assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text == "Genaue Alarme" })
+            assertTrue(CgmSystemAccess.missingRuntimePermissions(app).contains(Manifest.permission.POST_NOTIFICATIONS))
         } finally {
             controller.pause().stop().destroy()
             shadowOf(android.os.Looper.getMainLooper()).idle()

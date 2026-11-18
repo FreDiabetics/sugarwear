@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmReading
+import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +26,10 @@ internal data class CgmOverviewSnapshot(
     val transition: CgmUiSensorTransition?,
     val activeHistoryIdentity: Pair<String, String>? = null,
     val pendingAlarms: List<SugarWearAlarmInstance> = emptyList(),
+    val bluetoothPermission: Boolean = true,
+    val bluetoothEnabled: Boolean = true,
+    val lastValidReading: CgmReading? = null,
+    val pairingCode: String? = null,
 )
 
 internal data class CgmOverviewState(
@@ -55,6 +60,13 @@ internal class AndroidCgmOverviewRepository(
                     }
                 }
             val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(Unit) }
+            val radioReceiver =
+                object : android.content.BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: android.content.Intent) {
+                        trySend(Unit)
+                    }
+                }
+            app.registerReceiver(radioReceiver, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED), Context.RECEIVER_EXPORTED)
             val preferences =
                 listOf("g7_collector_state", CGM_CREDENTIAL_PREFERENCES, "g7_ui_sensor_transition", "g7_cgm_alarm_state")
                     .map { app.getSharedPreferences(it, Context.MODE_PRIVATE) }
@@ -63,18 +75,30 @@ internal class AndroidCgmOverviewRepository(
             trySend(Unit)
             awaitClose {
                 app.contentResolver.unregisterContentObserver(observer)
+                app.unregisterReceiver(radioReceiver)
                 preferences.forEach { it.unregisterOnSharedPreferenceChangeListener(listener) }
             }
         }.conflate()
             .map {
                 val persisted = CgmSensorStateStore(app).read()
+                val bluetoothPermission = CgmSystemAccess.missingBluetoothPermissions(app).isEmpty()
+                val bluetoothEnabled = if (app.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED) app.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter?.isEnabled == true else false
+                val transition = CgmCollectorUiTransitionStore.read(app)
+                if (transition?.action in setOf(CgmUiSensorAction.RESUME, CgmUiSensorAction.PAIR) && transition != null && !transition.completed && cgmHasResumedLiveValue(persisted, transition, System.currentTimeMillis())) CgmCollectorUiTransitionStore.completeResume(app, transition)
+                val credentials = CgmCredentialStore(app).read()
                 CgmOverviewSnapshot(
                     persisted = persisted,
-                    credentialsPresent = CgmCredentialStore(app).read() != null,
+                    credentialsPresent = credentials != null,
+                    pairingCode = credentials?.pairingCode,
                     graphReadings = CgmReadingDatabase(app).use { it.getGraphHistory(System.currentTimeMillis()) },
+                    lastValidReading =
+                        CgmReadingDatabase(app).use { database -> persisted.sensor?.let { sensor -> database.getLatestValidBefore(sensor.sensorId, sensor.sessionId ?: persisted.lastReading?.sessionId ?: sensor.sensorId, System.currentTimeMillis() + 1L) } }
+                            ?: persisted.lastReading?.takeIf { it.status == CgmReadingStatus.VALID && cgmReadingBelongsToSession(persisted, it) },
                     transition = CgmCollectorUiTransitionStore.read(app),
                     activeHistoryIdentity = persisted.sensor?.let { CgmHistoryIdentityStore(app).canonical(it.sensorId, it.sessionId ?: it.sensorId) },
                     pendingAlarms = CgmAlarmCoordinator.pendingNotices(app),
+                    bluetoothPermission = bluetoothPermission,
+                    bluetoothEnabled = bluetoothEnabled,
                 )
             }.distinctUntilChanged()
             .flowOn(io)
@@ -119,7 +143,7 @@ internal class CollectorViewModel(
                     emit(current)
                     while (!current.failed &&
                         current.snapshot?.let { snapshot ->
-                            (snapshot.persisted.collectorEnabled && snapshot.persisted.sensor != null) ||
+                            snapshot.persisted.sensor != null ||
                                 collectorAttemptPresentation(snapshot.persisted, snapshot.transition, current.now)?.expiresAt != null
                         } == true
                     ) {
@@ -143,6 +167,11 @@ internal fun nextCgmOverviewRefresh(snapshot: CgmOverviewSnapshot, now: Long): L
     val minute =
         measured?.let { if (now < it) it else now + 60_000L - (now - it) % 60_000L }
             ?: (now + 60_000L - now % 60_000L)
-    val expiry = collectorAttemptPresentation(snapshot.persisted, snapshot.transition, now)?.expiresAt
+    val pauseExpiry =
+        snapshot.transition
+            ?.takeIf { !snapshot.persisted.collectorEnabled && it.action == CgmUiSensorAction.PAUSE }
+            ?.let { it.startedAt + CGM_PAUSED_VALUE_DURATION_MS }
+            ?.takeIf { it > now }
+    val expiry = listOfNotNull(collectorAttemptPresentation(snapshot.persisted, snapshot.transition, now)?.expiresAt, pauseExpiry).minOrNull()
     return (minOf(minute, expiry ?: Long.MAX_VALUE) - now).coerceAtLeast(1L)
 }

@@ -1,7 +1,6 @@
 package app.sugarwear
 
 internal object SugarWearAlarmStateMachine {
-
     fun update(
         previous: SugarWearAlarmInstance?,
         type: SugarWearAlarmType,
@@ -16,22 +15,24 @@ internal object SugarWearAlarmStateMachine {
         technicalErrorSignature: String?,
         nowEpochMs: Long,
     ): SugarWearAlarmInstance {
-        val current = previous ?: SugarWearAlarmInstance(
-            type = type,
-            state = SugarWearAlarmState.INACTIVE,
-            sensorId = sensorId,
-            sessionId = sessionId,
-            source = source,
-        )
+        val current =
+            previous ?: SugarWearAlarmInstance(
+                type = type,
+                state = SugarWearAlarmState.INACTIVE,
+                sensorId = sensorId,
+                sessionId = sessionId,
+                source = source,
+            )
 
-        val updatedBase = current.copy(
-            sensorId = sensorId ?: current.sensorId,
-            sessionId = sessionId ?: current.sessionId,
-            source = source ?: current.source,
-            measuredAtEpochMs = measuredAtEpochMs ?: current.measuredAtEpochMs,
-            receivedAtEpochMs = receivedAtEpochMs ?: current.receivedAtEpochMs,
-            technicalErrorSignature = technicalErrorSignature ?: current.technicalErrorSignature,
-        )
+        val updatedBase =
+            current.copy(
+                sensorId = sensorId ?: current.sensorId,
+                sessionId = sessionId ?: current.sessionId,
+                source = source ?: current.source,
+                measuredAtEpochMs = measuredAtEpochMs ?: current.measuredAtEpochMs,
+                receivedAtEpochMs = receivedAtEpochMs ?: current.receivedAtEpochMs,
+                technicalErrorSignature = technicalErrorSignature ?: current.technicalErrorSignature,
+            )
 
         return when (current.state) {
             SugarWearAlarmState.INACTIVE, SugarWearAlarmState.RESOLVED -> {
@@ -81,20 +82,14 @@ internal object SugarWearAlarmStateMachine {
                 if (!conditionMet) {
                     updatedBase.copy(state = SugarWearAlarmState.RESOLVED)
                 } else {
-                    updatedBase.copy(
-                        state = SugarWearAlarmState.ACTIVE,
-                        triggerGlucoseMgDl = glucoseMgDl ?: current.triggerGlucoseMgDl,
-                    )
+                    current
                 }
             }
             SugarWearAlarmState.ACKNOWLEDGED -> {
                 if (!conditionMet) {
                     updatedBase.copy(state = SugarWearAlarmState.RESOLVED)
                 } else {
-                    updatedBase.copy(
-                        state = SugarWearAlarmState.ACKNOWLEDGED,
-                        triggerGlucoseMgDl = glucoseMgDl ?: current.triggerGlucoseMgDl,
-                    )
+                    current
                 }
             }
             SugarWearAlarmState.SNOOZED -> {
@@ -114,10 +109,7 @@ internal object SugarWearAlarmStateMachine {
                             triggerGlucoseMgDl = glucoseMgDl ?: current.triggerGlucoseMgDl,
                         )
                     } else {
-                        updatedBase.copy(
-                            state = SugarWearAlarmState.SNOOZED,
-                            triggerGlucoseMgDl = glucoseMgDl ?: current.triggerGlucoseMgDl,
-                        )
+                        current
                     }
                 }
             }

@@ -62,7 +62,13 @@ class CgmWatchActivityLayoutTest {
             System.nanoTime() +
                 java.util.concurrent.TimeUnit.SECONDS
                     .toNanos(5)
-        while (findScrollView(window.decorView) == null && System.nanoTime() < deadline) {
+
+        fun dataPending(): Boolean =
+            this is CgmWatchActivity &&
+                androidx.lifecycle
+                    .ViewModelProvider(this)[CollectorViewModel::class.java]
+                    .state.value.snapshot == null
+        while ((findScrollView(window.decorView) == null || dataPending()) && System.nanoTime() < deadline) {
             Shadows.shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(16))
             measureAndLayout(window.decorView)
             Thread.sleep(2)
@@ -98,19 +104,35 @@ class CgmWatchActivityLayoutTest {
 
     @Test
     fun `overview keeps pending alarm until acknowledgement and updates immediately`() {
-        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val context =
+            androidx.test.core.app.ApplicationProvider
+                .getApplicationContext<android.content.Context>()
         CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = true))
         CgmAlertPolicyStore.setLocalEnabled(context, true)
         val now = System.currentTimeMillis()
         CgmAlarmCoordinator.onReading(context, CgmReading("layout-alarm", DataSourceId.DEXCOM_G7_WATCH, "layout-sensor", "layout-session", 65.0, now, now), now)
-        val activity = Robolectric.buildActivity(CgmWatchActivity::class.java).also { activeControllers += it }.setup().visible().get().awaitUi()
+        val activity =
+            Robolectric
+                .buildActivity(CgmWatchActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .visible()
+                .get()
+                .awaitUi()
+
         fun hasAlarm(): Boolean {
             val labels = mutableListOf<String>()
             collectText(activity.window.decorView, labels)
-            return "Niedrig Alarm!" in labels
+            return activity.window.decorView.findViewWithTag<View>("glucose-tile-alarm") != null
         }
         awaitCondition(activity) { hasAlarm() }
-        CgmAlarmCoordinator.acknowledge(context, SugarWearAlarmType.LOW, now)
+        val alarmView = activity.window.decorView.findViewWithTag<View>("glucose-tile-alarm")
+        assertEquals("glucose-host", (alarmView.parent as View).tag)
+        assertTrue(alarmView.background is android.graphics.drawable.GradientDrawable)
+        assertTrue(alarmView.clipToOutline)
+        assertTrue(alarmView.width <= (alarmView.parent as View).width)
+        assertEquals(2, (alarmView.parent as ViewGroup).childCount)
+        alarmView.findViewWithTag<View>("alarm-acknowledge").performClick()
         awaitCondition(activity) { !hasAlarm() }
     }
 
@@ -134,13 +156,105 @@ class CgmWatchActivityLayoutTest {
         val root = activity.window.decorView
         val resume = root.findViewWithTag<View>("overview-resume-collector")
         assertEquals(View.VISIBLE, resume.visibility)
-        val warning = root.findViewWithTag<ViewGroup>("signal-loss-warning")
-        assertEquals(R.drawable.ic_reception_paused, Shadows.shadowOf((warning.getChildAt(0) as ImageView).drawable).createdFromResId)
+        val warningIcon = ((resume.parent as ViewGroup).getChildAt(0) as ViewGroup).getChildAt(0) as ImageView
+        assertEquals(R.drawable.ic_status_paused, Shadows.shadowOf(warningIcon.drawable).createdFromResId)
+        assertEquals(cgmStatusIconLayout(R.drawable.ic_status_paused)!!.width(activity.resources.displayMetrics.density), warningIcon.layoutParams.width)
+        assertEquals(cgmStatusIconLayout(R.drawable.ic_status_paused)!!.height(activity.resources.displayMetrics.density), warningIcon.layoutParams.height)
+        val card = resume.parent as ViewGroup
+        val lastValue = findText(card, "Letzter Messwert: ${kotlin.math.round(before.lastReading!!.glucoseMgDl).toInt()} mg/dL")!!
+        assertEquals(12f * activity.resources.displayMetrics.scaledDensity, lastValue.textSize, 0.01f)
+        assertFalse(lastValue.typeface.isBold)
+        assertTrue(resume is CgmTileActionButton)
+        val title = findText(card, "Datenempfang pausiert")!!
+        val originalTop = card.top
+        val originalHeight = card.height
+        title.text = "Datenempfang pausiert\nZusätzliche lange Statusbeschreibung für große Systemschrift und kleine runde Displays."
+        measureAndLayout(root)
+        assertEquals(originalTop, card.top)
+        assertTrue(card.height > originalHeight)
+        assertTrue(resume.bottom <= card.height - card.paddingBottom)
+        assertSame(card, resume.parent)
+        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, card.layoutParams.height)
+        assertNotNull(findScrollView(root))
+        val graphHost = root.findViewWithTag<View>("graph-scale-control").parent.parent as View
+        assertTrue("Graph follows the growing glucose host", graphHost.top >= (card.parent as View).bottom)
+        val titleCopies = mutableListOf<String>()
+        collectText(root, titleCopies)
+        assertEquals(1, titleCopies.count { it.startsWith("Datenempfang pausiert") })
         resume.performClick()
-        awaitCondition(activity) { store.read().collectorEnabled && resume.visibility == View.GONE }
+        awaitCondition(activity) { store.read().collectorEnabled && root.findViewWithTag<View>("overview-resume-collector") == null }
         assertEquals(before.sensor, store.read().sensor)
         assertEquals(before.lastReading, store.read().lastReading)
         assertEquals(CgmUiSensorAction.RESUME, CgmCollectorUiTransitionStore.read(context)?.action)
+    }
+
+    @Test
+    @Config(shadows = [PausedOverviewCredentialShadow::class], qualifiers = "w226dp-h226dp-round-night-340dpi")
+    fun `paused status remains reachable on 480 pixel round display with large font`() {
+        org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
+        `paused overview offers direct resume and preserves sensor and last reading`()
+    }
+
+    @Test
+    @Config(shadows = [PausedOverviewCredentialShadow::class], qualifiers = "w192dp-h192dp-round-night-xhdpi")
+    fun `paused status remains reachable on smaller round display`() {
+        val context =
+            androidx.test.core.app.ApplicationProvider
+                .getApplicationContext<android.content.Context>()
+        CgmAppearanceStore(context).setActiveMode(AppearanceMode.DARK)
+        `paused overview offers direct resume and preserves sensor and last reading`()
+    }
+
+    @Test
+    @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+    fun `graph scale control centers dynamic bold system text with equal insets`() {
+        val activity =
+            Robolectric
+                .buildActivity(CgmWatchActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .visible()
+                .get()
+                .awaitUi()
+        val pill = activity.window.decorView.findViewWithTag<TextView>("graph-scale-control")
+        val density = activity.resources.displayMetrics.density
+        val params = pill.layoutParams as android.widget.FrameLayout.LayoutParams
+        assertEquals((12 * density).roundToInt(), params.marginStart)
+        assertEquals(params.marginStart, params.topMargin)
+        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, params.width)
+        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, params.height)
+        assertEquals(android.view.Gravity.CENTER, pill.gravity)
+        assertFalse(pill.includeFontPadding)
+        assertEquals(pill.paddingLeft, pill.paddingRight)
+        assertEquals(700, pill.typeface.weight)
+        pill.text = "24h • 123456m"
+        measureAndLayout(activity.window.decorView)
+        assertTrue(pill.measuredWidth >= pill.paint.measureText(pill.text.toString()) + pill.paddingLeft + pill.paddingRight)
+        val oldText = pill.text.toString()
+        pill.performClick()
+        assertFalse(oldText == pill.text.toString())
+    }
+
+    @Test
+    @Config(shadows = [PausedOverviewCredentialShadow::class])
+    fun `canonical sensor error uses its original icon even with a previous valid reading`() {
+        val context =
+            androidx.test.core.app.ApplicationProvider
+                .getApplicationContext<android.content.Context>()
+        val store = CgmSensorStateStore(context)
+        store.save(store.read().copy(collectorEnabled = true, sensor = CgmSensor("layout-sensor", "layout-session", state = CgmSensorState.ERROR)))
+        val activity =
+            Robolectric
+                .buildActivity(CgmWatchActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .visible()
+                .get()
+                .awaitUi()
+        awaitCondition(activity) { findTextStartingWith(activity.window.decorView, "Sensorfehler") != null }
+        val title = findTextStartingWith(activity.window.decorView, "Sensorfehler")!!
+        val icon = (title.parent as ViewGroup).getChildAt(0) as ImageView
+        assertEquals(R.drawable.ic_status_sensor_error, Shadows.shadowOf(icon.drawable).createdFromResId)
     }
 
     @Test
@@ -226,6 +340,8 @@ class CgmWatchActivityLayoutTest {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
+        Shadows.shadowOf(context as android.app.Application).grantPermissions(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
+        Shadows.shadowOf(context.getSystemService(android.bluetooth.BluetoothManager::class.java).adapter).setState(android.bluetooth.BluetoothAdapter.STATE_ON)
         CgmAppearanceStore(context).setGraphHours(3)
         CgmDirectToWatchSettingsStore(context).saveGraphHours(3)
         val seed =
@@ -288,7 +404,7 @@ class CgmWatchActivityLayoutTest {
         assertNotNull(findGraph(root))
         assertNull(findEditor(root))
         assertNull(findText(root, "Verbinden"))
-        assertNull(findText(root, "Sensor verbinden"))
+        assertNotNull(findText(root, "Sensor verbinden"))
         activity.intent = android.content.Intent(context, CgmWatchActivity::class.java).putExtra(CgmWatchActivity.EXTRA_OPEN_PAIRING, true)
         CgmWatchActivity::class.java
             .getDeclaredMethod("onNewIntent", android.content.Intent::class.java)
@@ -336,7 +452,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `overview removes the connected pill and keeps a dedicated outage header above the value card`() {
+    fun `overview keeps the glucose heading outside one card without a separate outage header`() {
         val controller = Robolectric.buildActivity(CgmWatchActivity::class.java).also { activeControllers += it }.setup()
         try {
             val root =
@@ -347,10 +463,12 @@ class CgmWatchActivityLayoutTest {
             val texts = mutableListOf<String>()
             collectText(root, texts)
             assertFalse(texts.any { it.contains("VERBUNDEN") || it.contains("SENSOREMPFANG PAUSIERT") })
-            val warning = root.findViewWithTag<View>("signal-loss-warning")
-            assertNotNull(warning)
-            val children = warning.parent as ViewGroup
-            assertTrue(children.indexOfChild(warning) < children.indexOfChild(findText(root, "Gewebeglukose")!!.parent as View))
+            assertNull(root.findViewWithTag<View>("signal-loss-warning"))
+            val heading = findText(root, "Glukose")!!
+            val host = heading.parent as ViewGroup
+            val card = host.getChildAt(host.indexOfChild(heading) + 1) as ViewGroup
+            assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, card.layoutParams.height)
+            assertTrue(card.minimumHeight > 0)
         } finally {
             controller.pause().stop().destroy()
         }
@@ -455,10 +573,79 @@ class CgmWatchActivityLayoutTest {
                     "Verbinden",
                 ),
             )
+            val root = controller.get().window.decorView
+            val tile = root.findViewWithTag<View>("glucose-tile-pairing")
+            assertNotNull(tile)
+            assertEquals("glucose-host", (tile.parent as View).tag)
+            assertNotNull(root.findViewWithTag<View>("graph-scale-control"))
+            val editor = findEditor(root)!!
+            editor.setText("0123")
+            Shadows.shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(100))
+            assertSame(editor, findEditor(root))
+            assertEquals("0123", findEditor(root)!!.text.toString())
+            assertTrue(editor.left >= (editor.parent as View).paddingLeft)
+            assertTrue(editor.right <= (editor.parent as View).width - (editor.parent as View).paddingRight)
             assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
         } finally {
             controller.pause().stop().destroy()
         }
+    }
+
+    @Test
+    fun `pairing keeps one reserved height and places its submitted code below progress`() {
+        val context =
+            androidx.test.core.app.ApplicationProvider
+                .getApplicationContext<android.content.Context>()
+        CgmSensorStateStore(context).save(CgmPersistedState())
+        val saved = android.os.Bundle().apply { putString("pairing_step", CgmPairingScreenStep.ENTER_CODE.name) }
+        val controller =
+            Robolectric
+                .buildActivity(CgmWatchActivity::class.java)
+                .also { activeControllers += it }
+                .create(saved)
+                .start()
+                .resume()
+                .visible()
+        val activity = controller.get().awaitUi()
+        val model = androidx.lifecycle.ViewModelProvider(activity)[SensorConnectionViewModel::class.java]
+
+        @Suppress("UNCHECKED_CAST")
+        val flow =
+            SensorConnectionViewModel::class.java
+                .getDeclaredField("mutableState")
+                .apply { isAccessible = true }
+                .get(model) as kotlinx.coroutines.flow.MutableStateFlow<CgmPairingUiState>
+        var height: Int? = null
+        for (step in CgmPairingScreenStep.entries) {
+            flow.value = CgmPairingUiState(step = step, draft = "0123", startedAt = System.currentTimeMillis())
+            CgmWatchActivity::class.java
+                .getDeclaredMethod("refreshScreen")
+                .apply { isAccessible = true }
+                .invoke(activity)
+            measureAndLayout(activity.window.decorView)
+            val card = activity.window.decorView.findViewWithTag<ViewGroup>("glucose-tile-pairing")
+            height?.let { assertEquals(it, card.height) }
+            height = card.height
+            if (step == CgmPairingScreenStep.CONNECTING) {
+                val code = card.findViewWithTag<TextView>("connection-sensor-code")
+                assertEquals("0123", code.text.toString())
+                val progress = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmSensorConnectionProgressView>().single()
+                assertTrue(code.top > progress.bottom)
+                assertTrue(findText(card, "Sensorcode korrigieren") is CgmTileActionButton)
+                assertTrue(findText(card, "Zurück") is CgmTileActionButton)
+            }
+            if (step == CgmPairingScreenStep.CONNECTED) {
+                val check = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<ImageView>().single()
+                assertEquals((32 * activity.resources.displayMetrics.density).toInt(), check.layoutParams.width)
+            }
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w192dp-h192dp-round-night-xhdpi")
+    fun `inline pairing remains inside its tile on a small round display with large text`() {
+        org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
+        `explicit code entry survives recreation without starting collection`()
     }
 
     @Test
@@ -499,7 +686,10 @@ class CgmWatchActivityLayoutTest {
             assertEquals(1, calls)
             assertSame(overview, content.getChildAt(0))
             assertEquals(oldY, scroll.scrollY)
-            assertNull(findText(overview, "Sensor verbinden"))
+            awaitCondition(activity) { findText(overview, "App Stoppen") != null }
+            findText(overview, "Zurück")!!.performClick()
+            awaitCondition(activity) { findText(overview, "Sensor verbinden") != null }
+            assertNotNull(findText(overview, "Sensor verbinden"))
             assertNull(findEditor(overview))
             assertNull(findText(overview, "Sensor trennen"))
             assertEquals(beforeHistory, CgmReadingDatabase(context).use { it.query(limit = 300) })
@@ -583,7 +773,7 @@ class CgmWatchActivityLayoutTest {
             awaitCondition(activity) { findEditor(activity.window.decorView) == null }
             assertFalse(activity.isFinishing)
             assertNull(findEditor(activity.window.decorView))
-            assertNull(findText(activity.window.decorView, "Sensor verbinden"))
+            assertNotNull(findText(activity.window.decorView, "Sensor verbinden"))
             activity.handleSystemBack()
             assertTrue(activity.isFinishing)
         } finally {
@@ -823,7 +1013,7 @@ class CgmWatchActivityLayoutTest {
 
         assertNotNull(findConnectionDots(root))
         assertNull(findProgressBar(root))
-        assertNotNull(findText(root, "Abbrechen"))
+        assertNotNull(findText(root, "Zurück"))
         activity.finish()
     }
 
@@ -931,9 +1121,10 @@ class CgmWatchActivityLayoutTest {
             settingsRoot.findViewWithTag<View>("settings-element-$title").performClick()
             val texts = mutableListOf<String>().also { collectText(settingsRoot, it) }
             allTexts += texts
-            val back = arrayListOf<View>()
-            settingsRoot.findViewsWithText(back, "Zurück", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
-            back.single().performClick()
+            activity.onBackPressedDispatcher.onBackPressed()
+            org.robolectric.Shadows
+                .shadowOf(android.os.Looper.getMainLooper())
+                .idle()
             return texts
         }
         val glucose = cardText("Glukose")
@@ -1219,11 +1410,12 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
+    @Config(shadows = [PausedOverviewCredentialShadow::class])
     fun `collector overview uses canonical drawable trend arrow geometry`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
-        val now = System.currentTimeMillis() + 60_000L
+        val now = System.currentTimeMillis() - 1_000L
         val reading =
             CgmReading(
                 id = "canonical-trend-${System.nanoTime()}",
@@ -1312,9 +1504,10 @@ class CgmWatchActivityLayoutTest {
                 texts.clear()
                 collectText(activity.window.decorView, texts)
                 fields.forEach { assertTrue("Missing $key field $it", texts.contains(it)) }
-                val backs = arrayListOf<View>()
-                activity.window.decorView.findViewsWithText(backs, "Zurück", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION)
-                backs.single().performClick()
+                activity.onBackPressedDispatcher.onBackPressed()
+                org.robolectric.Shadows
+                    .shadowOf(android.os.Looper.getMainLooper())
+                    .idle()
                 assertFalse(activity.isFinishing)
             }
             assertEquals(before, CgmSensorStateStore(activity).read())
@@ -1324,6 +1517,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
+    @Config(qualifiers = "w400dp-h400dp")
     fun `period change updates only graph state and preserves screen and scroll`() {
         val activity =
             Robolectric
@@ -1339,8 +1533,11 @@ class CgmWatchActivityLayoutTest {
         val rootBefore = activity.findViewById<android.view.View>(android.R.id.content).let { (it as ViewGroup).getChildAt(0) }
         val graphBefore = findGraph(rootBefore)!!
         val scroll = findScrollView(rootBefore)!!
-        measureAndLayout(activity.findViewById(android.R.id.content))
-        scroll.scrollTo(0, 120)
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(32))
+        scroll.scrollTo(0, 80)
+        val originalScrollY = scroll.scrollY
+        val originalGeometry = "scroll=${scroll.width}x${scroll.height}, content=${scroll.getChildAt(0).width}x${scroll.getChildAt(0).height}, root=${rootBefore.width}x${rootBefore.height}"
+        assertEquals(80, originalScrollY)
 
         findTextStartingWith(rootBefore, "3h")!!.performClick()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
@@ -1349,7 +1546,7 @@ class CgmWatchActivityLayoutTest {
         assertSame(rootBefore, rootAfter)
         assertSame(graphBefore, findGraph(rootAfter))
         assertNotNull(findTextStartingWith(rootAfter, "6h"))
-        assertEquals(120, scroll.scrollY)
+        assertEquals("Before: $originalGeometry; after: scroll=${scroll.width}x${scroll.height}, content=${scroll.getChildAt(0).width}x${scroll.getChildAt(0).height}, root=${rootAfter.width}x${rootAfter.height}", originalScrollY, scroll.scrollY)
         activity.finish()
     }
 
@@ -1418,13 +1615,14 @@ class CgmWatchActivityLayoutTest {
     }
 
     private fun measureAndLayout(view: android.view.View) {
+        val size = if (view.resources.configuration.isScreenRound) view.resources.displayMetrics.widthPixels else 400
         view.measure(
             android.view.View.MeasureSpec
-                .makeMeasureSpec(400, android.view.View.MeasureSpec.EXACTLY),
+                .makeMeasureSpec(size, android.view.View.MeasureSpec.EXACTLY),
             android.view.View.MeasureSpec
-                .makeMeasureSpec(400, android.view.View.MeasureSpec.EXACTLY),
+                .makeMeasureSpec(size, android.view.View.MeasureSpec.EXACTLY),
         )
-        view.layout(0, 0, 400, 400)
+        view.layout(0, 0, size, size)
     }
 
     private fun containsNativeButton(view: android.view.View): Boolean {

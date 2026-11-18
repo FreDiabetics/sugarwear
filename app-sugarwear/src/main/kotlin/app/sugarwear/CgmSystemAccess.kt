@@ -19,6 +19,7 @@ internal data class CgmSystemAccessSnapshot(
     val exactAlarmsGranted: Boolean,
     val dndAccessGranted: Boolean,
     val alarmChannels: List<CgmAlarmChannelAccess>,
+    val autoRevokeStatus: CgmBackgroundRestrictionStatus = CgmBackgroundRestrictionStatus.UNKNOWN,
 )
 
 internal data class CgmAlarmChannelAccess(
@@ -55,6 +56,7 @@ internal object CgmSystemAccess {
                     val channel = manager.getNotificationChannel(id)
                     CgmAlarmChannelAccess(id, cgmAlarmTitle(type), channel?.importance, channel?.canBypassDnd() == true)
                 },
+            autoRevokeStatus = CgmBackgroundAccess.isAutoRevokeWhitelisted(context),
         )
     }
 

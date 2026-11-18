@@ -103,6 +103,7 @@ internal object CgmSignalLossMonitor {
     fun scheduleFromState(
         context: Context,
         state: CgmPersistedState,
+        nowEpochMs: Long = System.currentTimeMillis(),
     ) {
         if (!state.collectorEnabled) {
             cancel(context)
@@ -113,10 +114,12 @@ internal object CgmSignalLossMonitor {
                 cancel(context)
                 return
             }
-        val now = System.currentTimeMillis()
+        val now = nowEpochMs
+        val healthCheck = nextCgmSignalLossMonitorAt(lastReading + CGM_SIGNAL_LOSS_AFTER_MS, now)
+        val alarmCheck = CgmAlarmCoordinator.nextTimedEvaluationAt(context, state, now)
         schedule(
             context,
-            nextCgmSignalLossMonitorAt(lastReading + CGM_SIGNAL_LOSS_AFTER_MS, now),
+            minOf(healthCheck, alarmCheck ?: Long.MAX_VALUE),
             now,
         )
     }
@@ -200,8 +203,11 @@ class CgmSignalLossReceiver : BroadcastReceiver() {
                         CgmRuntimeEntryPoint.SIGNAL_LOSS,
                         nowEpochMs = now,
                     )
+                    // Configured alarm deadlines can precede or fall between UI/health checks.
+                    // Both technical alarms use the same coordinator/notifier/audio as HIGH.
+                    CgmAlarmCoordinator.onSignalLoss(app, state.lastReading, now)
+                    CgmSignalLossMonitor.scheduleFromState(app, CgmSensorStateStore(app).read(), now)
                     if (!isCgmSignalLoss(lastReadingAt, now)) {
-                        CgmSignalLossMonitor.scheduleFromState(app, state)
                         return@dispatcher
                     }
 
@@ -219,9 +225,6 @@ class CgmSignalLossReceiver : BroadcastReceiver() {
                         }
                         return@dispatcher
                     }
-
-                    CgmSignalLossMonitor.scheduleRecoveryHealthCheck(app, now + CGM_SIGNAL_LOSS_RECOVERY_CHECK_MS)
-                    CgmAlarmCoordinator.onSignalLoss(app, state.lastReading, now)
                 } catch (error: Throwable) {
                     runBlocking {
                         app.recordCgmDiagnostic(
