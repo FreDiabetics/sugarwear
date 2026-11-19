@@ -118,7 +118,10 @@ internal class DexcomShareUploadStore(context: Context) {
     fun markVerified(config: DexcomShareUploadConfig, nowEpochMs: Long) =
         synchronized(lock) {
             if (revision() != config.revision) return@synchronized
-            check(preferences.edit().putLong(KEY_LAST_CONNECTION, nowEpochMs).putString(KEY_ERROR, "NONE").commit())
+            val editor = preferences.edit().putLong(KEY_LAST_CONNECTION, nowEpochMs)
+            // A successful login must never erase a previous receiver or upload failure.
+            if (status().error == DexcomShareUploadError.AUTHENTICATION) editor.putString(KEY_ERROR, "NONE")
+            check(editor.commit())
         }
 
     /** Cursor changes only after the Share server has accepted a measurement batch. */
@@ -162,7 +165,7 @@ internal class DexcomShareUploadStore(context: Context) {
     private fun revision() = preferences.getLong(KEY_REVISION, 0L)
 
     private fun cursorKey(config: DexcomShareUploadConfig, sensorId: String, sessionId: String): String {
-        val source = "${config.revision}:${config.region}:${config.account.lowercase()}:${config.receiverSerial}:$sensorId:$sessionId"
+        val source = "${config.region}:${config.account.lowercase(java.util.Locale.ROOT)}:${config.receiverSerial}:$sensorId:$sessionId"
         val digest = MessageDigest.getInstance("SHA-256").digest(source.encodeToByteArray())
         return "cursor_" + digest.joinToString("") { "%02x".format(it) }
     }
