@@ -65,6 +65,15 @@ class DexcomShareUploadStoreTest {
         assertEquals(0L, store.status().lastUploadEpochMs)
     }
 
+    @Test fun `removing an account invalidates old in-flight acceptance even after reenabling`() {
+        assertTrue(store.markAccepted(config, "sensor", "session", 1_800_000_000_000L, 1_800_000_001_000L))
+        store.clear()
+        assertEquals(4L, preferences.getLong("revision", -1L))
+        preferences.edit().putBoolean("enabled", true).putLong("revision", 5L).commit()
+        assertFalse(store.markAccepted(config, "sensor", "session", 1_800_000_300_000L, 1_800_000_301_000L))
+        assertEquals(0L, store.status().lastUploadEpochMs)
+    }
+
     @Test fun `failed auth error clears only after later successful login`() {
         store.markError(config, DexcomShareUploadError.AUTHENTICATION)
         assertEquals(DexcomShareUploadError.AUTHENTICATION, store.status().error)
