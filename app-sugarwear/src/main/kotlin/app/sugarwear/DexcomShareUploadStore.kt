@@ -1,0 +1,216 @@
+package app.sugarwear
+
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+internal enum class DexcomShareRegion(val server: String) {
+    US("https://share2.dexcom.com/ShareWebServices/Services/"),
+    INTERNATIONAL("https://shareous1.dexcom.com/ShareWebServices/Services/"),
+}
+
+internal data class DexcomShareUploadConfig(
+    val account: String,
+    val password: String,
+    val receiverSerial: String,
+    val region: DexcomShareRegion,
+    val revision: Long,
+)
+
+internal enum class DexcomShareUploadError {
+    NONE,
+    NETWORK,
+    AUTHENTICATION,
+    RECEIVER_NOT_ASSIGNED,
+    RECEIVER_MISMATCH,
+    MONITORING,
+    RATE_LIMIT,
+    SERVER,
+}
+
+internal data class DexcomShareUploadStatus(
+    val enabled: Boolean,
+    val configured: Boolean,
+    val region: DexcomShareRegion,
+    val lastConnectionEpochMs: Long,
+    val lastUploadEpochMs: Long,
+    val error: DexcomShareUploadError,
+)
+
+/** Share secrets use their own Keystore key; they never enter BLE credentials or logs. */
+internal class DexcomShareUploadStore(context: Context) {
+    private val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+
+    fun status(): DexcomShareUploadStatus =
+        DexcomShareUploadStatus(
+            enabled = enabled(),
+            configured = preferences.contains(KEY_ACCOUNT) && preferences.contains(KEY_PASSWORD) && preferences.contains(KEY_RECEIVER),
+            region = region(),
+            lastConnectionEpochMs = preferences.getLong(KEY_LAST_CONNECTION, 0L),
+            lastUploadEpochMs = preferences.getLong(KEY_LAST_UPLOAD, 0L),
+            error = runCatching { DexcomShareUploadError.valueOf(preferences.getString(KEY_ERROR, "NONE") ?: "NONE") }
+                .getOrDefault(DexcomShareUploadError.SERVER),
+        )
+
+    fun enabled(): Boolean = preferences.getBoolean(KEY_ENABLED, false)
+
+    fun region(): DexcomShareRegion =
+        runCatching { DexcomShareRegion.valueOf(preferences.getString(KEY_REGION, "INTERNATIONAL") ?: "INTERNATIONAL") }
+            .getOrDefault(DexcomShareRegion.INTERNATIONAL)
+
+    /** Saving a different account always revokes upload permission and invalidates in-flight work. */
+    fun saveAccount(account: String, password: String, receiverSerial: String, region: DexcomShareRegion) {
+        require(account.isNotBlank() && account.length <= 256)
+        require(password.isNotBlank() && password.length <= 512)
+        require(receiverSerial.matches(Regex("[A-Za-z0-9_-]{5,40}")))
+        val sealedAccount = seal(account.trim())
+        val sealedPassword = seal(password)
+        val sealedSerial = seal(receiverSerial.trim())
+        synchronized(lock) {
+            check(
+                preferences.edit()
+                    .putString(KEY_ACCOUNT, sealedAccount)
+                    .putString(KEY_PASSWORD, sealedPassword)
+                    .putString(KEY_RECEIVER, sealedSerial)
+                    .putString(KEY_REGION, region.name)
+                    .putBoolean(KEY_ENABLED, false)
+                    .putLong(KEY_REVISION, revision() + 1L)
+                    .remove(KEY_LAST_UPLOAD)
+                    .remove(KEY_LAST_CONNECTION)
+                    .remove(KEY_ERROR)
+                    .commit(),
+            ) { "Dexcom Share account could not be persisted" }
+        }
+    }
+
+    fun setEnabled(value: Boolean) {
+        synchronized(lock) {
+            if (value) require(readConfig() != null) { "Share account must be configured first" }
+            if (enabled() == value) return
+            check(preferences.edit().putBoolean(KEY_ENABLED, value).putLong(KEY_REVISION, revision() + 1L).commit()) {
+                "Dexcom Share setting could not be persisted"
+            }
+        }
+    }
+
+    /** Returns null for absent or unreadable secrets. No fallback to an empty credential. */
+    fun readConfig(): DexcomShareUploadConfig? =
+        synchronized(lock) {
+            val account = preferences.getString(KEY_ACCOUNT, null)?.let(::unseal)?.decodeToString() ?: return@synchronized null
+            val password = preferences.getString(KEY_PASSWORD, null)?.let(::unseal)?.decodeToString() ?: return@synchronized null
+            val serial = preferences.getString(KEY_RECEIVER, null)?.let(::unseal)?.decodeToString() ?: return@synchronized null
+            if (account.isBlank() || password.isBlank() || !serial.matches(Regex("[A-Za-z0-9_-]{5,40}"))) return@synchronized null
+            DexcomShareUploadConfig(account, password, serial, region(), revision())
+        }
+
+    fun readEnabledConfig(): DexcomShareUploadConfig? = if (enabled()) readConfig() else null
+
+    fun cursor(config: DexcomShareUploadConfig, sensorId: String, sessionId: String): Long =
+        preferences.getLong(cursorKey(config, sensorId, sessionId), 0L)
+
+    fun markVerified(config: DexcomShareUploadConfig, nowEpochMs: Long) =
+        synchronized(lock) {
+            if (revision() != config.revision) return@synchronized
+            check(preferences.edit().putLong(KEY_LAST_CONNECTION, nowEpochMs).putString(KEY_ERROR, "NONE").commit())
+        }
+
+    /** Cursor changes only after the Share server has accepted a measurement batch. */
+    fun markAccepted(
+        config: DexcomShareUploadConfig,
+        sensorId: String,
+        sessionId: String,
+        lastMeasurementEpochMs: Long,
+        nowEpochMs: Long,
+    ): Boolean =
+        synchronized(lock) {
+            if (!enabled() || revision() != config.revision) return@synchronized false
+            val key = cursorKey(config, sensorId, sessionId)
+            check(
+                preferences.edit()
+                    .putLong(key, maxOf(preferences.getLong(key, 0L), lastMeasurementEpochMs))
+                    .putLong(KEY_LAST_UPLOAD, nowEpochMs)
+                    .putLong(KEY_LAST_CONNECTION, nowEpochMs)
+                    .putString(KEY_ERROR, "NONE")
+                    .commit(),
+            ) { "Share upload cursor was not persisted" }
+            true
+        }
+
+    fun markError(config: DexcomShareUploadConfig, error: DexcomShareUploadError) =
+        synchronized(lock) {
+            if (revision() != config.revision) return@synchronized
+            check(preferences.edit().putString(KEY_ERROR, error.name).commit())
+        }
+
+    fun clear() {
+        synchronized(lock) {
+            check(preferences.edit().clear().commit()) { "Share account could not be removed" }
+            if (java.security.Security.getProvider("AndroidKeyStore") != null) {
+                val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                if (store.containsAlias(KEY_ALIAS)) store.deleteEntry(KEY_ALIAS)
+            }
+        }
+    }
+
+    private fun revision() = preferences.getLong(KEY_REVISION, 0L)
+
+    private fun cursorKey(config: DexcomShareUploadConfig, sensorId: String, sessionId: String): String {
+        val source = "${config.revision}:${config.region}:${config.account.lowercase()}:${config.receiverSerial}:$sensorId:$sessionId"
+        val digest = MessageDigest.getInstance("SHA-256").digest(source.encodeToByteArray())
+        return "cursor_" + digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun seal(value: String): String {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, key())
+        return Base64.getEncoder().encodeToString(cipher.iv + cipher.doFinal(value.encodeToByteArray()))
+    }
+
+    private fun unseal(value: String): ByteArray? =
+        runCatching {
+            val bytes = Base64.getDecoder().decode(value)
+            require(bytes.size > IV_BYTES)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, IV_BYTES)))
+            cipher.doFinal(bytes.copyOfRange(IV_BYTES, bytes.size))
+        }.getOrNull()
+
+    private fun key(): SecretKey {
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
+            init(
+                KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setRandomizedEncryptionRequired(true)
+                    .build(),
+            )
+            generateKey()
+        }
+    }
+
+    private companion object {
+        val lock = Any()
+        const val PREFERENCES = "sugarwear_dexcom_share"
+        const val KEY_ALIAS = "sugarwear_dexcom_share_v1"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
+        const val IV_BYTES = 12
+        const val KEY_ACCOUNT = "encrypted_account"
+        const val KEY_PASSWORD = "encrypted_password"
+        const val KEY_RECEIVER = "encrypted_receiver"
+        const val KEY_REGION = "region"
+        const val KEY_ENABLED = "enabled"
+        const val KEY_REVISION = "revision"
+        const val KEY_LAST_CONNECTION = "last_connection"
+        const val KEY_LAST_UPLOAD = "last_upload"
+        const val KEY_ERROR = "error"
+    }
+}
