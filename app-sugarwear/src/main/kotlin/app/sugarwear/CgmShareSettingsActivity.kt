@@ -265,6 +265,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         when (issue) {
             DexcomShareUploadError.NONE -> "Keine Fehler"
             DexcomShareUploadError.NETWORK -> "Dexcom Share derzeit nicht erreichbar."
+            DexcomShareUploadError.SCHEDULING -> "Hintergrundübertragung konnte nicht gestartet werden."
             DexcomShareUploadError.AUTHENTICATION -> "Konto oder Passwort prüfen."
             DexcomShareUploadError.RECEIVER_NOT_ASSIGNED -> "Share-Receiver ist dem Konto nicht zugeordnet."
             DexcomShareUploadError.RECEIVER_MISMATCH -> "Share-Receiver-Seriennummer stimmt nicht überein."
