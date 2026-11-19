@@ -79,19 +79,29 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         heading.addView(label(if (status.enabled) "Aktiviert" else "Deaktiviert", gray, false, 12f))
         root.addView(heading, spacing(0))
 
+        val uploadFresh =
+            status.enabled &&
+                status.lastUploadEpochMs > 0L &&
+                System.currentTimeMillis() - status.lastUploadEpochMs in 0L..900_000L
         val connectionText =
             when {
                 connecting -> "Konto wird geprüft"
+                ui.setupError -> "Einstellungen fehlgeschlagen"
                 status.error != DexcomShareUploadError.NONE -> "Verbindungsfehler"
-                status.lastUploadEpochMs > 0L -> "Upload bestätigt"
+                !status.enabled -> "Nicht verbunden"
+                uploadFresh -> "Upload bestätigt"
+                status.lastUploadEpochMs > 0L -> "Upload verzögert"
                 status.lastConnectionEpochMs > 0L -> "Konto bestätigt"
                 else -> "Nicht verbunden"
             }
         val connectionBody =
             when {
                 connecting -> "Anmeldung bei Dexcom Share läuft."
+                ui.setupError -> "Share-Einstellungen konnten nicht gespeichert oder entfernt werden."
                 status.error != DexcomShareUploadError.NONE -> errorDescription(status.error)
-                status.lastUploadEpochMs > 0L -> "Die letzten Messwerte wurden vom Share-Server angenommen."
+                !status.enabled -> "Die Übertragung an Dexcom Share ist derzeit deaktiviert."
+                uploadFresh -> "Letzter Upload vom Share-Server bestätigt."
+                status.lastUploadEpochMs > 0L -> "Kein neuer Upload bestätigt. Letzten Upload unten prüfen."
                 status.lastConnectionEpochMs > 0L -> "Anmeldung erfolgreich. Ein Upload wurde noch nicht bestätigt."
                 else -> "Die Übertragung an Dexcom Share ist noch nicht eingerichtet."
             }
