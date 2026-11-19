@@ -163,10 +163,26 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         val serial = field("Share-Receiver-Seriennummer")
         fields.addView(label("Die Share-Seriennummer ist nicht der G7-Kopplungscode.", Color.LTGRAY, false, 12f))
         var selected = if (region == DexcomShareRegion.INTERNATIONAL) 0 else 1
+        fields.addView(label("Serverregion", Color.LTGRAY, true, 13f))
+        val regionPicker = label(items[selected], Color.WHITE, true, 14f).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(48)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Serverregion wählen"
+        }
+        regionPicker.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Serverregion")
+                .setItems(items) { _, which ->
+                    selected = which
+                    regionPicker.text = items[which]
+                }.show()
+        }
+        fields.addView(regionPicker)
         val dialog = AlertDialog.Builder(this)
             .setTitle("Dexcom Share")
-            .setView(fields)
-            .setSingleChoiceItems(items, selected) { _, which -> selected = which }
+            .setView(android.widget.ScrollView(this).apply { addView(fields) })
             .setNegativeButton("Abbrechen", null)
             .setPositiveButton("Speichern", null)
             .create()
