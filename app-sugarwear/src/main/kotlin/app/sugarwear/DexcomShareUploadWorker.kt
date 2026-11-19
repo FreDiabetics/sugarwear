@@ -101,13 +101,25 @@ internal object DexcomShareUploadScheduler {
     private const val RECOVERY = "sugarwear_dexcom_share_recovery"
 
     fun onReadingsChanged(context: Context) {
-        if (!DexcomShareUploadStore(context).enabled()) return
-        val request =
-            OneTimeWorkRequestBuilder<DexcomShareUploadWorker>()
-                .setConstraints(networkConstraints())
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30L, TimeUnit.SECONDS)
-                .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(IMMEDIATE, ExistingWorkPolicy.KEEP, request)
+        try {
+            if (!DexcomShareUploadStore(context).enabled()) return
+            val request =
+                OneTimeWorkRequestBuilder<DexcomShareUploadWorker>()
+                    .setConstraints(networkConstraints())
+                    .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30L, TimeUnit.SECONDS)
+                    .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(IMMEDIATE, ExistingWorkPolicy.KEEP, request)
+        } catch (error: RuntimeException) {
+            // The optional Share adapter must never invalidate a committed G7 measurement.
+            android.util.Log.e("SugarWearShare", "Share scheduling failed: ${error.javaClass.simpleName}")
+            try {
+                DexcomShareUploadStore(context)
+                    .readEnabledConfig()
+                    ?.let { DexcomShareUploadStore(context).markError(it, DexcomShareUploadError.SCHEDULING) }
+            } catch (statusError: RuntimeException) {
+                android.util.Log.e("SugarWearShare", "Share diagnostics could not be persisted: ${statusError.javaClass.simpleName}")
+            }
+        }
     }
 
     fun start(context: Context) {
