@@ -50,7 +50,8 @@ internal class DexcomShareProtocolException(
     val issue: DexcomShareUploadError,
     val serverCode: String? = null,
     val recoverable: Boolean = false,
-) : IOException(issue.name)
+    cause: Throwable? = null,
+) : IOException(issue.name, cause)
 
 /** Deliberately independent from BLE, alarms, graph providers and canonical glucose storage. */
 internal class DexcomShareUploadClient(
@@ -168,7 +169,7 @@ internal class DexcomShareUploadClient(
             try {
                 transport.post(endpoint, body)
             } catch (e: IOException) {
-                throw DexcomShareProtocolException(DexcomShareUploadError.NETWORK, recoverable = true)
+                throw DexcomShareProtocolException(DexcomShareUploadError.NETWORK, recoverable = true, cause = e)
             }
         if (result.status in 200..299) return result.body
         val code = runCatching { JSONObject(result.body).optString("Code") }.getOrNull()?.takeIf { it.isNotBlank() }
