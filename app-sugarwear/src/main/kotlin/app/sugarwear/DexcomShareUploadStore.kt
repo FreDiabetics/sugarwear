@@ -29,6 +29,7 @@ internal data class DexcomShareUploadConfig(
 internal enum class DexcomShareUploadError {
     NONE,
     NETWORK,
+    SCHEDULING,
     AUTHENTICATION,
     RECEIVER_NOT_ASSIGNED,
     RECEIVER_MISMATCH,
