@@ -167,7 +167,10 @@ internal class DexcomShareUploadStore(
 
     fun clear() {
         synchronized(lock) {
-            check(preferences.edit().clear().commit()) { "Share account could not be removed" }
+            val revokedRevision = revision() + 1L
+            check(preferences.edit().clear().putLong(KEY_REVISION, revokedRevision).commit()) {
+                "Share account could not be removed"
+            }
             if (java.security.Security.getProvider("AndroidKeyStore") != null) {
                 val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
                 if (store.containsAlias(KEY_ALIAS)) store.deleteEntry(KEY_ALIAS)
