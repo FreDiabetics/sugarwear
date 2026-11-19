@@ -14,6 +14,60 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CgmPairingViewModelTest {
+    @Test fun `failed code correction never presents a fresh search as detached`() =
+        runTest {
+            val commands =
+                object : CgmPairingCommands {
+                    override suspend fun releaseOwnership() = Unit
+
+                    override suspend fun connect(code: String) = Unit
+
+                    override suspend fun unlink() = false
+                }
+            val vm = SensorConnectionViewModel(commands, scope = backgroundScope)
+            vm.open(CgmPairingScreenStep.CONNECTING)
+            vm.correctCode()
+            runCurrent()
+            vm.accessReady(checkNotNull(vm.state.value.effect).token)
+            runCurrent()
+            assertTrue(vm.state.value.unlinkFailed)
+            assertFalse(vm.state.value.offerStop)
+            assertEquals(CgmPairingScreenStep.CONNECTING, vm.state.value.step)
+            assertFalse(vm.start("5678"))
+        }
+
+    @Test fun `correcting code invalidates old consent and waits for confirmed unlink`() =
+        runTest {
+            val commands = Commands()
+            val vm = SensorConnectionViewModel(commands, scope = backgroundScope)
+            vm.open()
+            vm.start("0123")
+            runCurrent()
+            val oldToken = checkNotNull(vm.state.value.effect).token
+            vm.correctCode()
+            runCurrent()
+            vm.accessReady(oldToken)
+            val unlinkToken = checkNotNull(vm.state.value.effect).token
+            vm.accessReady(unlinkToken)
+            runCurrent()
+            assertEquals(listOf("release", "release", "unlink"), commands.calls)
+            assertEquals(CgmPairingScreenStep.ENTER_CODE, vm.state.value.step)
+            assertEquals("", vm.state.value.draft)
+            assertFalse(vm.state.value.offerStop)
+            assertTrue(vm.start("5678"))
+        }
+
+    @Test fun `submitted code remains visible after connect command completes`() =
+        runTest {
+            val vm = SensorConnectionViewModel(Commands(), scope = backgroundScope)
+            vm.open()
+            vm.start("0123")
+            runCurrent()
+            vm.accessReady(checkNotNull(vm.state.value.effect).token)
+            runCurrent()
+            assertEquals("0123", vm.state.value.draft)
+        }
+
     @Test fun `restored success retains existing three second dismissal`() =
         runTest {
             val vm = SensorConnectionViewModel(Commands(), scope = backgroundScope)

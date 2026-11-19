@@ -6,18 +6,17 @@ import android.content.Context
 import android.content.res.AssetFileDescriptor
 import android.database.Cursor
 import android.net.Uri
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import java.io.FileNotFoundException
 
 internal fun cgmAlarmSoundUri(
     context: Context,
-    type: CgmAlarmType,
+    type: SugarWearAlarmType,
 ): Uri =
     Uri
         .Builder()
         .scheme("content")
         .authority("${context.packageName}.alarm-sounds")
-        .appendPath(type.name.lowercase())
+        .appendPath(type.id)
         .build()
 
 class CgmAlarmSoundProvider : ContentProvider() {
@@ -27,11 +26,11 @@ class CgmAlarmSoundProvider : ContentProvider() {
 
     override fun openAssetFile(uri: Uri, mode: String): AssetFileDescriptor {
         require(mode == "r") { "Alarm sounds are read-only" }
+        val pathSegment = uri.lastPathSegment ?: throw FileNotFoundException("Unknown alarm sound")
         val type =
-            uri.lastPathSegment
-                ?.uppercase()
-                ?.let { runCatching { CgmAlarmType.valueOf(it) }.getOrNull() }
-                ?: throw FileNotFoundException("Unknown alarm sound")
+            SugarWearAlarmType.fromId(pathSegment)
+                ?: runCatching { SugarWearAlarmType.valueOf(pathSegment.uppercase()) }.getOrNull()
+                ?: throw FileNotFoundException("Unknown alarm sound: $pathSegment")
         return requireNotNull(context).assets.openFd(cgmAlarmSoundAsset(type))
     }
 

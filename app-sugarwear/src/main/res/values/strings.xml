@@ -5,4 +5,6 @@
     <string name="tile_graph_label">SugarWear Verlauf</string>
     <string name="tile_graph_description">Gewebeglukose-Verlauf als Full-Bleed-Graph</string>
     <string name="settings_retry">Erneut versuchen</string>
+    <string name="cgm_action_stop_app">App Stoppen</string>
+    <string name="cgm_action_resume">Fortsetzen</string>
 </resources>

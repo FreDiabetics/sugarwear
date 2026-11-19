@@ -13,6 +13,7 @@ android {
         applicationId = "app.sugarwear"
         minSdk = 33
         targetSdk = 37
+        testInstrumentationRunner = "app.sugarwear.CgmDeviceScenarioInstrumentation"
         versionCode = rootProject.extra["sugarwearVersionCode"] as Int
         versionName = rootProject.extra["sugarwearVersionName"] as String
     }
@@ -45,6 +46,8 @@ dependencies {
     ksp("com.google.dagger:hilt-compiler:2.60.1")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.fragment:fragment-ktx:1.9.1")
@@ -58,11 +61,11 @@ dependencies {
     implementation(project(":complications"))
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
     implementation("androidx.wear.tiles:tiles:1.6.2")
     implementation("androidx.wear.protolayout:protolayout:1.4.2")
-    implementation("com.google.guava:guava:33.7.2-android")
+    implementation("com.google.guava:guava:33.8.0-android")
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.7.0")
-    testImplementation("org.robolectric:robolectric:4.17")
+    testImplementation("org.robolectric:robolectric:4.18.1")
 }

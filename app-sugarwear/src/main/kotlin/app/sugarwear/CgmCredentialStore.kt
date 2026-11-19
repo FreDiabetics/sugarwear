@@ -91,9 +91,13 @@ internal class CgmCredentialStore(
         }
     }
 
-    // Keep the Boolean disk-commit result so migration cannot acknowledge an unwritten key.
-    @Suppress("UseKtx")
-    fun commitPendingWrites(): Boolean = preferences.edit().commit()
+    /** Fail migration before acknowledging credentials that could not be written. */
+    fun commitPendingWrites() {
+        val pendingWrite = preferences.edit()
+        if (!pendingWrite.commit()) {
+            error("G7 credentials could not be committed")
+        }
+    }
 
     fun hasSetupMaterial(): Boolean = preferences.all.isNotEmpty()
 
@@ -105,7 +109,7 @@ internal class CgmCredentialStore(
             if (store.containsAlias(KEY_ALIAS)) store.deleteEntry(KEY_ALIAS)
             check(!store.containsAlias(KEY_ALIAS)) { "G7 encryption key could not be removed" }
         }
-        check(preferences.edit().clear().commit()) { "G7 credentials could not be removed" }
+        preferences.clearSynchronously("G7 credentials could not be removed")
     }
 
     private fun encrypt(value: ByteArray): String {

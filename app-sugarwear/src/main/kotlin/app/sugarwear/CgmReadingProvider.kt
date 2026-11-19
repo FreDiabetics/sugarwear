@@ -116,7 +116,7 @@ class CgmReadingProvider : ContentProvider() {
                             )
                         }
                     } else {
-                        database.query(limit = 300)
+                        database.getGraphHistory(System.currentTimeMillis())
                     }
                 } finally {
                     database.close()

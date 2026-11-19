@@ -1,5 +1,6 @@
 package app.sugarwear
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.sugarlicious.sensor.protocol.CgmPersistedState
@@ -53,11 +54,13 @@ internal data class CgmPairingUiState(
     val startedAt: Long = Long.MAX_VALUE,
     val failureMessage: String? = null,
     val unlinkInFlight: Boolean = false,
+    val offerStop: Boolean = false,
     val unlinkFailed: Boolean = false,
     val unlinkFailureReason: String? = null,
     val effect: CgmPairingEffect? = null,
     val commandError: CgmPairingCommandError? = null,
     val now: Long = 0L,
+    val recoveryState: CgmRecoveryState = CgmRecoveryState.NotRequired,
 )
 
 /** Presentation/command sequencing only. The collector owns every BLE deadline and packet. */
@@ -77,6 +80,7 @@ internal class SensorConnectionViewModel(
     private var generation = 0L
     private var pendingCode: String? = null
     private var closeAfterUnlink = false
+    private var editAfterUnlink = false
     private var latestSensor = CgmPersistedState()
     private var openRequested = false
     private var visible = false
@@ -100,10 +104,12 @@ internal class SensorConnectionViewModel(
 
     fun start(code: String): Boolean {
         if (!canStartCgmPairing(state.value.step, state.value.startInFlight, code)) return false
+        editAfterUnlink = false
         pendingCode = code
         mutableState.update {
             it.copy(
                 step = CgmPairingScreenStep.CONNECTING,
+                draft = code,
                 startInFlight = true,
                 accessPending = true,
                 bondReady = false,
@@ -156,7 +162,7 @@ internal class SensorConnectionViewModel(
                         commands.connect(code)
                         if (token == generation) {
                             pendingCode = null
-                            mutableState.update { it.copy(startInFlight = false, draft = "") }
+                            mutableState.update { it.copy(startInFlight = false) }
                             sensorChanged(latestSensor)
                         }
                     }
@@ -193,9 +199,26 @@ internal class SensorConnectionViewModel(
         updateClock()
     }
 
+    fun correctCode() {
+        if (state.value.unlinkInFlight) return
+        editAfterUnlink = true
+        unlink()
+    }
+
     private fun finishUnlink(detached: Boolean) {
-        mutableState.update { it.copy(unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
-        if (closeAfterUnlink && detached) close()
+        mutableState.update { it.copy(offerStop = detached, unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
+        if (editAfterUnlink && detached) {
+            editAfterUnlink = false
+            latestSensor = CgmPersistedState()
+            mutableState.update { CgmPairingUiState(step = CgmPairingScreenStep.ENTER_CODE) }
+            updateClock()
+        } else if (closeAfterUnlink && detached) {
+            close()
+        }
+    }
+
+    fun dismissStop() {
+        mutableState.update { it.copy(offerStop = false) }
     }
 
     fun cancelPendingAccess() {
@@ -212,6 +235,51 @@ internal class SensorConnectionViewModel(
         } else {
             mutableState.update { it.copy(step = CgmPairingScreenStep.ENTER_CODE, startInFlight = false) }
             updateClock()
+        }
+    }
+
+    fun inspectRecovery(context: Context) {
+        workScope.launch {
+            val controller = CgmBondRecoveryController(context.applicationContext)
+            val recovery = controller.inspect()
+            mutableState.update { it.copy(recoveryState = recovery) }
+        }
+    }
+
+    fun requestReconnect(context: Context, candidate: CgmBondCandidate, pairingCode: String) {
+        if (pairingCode.isBlank()) return
+        workScope.launch {
+            val controller = CgmBondRecoveryController(context.applicationContext)
+            when (val result = controller.reconnect(candidate, pairingCode)) {
+                is CgmRecoveryResult.Connected -> {
+                    mutableState.update { it.copy(recoveryState = CgmRecoveryState.NotRequired, step = CgmPairingScreenStep.CONNECTED) }
+                }
+                is CgmRecoveryResult.Failed -> {
+                    mutableState.update { it.copy(failureMessage = result.reason) }
+                }
+                else -> {
+                    start(pairingCode)
+                }
+            }
+        }
+    }
+
+    fun requestBondRepair(candidate: CgmBondCandidate) {
+        mutableState.update { it.copy(recoveryState = CgmRecoveryState.BondRepairRequired(candidate, "Reparatur vom Benutzer angefordert")) }
+    }
+
+    fun confirmBondRepair(context: Context) {
+        val currentRecovery = state.value.recoveryState
+        if (currentRecovery is CgmRecoveryState.BondRepairRequired) {
+            workScope.launch {
+                val controller = CgmBondRecoveryController(context.applicationContext)
+                val result = controller.repairBond(currentRecovery.candidate, userConfirmed = true)
+                if (result is CgmRecoveryResult.Failed) {
+                    mutableState.update { it.copy(failureMessage = result.reason) }
+                } else {
+                    unlink(closePairing = false)
+                }
+            }
         }
     }
 
@@ -261,6 +329,7 @@ internal class SensorConnectionViewModel(
 
     fun close() {
         ++generation
+        editAfterUnlink = false
         pendingCode = null
         completionJob?.cancel()
         completionJob = null

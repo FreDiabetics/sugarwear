@@ -1,0 +1,81 @@
+config:
+  validation: true
+  warningsAsErrors: true
+
+complexity:
+  CyclomaticComplexMethod:
+    # UI renderers and external payload adapters are branch-heavy by design;
+    # their behavior is guarded by focused tests and Android Lint.
+    active: false
+  LongMethod:
+    # Line count is formatter-sensitive and does not represent runtime risk.
+    active: false
+  LongParameterList:
+    allowedFunctionParameters: 12
+    allowedConstructorParameters: 12
+    ignoreDefaultParameters: true
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+  TooManyFunctions:
+    active: false
+  ComplexCondition:
+    active: false
+  LargeClass:
+    active: false
+  NestedBlockDepth:
+    active: false
+
+exceptions:
+  TooGenericExceptionCaught:
+    # Android and serialization boundaries must isolate vendor/runtime failures.
+    active: false
+
+naming:
+  FunctionNaming:
+    # Compose functions are intentionally PascalCase; lowercase-only naming is
+    # not a valid project-wide Kotlin rule in a Compose application.
+    functionPattern: '[a-zA-Z][a-zA-Z0-9]*'
+  MatchingDeclarationName:
+    # Stable subsystem filenames may intentionally host one implementation.
+    active: false
+  TopLevelPropertyNaming:
+    # Compose tokens intentionally follow PascalCase conventions.
+    active: false
+
+style:
+  FunctionOnlyReturningConstant:
+    # Stable calculation APIs may intentionally resolve to a constant.
+    active: false
+  LoopWithTooManyJumpStatements:
+    maxJumpCount: 2
+  WildcardImport:
+    active: false
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    active: false
+  ReturnCount:
+    max: 12
+    excludeGuardClauses: true
+  ThrowsCount:
+    # Parsers deliberately report distinct validation failures.
+    active: false
+  UnusedPrivateClass:
+    excludes:
+      - '**/*Preview.kt'
+  UnusedPrivateFunction:
+    excludes:
+      - '**/*Preview.kt'
+  UnusedPrivateProperty:
+    excludes:
+      - '**/*Preview.kt'
+  UnusedParameter:
+    # Public, callback and renderer compatibility signatures intentionally keep
+    # parameters that are consumed by alternate implementations or callers.
+    # Private dead members remain enforced separately above.
+    active: false
+
+performance:
+  ForEachOnRange:
+    active: true

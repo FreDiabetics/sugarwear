@@ -48,9 +48,10 @@ internal data class CgmGraphTileSnapshot(
     val graphStyle: app.sugarlicious.uishared.SharedWearCgmGraphStyle =
         app.sugarlicious.uishared.DirectToWatchGraphDefaults
             .style(),
+    val activeHistoryIdentity: Pair<String, String>? = null,
 ) {
     val resourceVersion: String
-        get() = "g7-graph-13-system-font-700-${cgmGraphHistoryFingerprint(readings)}-${nowEpochMs / CGM_GRAPH_TILE_FRESHNESS_INTERVAL_MS}-${palette.hashCode()}-$graphHours-${graphStyle.hashCode()}-${pillState.name}"
+        get() = "g7-graph-14-retired-${cgmGraphHistoryFingerprint(readings)}-${activeHistoryIdentity.hashCode()}-${nowEpochMs / CGM_GRAPH_TILE_FRESHNESS_INTERVAL_MS}-${palette.hashCode()}-$graphHours-${graphStyle.hashCode()}-${pillState.name}"
 }
 
 internal data class CgmGraphTileContentSpec(
@@ -70,7 +71,7 @@ internal fun cgmGraphTileContentSpec(
 
 /** Cache identity covers the complete canonical graph, including late BACKFILL rows. */
 internal fun cgmGraphHistoryFingerprint(readings: List<CgmReading>): String =
-    normalizeCgmLocalHistory(readings)
+    normalizeCgmGraphHistory(readings)
         .fold(1L) { hash, reading ->
             var next = hash * 31L + reading.sensorId.hashCode()
             next = next * 31L + reading.sessionId.hashCode()
@@ -117,6 +118,7 @@ internal fun cgmGraphTileGraphInput(
     emptyLabel = cgmGraphEmptyLabel(snapshot.pillState, normalizeCgmLocalHistory(snapshot.readings).isNotEmpty()),
     styleOverride = snapshot.graphStyle,
     outsideClipColor = snapshot.palette.argb(CgmAppearanceRole.MENU_BACKGROUND),
+    activeIdentity = snapshot.activeHistoryIdentity?.let { app.sugarlicious.model.CgmGraphSensorIdentity(app.sugarlicious.model.DataSourceId.DEXCOM_G7_WATCH, it.first, it.second) },
 )
 
 class CgmGraphTileService : TileService() {
@@ -204,15 +206,21 @@ class CgmGraphTileService : TileService() {
                         .setPadding(Padding.Builder().setStart(dp(square.cornerRadiusDp)).build())
                         .build(),
                 ).addContent(
-                    label(
-                        cgmGraphTileHeaderLabel(
-                            snapshot.graphHours,
-                            normalizeCgmLocalHistory(snapshot.readings).lastOrNull()?.timestampEpochMs,
-                            snapshot.nowEpochMs,
-                        ),
-                        SugarWearTypography.spec(SugarWearTypographyRole.TILE_TITLE).sizeSp,
-                        titleColor,
-                    ),
+                    LayoutElementBuilders.Row
+                        .Builder()
+                        .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
+                        .addContent(label("Verlauf", SugarWearTypography.spec(SugarWearTypographyRole.TILE_TITLE).sizeSp, titleColor, emphasized = false))
+                        .addContent(
+                            label(
+                                cgmGraphTileHeaderLabel(
+                                    snapshot.graphHours,
+                                    normalizeCgmLocalHistory(snapshot.readings).lastOrNull()?.timestampEpochMs,
+                                    snapshot.nowEpochMs,
+                                ).removePrefix("Verlauf"),
+                                SugarWearTypography.spec(SugarWearTypographyRole.TILE_TITLE).sizeSp,
+                                titleColor,
+                            ),
+                        ).build(),
                 ).build()
         val content =
             Column
@@ -256,7 +264,7 @@ class CgmGraphTileService : TileService() {
         val readings =
             CgmReadingDatabase(this).let { database ->
                 try {
-                    database.getRange(now - hours * 60L * 60_000L, now + 5L * 60_000L)
+                    database.getGraphHistory(now)
                 } finally {
                     database.close()
                 }
@@ -268,6 +276,7 @@ class CgmGraphTileService : TileService() {
             pillState = deriveCgmStatusPillState(state, CgmCredentialStore(this).read() != null, now),
             graphHours = hours,
             nowEpochMs = now,
+            activeHistoryIdentity = state.sensor?.let { CgmHistoryIdentityStore(this).canonical(it.sensorId, it.sessionId ?: it.sensorId) },
             graphStyle = appearance.tileGraphStyle(),
         )
     }
@@ -311,6 +320,7 @@ class CgmGraphTileService : TileService() {
         value: String,
         sizeSp: Float,
         color: Int,
+        emphasized: Boolean = true,
     ): Text =
         Text
             .Builder()
@@ -323,7 +333,7 @@ class CgmGraphTileService : TileService() {
                         androidx.wear.protolayout.DimensionBuilders
                             .sp(sizeSp),
                     ).setColor(argb(color))
-                    .setWeight(sugarWearTileWeight(emphasized = true))
+                    .setWeight(sugarWearTileWeight(emphasized))
                     .build(),
             ).build()
 

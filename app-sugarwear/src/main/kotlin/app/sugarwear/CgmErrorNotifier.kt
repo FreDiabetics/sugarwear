@@ -10,7 +10,6 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import androidx.core.content.edit
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +26,7 @@ internal fun cgmErrorSignature(error: CgmCollectorError): String = "${error.code
 
 /** High-priority surface reserved for an actually actionable direct-Watch problem. */
 internal object CgmErrorNotifier {
-    private const val CHANNEL_PREFIX = "direct_watch_collector_errors_v5_d"
-    private const val CHANNEL_FAMILY_PREFIX = "direct_watch_collector_errors_"
+    private const val CHANNEL_ID = "direct_watch_collector_errors_v5"
     private const val CHANNEL_NAME = "SugarWear-Fehler"
     private const val NOTIFICATION_ID = 7002
     private const val PREFS = "g7_error_notifications"
@@ -43,22 +41,19 @@ internal object CgmErrorNotifier {
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
         val channelId = channelId(context)
-        manager.notificationChannels
-            .filter { it.id.startsWith(CHANNEL_FAMILY_PREFIX) && it.id != channelId }
-            .forEach { manager.deleteNotificationChannel(it.id) }
+        if (manager.getNotificationChannel(channelId) != null) return
         manager.createNotificationChannel(
             NotificationChannel(channelId, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Dringende Fehler von SugarWear"
                 enableVibration(true)
                 setSound(
-                    cgmAlarmSoundUri(context, CgmAlarmType.SENSOR_ERROR),
+                    cgmAlarmSoundUri(context, SugarWearAlarmType.TECHNICAL_WARNING),
                     AudioAttributes
                         .Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .build(),
                 )
-                setBypassDnd(CgmAlarmSystemAccess.isAccessGranted(context))
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             },
         )
@@ -88,6 +83,9 @@ internal object CgmErrorNotifier {
             putLong(KEY_LAST_POSTED_AT, System.currentTimeMillis())
         }
 
+        // Pass event to central SugarWear alarm coordinator
+        CgmAlarmCoordinator.onTechnicalError(app, error)
+
         app.getSystemService(NotificationManager::class.java).notify(
             NOTIFICATION_ID,
             buildNotification(
@@ -100,7 +98,6 @@ internal object CgmErrorNotifier {
         )
     }
 
-    /** A valid new reading means the active connection problem is over; do not require cleanup acknowledgement. */
     fun markRecovered(context: Context) {
         clearActive(context)
     }
@@ -179,8 +176,7 @@ internal object CgmErrorNotifier {
             .build()
     }
 
-    internal fun channelId(context: Context): String =
-        CHANNEL_PREFIX + if (CgmAlarmSystemAccess.isAccessGranted(context)) "1" else "0"
+    internal fun channelId(context: Context): String = CHANNEL_ID
 }
 
 class CgmErrorAcknowledgeReceiver : BroadcastReceiver() {

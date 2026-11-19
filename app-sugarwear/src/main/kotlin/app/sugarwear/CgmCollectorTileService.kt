@@ -122,10 +122,8 @@ internal fun cgmTilePresentation(
             0xFF9E9E9E.toInt()
         } else {
             when (shared.rangeClass) {
-                CgmRangeClass.VERY_LOW -> palette?.argb(CgmAppearanceRole.GLUCOSE_VERY_LOW) ?: colors.cgmVeryLow
-                CgmRangeClass.LOW -> palette?.argb(CgmAppearanceRole.GLUCOSE_LOW) ?: colors.cgmLow
-                CgmRangeClass.HIGH -> palette?.argb(CgmAppearanceRole.GLUCOSE_HIGH) ?: colors.cgmHigh
-                CgmRangeClass.VERY_HIGH -> palette?.argb(CgmAppearanceRole.GLUCOSE_VERY_HIGH) ?: colors.cgmVeryHigh
+                CgmRangeClass.VERY_LOW, CgmRangeClass.LOW -> palette?.argb(CgmAppearanceRole.GLUCOSE_LOW) ?: colors.cgmLow
+                CgmRangeClass.VERY_HIGH, CgmRangeClass.HIGH -> palette?.argb(CgmAppearanceRole.GLUCOSE_HIGH) ?: colors.cgmHigh
                 else -> palette?.argb(CgmAppearanceRole.GLUCOSE_IN_RANGE) ?: CGM_TILE_TEXT_PRIMARY
             }
         }
@@ -245,7 +243,6 @@ class CgmCollectorTileService : TileService() {
                         .setImageResource(ImageResource.Builder().setAndroidResourceByResId(AndroidImageResourceByResId.Builder().setResourceId(icon).build()).build(), "metadata-$icon")
                         .setWidth(dp(metadataSize))
                         .setHeight(dp(metadataSize))
-                        .setColorFilter(ColorFilter.Builder().setTint(argb(CGM_TILE_TEXT_SECONDARY)).build())
                         .build(),
                 ).addContent(Spacer.Builder().setWidth(dp(4f)).build())
                 .addContent(metadataText(requestParams.scope, value, metadataSize, metadataPalette.argb(CgmAppearanceRole.METADATA_PILL_VALUE), bold = true))
@@ -365,7 +362,7 @@ class CgmCollectorTileService : TileService() {
                         .Builder()
                         .setPadding(Padding.Builder().setStart(dp(square.cornerRadiusDp)).build())
                         .build(),
-                ).addContent(text(requestParams.scope, "Gewebeglukose", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), bold = false))
+                ).addContent(text(requestParams.scope, "Glukose", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), bold = false))
                 .build()
         val content =
             Column
@@ -498,7 +495,7 @@ class CgmCollectorTileService : TileService() {
     private fun metadataText(scope: ProtoLayoutScope, value: String, size: Float, color: Int, bold: Boolean): LayoutElementBuilders.LayoutElement {
         deviceVendorOneText(scope, value, size, color, bold, metadata = true)?.let { return it }
         val builder = LayoutElementBuilders.Spannable.Builder().setMaxLines(1)
-        Regex("[A-Za-z/]+|[^A-Za-z/]+").findAll(value).forEach { match ->
+        Regex("[A-Za-z/]+\\.?|[^A-Za-z/]+").findAll(value).forEach { match ->
             val secondary = match.value.first().isLetter() || match.value.first() == '/'
             builder.addSpan(
                 LayoutElementBuilders.SpanText

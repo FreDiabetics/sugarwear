@@ -11,7 +11,6 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.core.net.toUri
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 
 internal data class CgmSystemAccessSnapshot(
     val bluetoothGranted: Boolean,
@@ -20,6 +19,7 @@ internal data class CgmSystemAccessSnapshot(
     val exactAlarmsGranted: Boolean,
     val dndAccessGranted: Boolean,
     val alarmChannels: List<CgmAlarmChannelAccess>,
+    val autoRevokeStatus: CgmBackgroundRestrictionStatus = CgmBackgroundRestrictionStatus.UNKNOWN,
 )
 
 internal data class CgmAlarmChannelAccess(
@@ -51,11 +51,12 @@ internal object CgmSystemAccess {
             exactAlarmsGranted = context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
             dndAccessGranted = manager.isNotificationPolicyAccessGranted,
             alarmChannels =
-                CgmAlarmType.entries.map { type ->
+                SugarWearAlarmType.entries.map { type ->
                     val id = CgmAlarmNotifier.channelId(context, type, settings)
                     val channel = manager.getNotificationChannel(id)
                     CgmAlarmChannelAccess(id, cgmAlarmTitle(type), channel?.importance, channel?.canBypassDnd() == true)
                 },
+            autoRevokeStatus = CgmBackgroundAccess.isAutoRevokeWhitelisted(context),
         )
     }
 

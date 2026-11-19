@@ -15,8 +15,8 @@ plugins {
 
 val sharedRoot = project(":core-model").projectDir.parentFile
 extra["sharedSourceRoot"] = sharedRoot
-extra["sugarwearVersionCode"] = 71
-extra["sugarwearVersionName"] = "0.7.1"
+extra["sugarwearVersionCode"] = 72
+extra["sugarwearVersionName"] = "0.7.2"
 apply(from = sharedRoot.resolve("gradle/shared-conventions.gradle"))
 apply(from = sharedRoot.resolve("gradle/coverage-conventions.gradle.kts"))
 

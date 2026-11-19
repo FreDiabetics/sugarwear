@@ -53,28 +53,24 @@ internal class CgmSetupViewModel
 
         fun granted(state: CgmSystemAccessSnapshot, alarm: CgmAlarmSystemSnapshot): Boolean =
             when (this.state.value.step) {
-                0 -> state.bluetoothGranted
-                1 -> state.notificationsGranted
-                2 -> state.batteryUnrestricted
-                3 -> state.exactAlarmsGranted
-                4 -> alarm.dndAllowsAlarmAudio == true && (state.dndAccessGranted || !alarm.policySettingsAvailable)
-                5 -> state.alarmChannels.all { it.importance != null && it.importance > 0 && (it.bypassDnd || !alarm.policySettingsAvailable) }
+                0 -> state.notificationsGranted
+                1 -> state.exactAlarmsGranted
+                2 -> state.bluetoothGranted
+                3 -> state.batteryUnrestricted && state.autoRevokeStatus != CgmBackgroundRestrictionStatus.RESTRICTED
                 else -> true
             }
 
         fun explanation(alarm: CgmAlarmSystemSnapshot): String =
             when (this.state.value.step) {
-                0 -> "Geräte in der Nähe für den direkten Sensorempfang. Der Sensor wird erst über Sensor verbinden eingerichtet."
-                1 -> "Erlaubt Glukosealarme und den laufenden Collectorstatus."
-                2 -> "Die Akkuausnahme schützt den zeitkritischen Sensorempfang vor Doze-Einschränkungen."
-                3 -> "Erlaubt zeitgenaue Sensorfenster und Alarmwiederholungen."
-                4 -> "${cgmAlarmAccessGuidance(alarm)} Aktueller Tonstatus: ${cgmAlarmAudioPolicyLabel(alarm)}."
-                5 -> if (!alarm.policySettingsAvailable) "Alle SugarWear-Alarmkanäle gemeinsam prüfen. App-Ausnahmen sind auf dieser Uhr nicht einstellbar; der Ruhemodus kann Meldungen ausblenden. Eigene Töne benötigen zugelassene System-Alarme." else "Alle SugarWear-Alarmkanäle gemeinsam prüfen. Ihre Ausnahme betrifft die Meldungen. Eigene Töne verwenden die System-Alarmausgabe und benötigen deren Freigabe im Ruhemodus."
-                else -> "Standard ist die System-Alarmlautstärke. Unter Alarme lässt sich optional eine eigene Lautstärke wählen und jeder eigene SugarWear-Ton testen. Lautstärke 0 bleibt ohne Überschreibung stumm."
+                0 -> "Für Sensorstatus und Glukosealarme."
+                1 -> "Für zeitgenaue Sensorfenster, Wiederverbindung und Alarmwiederholung."
+                2 -> "Für die direkte Verbindung mit dem Sensor."
+                3 -> "App-Inaktivitätsbeschränkungen und Akkuoptimierungen werden getrennt geprüft."
+                else -> ""
             }
 
         fun restore(step: Int, awaiting: Boolean) {
-            mutableState.value = state.value.copy(step = step.coerceIn(0, 6), awaitingSystem = awaiting)
+            mutableState.value = state.value.copy(step = step.coerceIn(0, 3), awaitingSystem = awaiting)
         }
 
         fun beginSystemRequest(): Boolean {
@@ -88,7 +84,7 @@ internal class CgmSetupViewModel
         }
 
         fun advance(): Boolean {
-            if (state.value.step < 6) {
+            if (state.value.step < 3) {
                 mutableState.value = state.value.copy(step = state.value.step + 1)
                 return false
             }

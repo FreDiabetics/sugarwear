@@ -10,6 +10,15 @@ import app.sugarlicious.uishared.SharedWearCgmGraphInput
 import app.sugarlicious.uishared.SharedWearCgmGraphPalette
 import app.sugarlicious.uishared.SharedWearCgmGraphStyle
 
+/** Geometry shared by the scale control and its background contrast sample.
+ * 12dp clears the rounded graph corner without changing the plot geometry.
+ */
+internal object CgmGraphOverlayStyle {
+    const val INSET_DP = 12
+    const val HORIZONTAL_PADDING_DP = 10
+    const val MIN_HEIGHT_DP = 36
+}
+
 /** Shared SugarWear adapter. Both the in-app Canvas and Graph Tile use this exact input. */
 internal fun cgmSharedGraphInput(
     readings: List<CgmReading>,
@@ -21,6 +30,7 @@ internal fun cgmSharedGraphInput(
     styleOverride: SharedWearCgmGraphStyle? = null,
     outsideClipColor: Int? = null,
     topLeftLabel: String = "",
+    activeIdentity: app.sugarlicious.model.CgmGraphSensorIdentity? = null,
 ): SharedWearCgmGraphInput {
     val colors =
         settings.graphColors().copy(
@@ -31,8 +41,8 @@ internal fun cgmSharedGraphInput(
             cgmLow = palette.argb(CgmAppearanceRole.GRAPH_DOT_LOW),
             cgmInRange = palette.argb(CgmAppearanceRole.GRAPH_DOT_IN_RANGE),
             cgmHigh = palette.argb(CgmAppearanceRole.GRAPH_DOT_HIGH),
-            cgmVeryLow = palette.argb(CgmAppearanceRole.GLUCOSE_VERY_LOW),
-            cgmVeryHigh = palette.argb(CgmAppearanceRole.GLUCOSE_VERY_HIGH),
+            cgmVeryLow = palette.argb(CgmAppearanceRole.GRAPH_DOT_LOW),
+            cgmVeryHigh = palette.argb(CgmAppearanceRole.GRAPH_DOT_HIGH),
             divider = palette.argb(CgmAppearanceRole.GRAPH_TILE_BORDER),
             border = palette.argb(CgmAppearanceRole.GRAPH_TILE_BORDER),
             highLine = palette.argb(CgmAppearanceRole.GRAPH_HIGH_LINE),
@@ -42,13 +52,12 @@ internal fun cgmSharedGraphInput(
             outline = palette.argb(CgmAppearanceRole.GRAPH_DOT_OUTLINE),
         )
     val hours = graphHours.takeIf { it in CgmDirectToWatchSettingsStore.HOUR_OPTIONS } ?: 3
+    val history = CanonicalCgmHistory.merge(normalizeCgmGraphHistory(readings).map(CgmReading::toCgmGraphSample), nowEpochMs, windowMs = hours * 60L * 60_000L, maxPoints = 2000)
     return SharedWearCgmGraphInput(
-        history =
-            CanonicalCgmHistory.merge(
-                samples = normalizeCgmLocalHistory(readings).map(CgmReading::toCgmGraphSample),
-                nowEpochMs = nowEpochMs,
-                windowMs = hours * 60L * 60_000L,
-            ),
+        history = history,
+        activeIdentity =
+            activeIdentity ?: app.sugarlicious.model.CgmGraphHistoryPresentation
+                .latestIdentity(history),
         timeWindow = cgmCollectorGraphWindow(nowEpochMs, hours),
         nowEpochMs = nowEpochMs,
         thresholds = settings.thresholds(),
@@ -77,7 +86,12 @@ internal fun cgmSharedGraphInput(
                 targetText = colors.targetValue,
                 emptyText = colors.signalLoss,
             ),
-        style = styleOverride ?: settings.graphStyle(),
+        style =
+            (styleOverride ?: settings.graphStyle()).copy(
+                dotOutlineWidthDp = 0.95f,
+                historicalDotOutlineWidthDp = 0.95f,
+                currentDotOutlineWidthDp = 0.95f,
+            ),
         emptyLabel = emptyLabel,
         topLeftLabel = topLeftLabel,
         outsideClipColor = outsideClipColor ?: colors.graphBackground,
@@ -103,6 +117,13 @@ internal fun normalizeCgmLocalHistory(source: List<CgmReading>): List<CgmReading
             ) ?: duplicates.first()
         }.sortedBy(CgmReading::timestampEpochMs)
 }
+
+internal fun normalizeCgmGraphHistory(readings: List<CgmReading>): List<CgmReading> =
+    readings
+        .groupBy { it.sensorId to it.sessionId }
+        .values
+        .flatMap(::normalizeCgmLocalHistory)
+        .sortedBy(CgmReading::timestampEpochMs)
 
 private fun CgmReading.toCgmGraphSample() =
     GlucoseSample(

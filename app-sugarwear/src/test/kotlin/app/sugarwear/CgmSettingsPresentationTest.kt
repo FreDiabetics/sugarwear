@@ -21,6 +21,88 @@ class CgmSettingsPresentationTest {
     @get:org.junit.Rule val mainDispatcher = CgmMainDispatcherRule()
 
     @Test
+    fun `saving a slider keeps its current control until the latest write completes`() {
+        val controller = Robolectric.buildActivity(CgmAppearanceActivity::class.java).setup().visible()
+        val activity = controller.get()
+        try {
+            awaitReady(activity)
+            activity.window.decorView
+                .findViewWithTag<View>("settings-element-Glukosewert")
+                .performClick()
+            org.robolectric.Shadows
+                .shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofMillis(50))
+            val slider = descendants(activity.window.decorView).filterIsInstance<android.widget.SeekBar>().single()
+            val model = androidx.lifecycle.ViewModelProvider(activity)[CgmAppearanceSettingsViewModel::class.java]
+            val worker =
+                CgmAppearanceSettingsViewModel::class.java
+                    .getDeclaredField("worker")
+                    .apply { isAccessible = true }
+                    .get(model)
+
+            @Suppress("UNCHECKED_CAST")
+            val flow =
+                CgmSettingsWorker::class.java
+                    .getDeclaredField("mutableState")
+                    .apply { isAccessible = true }
+                    .get(worker) as kotlinx.coroutines.flow.MutableStateFlow<CgmSettingsIoState<CgmAppearanceSettingsSnapshot>>
+            val baseline = checkNotNull(flow.value.snapshot)
+            slider.progress += 1
+            flow.value = flow.value.copy(loading = true)
+            org.robolectric.Shadows
+                .shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofMillis(50))
+            org.junit.Assert.assertSame(slider, descendants(activity.window.decorView).filterIsInstance<android.widget.SeekBar>().single())
+            flow.value = CgmSettingsIoState(snapshot = baseline.copy(glucoseScalePercent = baseline.glucoseScalePercent + 1), loading = false)
+            org.robolectric.Shadows
+                .shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofMillis(50))
+            assertEquals(baseline.glucoseScalePercent + 1, descendants(activity.window.decorView).filterIsInstance<android.widget.SeekBar>().single().progress + app.sugarlicious.model.GlucoseTrendSizing.MIN_SCALE_PERCENT)
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    fun `each plus and minus tap persists once without leaving the settings menu`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val preferences = CgmAppearanceStore(context)
+        preferences.setGlucoseScalePercent(100)
+        val controller = Robolectric.buildActivity(CgmAppearanceActivity::class.java).setup().visible()
+        val activity = controller.get()
+        try {
+            awaitReady(activity)
+            activity.window.decorView
+                .findViewWithTag<View>("settings-element-Glukosewert")
+                .performClick()
+            org.robolectric.Shadows
+                .shadowOf(android.os.Looper.getMainLooper())
+                .idleFor(java.time.Duration.ofMillis(50))
+            for ((label, expected) in listOf("+" to 101, "+" to 102, "−" to 101, "−" to 100, "+" to 101)) {
+                descendants(activity.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == label }.performClick()
+                val deadline =
+                    System.nanoTime() +
+                        java.util.concurrent.TimeUnit.SECONDS
+                            .toNanos(5)
+                while (System.nanoTime() < deadline) {
+                    org.robolectric.Shadows
+                        .shadowOf(android.os.Looper.getMainLooper())
+                        .idleFor(java.time.Duration.ofMillis(16))
+                    val slider = descendants(activity.window.decorView).filterIsInstance<android.widget.SeekBar>().single()
+                    if (preferences.glucoseScalePercent() == expected && slider.progress + app.sugarlicious.model.GlucoseTrendSizing.MIN_SCALE_PERCENT == expected) break
+                    Thread.sleep(2)
+                }
+                assertEquals(expected, preferences.glucoseScalePercent())
+                assertEquals(expected, descendants(activity.window.decorView).filterIsInstance<android.widget.SeekBar>().single().progress + app.sugarlicious.model.GlucoseTrendSizing.MIN_SCALE_PERCENT)
+                org.junit.Assert.assertFalse(activity.isFinishing)
+                org.junit.Assert.assertFalse(activity.isDestroyed)
+            }
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
     fun `settings remain readable with a light or customized display palette`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val store = CgmAppearanceStore(context)
@@ -75,7 +157,10 @@ class CgmSettingsPresentationTest {
                         .findViewWithTag<View>(tag)
                         .performClick()
                     assertTrue(descendants(activity.window.decorView).none { it.tag == tag })
-                    descendants(activity.window.decorView).single { it.contentDescription == "Zurück" }.performClick()
+                    activity.onBackPressedDispatcher.onBackPressed()
+                    org.robolectric.Shadows
+                        .shadowOf(android.os.Looper.getMainLooper())
+                        .idle()
                     assertTrue(descendants(activity.window.decorView).any { it.tag == tag })
                 }
                 prefs.forEach { (name, before) -> assertEquals(before, activity.getSharedPreferences(name, Context.MODE_PRIVATE).all) }
@@ -92,12 +177,15 @@ class CgmSettingsPresentationTest {
         try {
             awaitReady(activity)
             val before = CgmAlarmSettingsStore.read(activity)
-            for (type in app.sugarlicious.sensor.protocol.CgmAlarmType.entries) {
+            for (type in SugarWearAlarmType.entries) {
                 var target: View = descendants(activity.window.decorView).filterIsInstance<TextView>().single { it.text.toString() == cgmAlarmTitle(type) }
                 while (!target.isClickable) target = target.parent as View
                 target.performClick()
-                assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Test" })
-                descendants(activity.window.decorView).single { it.contentDescription == "Zurück" }.performClick()
+                assertTrue(descendants(activity.window.decorView).filterIsInstance<TextView>().any { it.text.toString() == "Test-Ton abspielen" })
+                activity.onBackPressedDispatcher.onBackPressed()
+                org.robolectric.Shadows
+                    .shadowOf(android.os.Looper.getMainLooper())
+                    .idle()
             }
             assertEquals(before, CgmAlarmSettingsStore.read(activity))
         } finally {
@@ -118,7 +206,7 @@ class CgmSettingsPresentationTest {
             decor.measure(View.MeasureSpec.makeMeasureSpec(454, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(454, View.MeasureSpec.EXACTLY))
             decor.layout(0, 0, 454, 454)
             if (descendants(decor).any { it.tag?.toString()?.startsWith("settings-element-") == true } ||
-                descendants(decor).filterIsInstance<TextView>().any { it.text.toString() == "T\u00f6ne und Vibration" }
+                descendants(decor).filterIsInstance<TextView>().any { it.text.toString() == "Ruhemodi" }
             ) {
                 return
             }

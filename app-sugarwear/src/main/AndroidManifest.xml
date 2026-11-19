@@ -11,7 +11,6 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
@@ -29,7 +28,6 @@
         <intent><action android:name="android.settings.APPLICATION_DETAILS_SETTINGS" /><data android:scheme="package" /></intent>
         <intent><action android:name="android.settings.APP_NOTIFICATION_SETTINGS" /></intent>
         <intent><action android:name="android.settings.CHANNEL_NOTIFICATION_SETTINGS" /></intent>
-        <intent><action android:name="android.settings.NOTIFICATION_POLICY_ACCESS_SETTINGS" /></intent>
         <intent><action android:name="android.settings.REQUEST_SCHEDULE_EXACT_ALARM" /><data android:scheme="package" /></intent>
         <intent><action android:name="android.settings.SETTINGS" /></intent>
     </queries>
@@ -46,6 +44,7 @@
         <provider android:name=".ProductMigrationProvider" android:authorities="${applicationId}.product-migration" android:exported="true" android:initOrder="1000" tools:ignore="ExportedContentProvider" />
 
         <service android:name=".CgmAlarmAudioService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+        <activity android:name=".CgmAlarmActivity" android:exported="false" android:excludeFromRecents="true" android:noHistory="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" android:taskAffinity="" />
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
         <activity
             android:name=".CgmWatchActivity"

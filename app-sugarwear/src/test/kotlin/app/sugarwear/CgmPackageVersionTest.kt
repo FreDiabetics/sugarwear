@@ -14,9 +14,9 @@ class CgmPackageVersionTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
 
-        assertEquals(71L, packageInfo.longVersionCode)
+        assertEquals(72L, packageInfo.longVersionCode)
         assertEquals(
-            "0.7.1",
+            "0.7.2",
             app.sugarlicious.uishared.AppReleaseInfo
                 .version(context),
         )

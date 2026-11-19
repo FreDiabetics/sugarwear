@@ -20,6 +20,7 @@ enum class CgmAppearanceSection(
     MENU("Menü"),
     GLUCOSE("Zuckerwert"),
     GRAPH("Graph"),
+    ALARMS("Alarme"),
 }
 
 enum class CgmAppearanceRole(
@@ -61,7 +62,6 @@ enum class CgmAppearanceRole(
     MENU_PRIMARY("menu_primary", "Primär / Sugarlicious", CgmAppearanceSection.MENU, 0xFF22EB60.toInt()),
 
     GLUCOSE_LOW("glucose_low", AppearanceTerminology.GLUCOSE_LOW, CgmAppearanceSection.GLUCOSE, 0xFFFF5C69.toInt()),
-    GLUCOSE_VERY_LOW("glucose_very_low", AppearanceTerminology.GLUCOSE_VERY_LOW, CgmAppearanceSection.GLUCOSE, 0xFFFF5C69.toInt()),
     GLUCOSE_IN_RANGE(
         "glucose_in_range",
         AppearanceTerminology.GLUCOSE_IN_RANGE,
@@ -70,7 +70,6 @@ enum class CgmAppearanceRole(
         0xFF202020.toInt(),
     ),
     GLUCOSE_HIGH("glucose_high", AppearanceTerminology.GLUCOSE_HIGH, CgmAppearanceSection.GLUCOSE, 0xFFFFD040.toInt()),
-    GLUCOSE_VERY_HIGH("glucose_very_high", AppearanceTerminology.GLUCOSE_VERY_HIGH, CgmAppearanceSection.GLUCOSE, 0xFFFFD040.toInt()),
     GLUCOSE_TREND("glucose_trend", AppearanceTerminology.TREND_ARROW, CgmAppearanceSection.GLUCOSE, 0xFFFFFFFF.toInt()),
     GLUCOSE_DELTA("glucose_delta", AppearanceTerminology.DELTA_UNIT, CgmAppearanceSection.GLUCOSE, 0xFFB5B5B5.toInt(), 0xFF666666.toInt()),
     METADATA_PILL_BACKGROUND("metadata_pill_background", "Delta/Alter · Pillenfläche", CgmAppearanceSection.GLUCOSE, 0xFF181818.toInt()),
@@ -106,6 +105,17 @@ enum class CgmAppearanceRole(
     GRAPH_AXIS_TEXT("graph_axis_text", AppearanceTerminology.GRAPH_AXIS_TEXT, CgmAppearanceSection.GRAPH, 0xFFD2D2D2.toInt()),
     GRAPH_GRID("graph_grid", "Grid / Divider", CgmAppearanceSection.GRAPH, 0xFF464646.toInt()),
     GRAPH_TILE_BORDER("graph_tile_border", "Graphkontur", CgmAppearanceSection.GRAPH, 0),
+
+    ALARM_BACKGROUND("alarm_background", "Alarmhintergrund", CgmAppearanceSection.ALARMS, 0xFF000000.toInt()),
+    ALARM_BORDER("alarm_border", "Alarmkontur", CgmAppearanceSection.ALARMS, 0xFFFF5C69.toInt()),
+    ALARM_TITLE("alarm_title", "Alarmtitel", CgmAppearanceSection.ALARMS, 0xFFFFFFFF.toInt()),
+    ALARM_BODY("alarm_body", "Alarmbeschreibung", CgmAppearanceSection.ALARMS, 0xFFF5F5F5.toInt()),
+    ALARM_ICON("alarm_icon", "Alarmicon", CgmAppearanceSection.ALARMS, 0xFFFF5C69.toInt()),
+    ALARM_OK_BACKGROUND("alarm_ok_background", "OK-Button-Hintergrund", CgmAppearanceSection.ALARMS, 0xFF242424.toInt()),
+    ALARM_OK_TEXT("alarm_ok_text", "OK-Button-Text", CgmAppearanceSection.ALARMS, 0xFFFFFFFF.toInt()),
+    ALARM_OK_BORDER("alarm_ok_border", "OK-Button-Kontur", CgmAppearanceSection.ALARMS, 0xFF505050.toInt()),
+    STATUS_ICON("status_icon", "Technische Statusicons", CgmAppearanceSection.ALARMS, 0xFF1D90DD.toInt()),
+    STATUS_TEXT("status_text", "Technische Statustexte", CgmAppearanceSection.ALARMS, 0xFF848484.toInt()),
 }
 
 data class CgmAppearancePalette(
@@ -157,10 +167,7 @@ class CgmAppearanceStore(
             .getInt(KEY_GLUCOSE_SCALE, GlucoseTrendSizing.DEFAULT_SCALE_PERCENT)
             .coerceIn(GlucoseTrendSizing.MIN_SCALE_PERCENT, GlucoseTrendSizing.MAX_SCALE_PERCENT)
 
-    fun trendScalePercent(): Int =
-        preferences
-            .getInt(KEY_TREND_SCALE, GlucoseTrendSizing.DEFAULT_SCALE_PERCENT)
-            .coerceIn(GlucoseTrendSizing.MIN_SCALE_PERCENT, GlucoseTrendSizing.MAX_SCALE_PERCENT)
+    fun trendScalePercent(): Int = trendArrowStyle().sizePercent
 
     fun trendArrowStyle(mode: AppearanceMode = activeMode()): TrendArrowStyle =
         TrendArrowStylePreferences.read(
@@ -195,6 +202,8 @@ class CgmAppearanceStore(
     }
 
     fun setTrendScalePercent(value: Int) {
+        val mode = activeMode()
+        saveTrendArrowStyle(mode, trendArrowStyle(mode).copy(sizePercent = value))
         preferences.edit {
             putInt(
                 KEY_TREND_SCALE,

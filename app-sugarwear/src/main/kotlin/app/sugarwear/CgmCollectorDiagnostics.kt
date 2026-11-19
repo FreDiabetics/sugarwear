@@ -46,7 +46,7 @@ internal class CgmCollectorDiagnosticStore(
     fun clearAll() =
         synchronized(lock) {
             listOf(controlPreferences, historyPreferences, activePreferences, slotPreferences).forEach { preferences ->
-                check(preferences.edit().clear().commit()) { "G7 diagnostic cleanup failed" }
+                preferences.clearSynchronously("G7 diagnostic cleanup failed")
             }
         }
 

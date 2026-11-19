@@ -23,10 +23,12 @@ internal object CgmAlertPolicyStore {
     fun alarmsEnabled(
         context: Context,
         nowEpochMs: Long = System.currentTimeMillis(),
-    ): Boolean {
-        if (!CgmSensorStateStore(context).read().collectorEnabled) return false
+    ): Boolean = CgmSensorStateStore(context).read().collectorEnabled && configuredEnabled(context, nowEpochMs)
+
+    fun configuredEnabled(context: Context, nowEpochMs: Long = System.currentTimeMillis()): Boolean {
         val preferences =
             context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (preferences.contains("local_alarms_enabled")) return preferences.getBoolean("local_alarms_enabled", false)
         return preferences.getBoolean(KEY_ALARMS_ENABLED, false) ||
             preferences.getLong(KEY_AUTOMATIC_ENABLE_AT, 0L).let { it > 0L && nowEpochMs >= it }
     }
@@ -49,6 +51,10 @@ internal object CgmAlertPolicyStore {
             putBoolean(KEY_ALARMS_ENABLED, enabled)
             putLong(KEY_AUTOMATIC_ENABLE_AT, automaticEnableAtEpochMs?.takeIf { it > 0L } ?: 0L)
         }
+    }
+
+    fun setLocalEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean("local_alarms_enabled", enabled) }
     }
 }
 
@@ -97,6 +103,7 @@ internal object CgmSignalLossMonitor {
     fun scheduleFromState(
         context: Context,
         state: CgmPersistedState,
+        nowEpochMs: Long = System.currentTimeMillis(),
     ) {
         if (!state.collectorEnabled) {
             cancel(context)
@@ -107,10 +114,12 @@ internal object CgmSignalLossMonitor {
                 cancel(context)
                 return
             }
-        val now = System.currentTimeMillis()
+        val now = nowEpochMs
+        val healthCheck = nextCgmSignalLossMonitorAt(lastReading + CGM_SIGNAL_LOSS_AFTER_MS, now)
+        val alarmCheck = CgmAlarmCoordinator.nextTimedEvaluationAt(context, state, now)
         schedule(
             context,
-            nextCgmSignalLossMonitorAt(lastReading + CGM_SIGNAL_LOSS_AFTER_MS, now),
+            minOf(healthCheck, alarmCheck ?: Long.MAX_VALUE),
             now,
         )
     }
@@ -180,7 +189,9 @@ class CgmSignalLossReceiver : BroadcastReceiver() {
             .dispatcher { app, _ ->
                 try {
                     val state = CgmSensorStateStore(app).read()
-                    if (!state.collectorEnabled) return@dispatcher
+                    if (!state.collectorEnabled) {
+                        return@dispatcher
+                    }
 
                     val lastReadingAt = state.lastReading?.timestampEpochMs
                     val now = System.currentTimeMillis()
@@ -192,8 +203,11 @@ class CgmSignalLossReceiver : BroadcastReceiver() {
                         CgmRuntimeEntryPoint.SIGNAL_LOSS,
                         nowEpochMs = now,
                     )
+                    // Configured alarm deadlines can precede or fall between UI/health checks.
+                    // Both technical alarms use the same coordinator/notifier/audio as HIGH.
+                    CgmAlarmCoordinator.onSignalLoss(app, state.lastReading, now)
+                    CgmSignalLossMonitor.scheduleFromState(app, CgmSensorStateStore(app).read(), now)
                     if (!isCgmSignalLoss(lastReadingAt, now)) {
-                        CgmSignalLossMonitor.scheduleFromState(app, state)
                         return@dispatcher
                     }
 
@@ -211,9 +225,6 @@ class CgmSignalLossReceiver : BroadcastReceiver() {
                         }
                         return@dispatcher
                     }
-
-                    CgmSignalLossMonitor.scheduleRecoveryHealthCheck(app, now + CGM_SIGNAL_LOSS_RECOVERY_CHECK_MS)
-                    CgmAlarmCoordinator.onSignalLoss(app, state.lastReading, now)
                 } catch (error: Throwable) {
                     runBlocking {
                         app.recordCgmDiagnostic(

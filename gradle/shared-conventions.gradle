@@ -1,0 +1,38 @@
+// One canonical convention script for both independently configured products.
+// Dynamic extension access keeps applied-script and Android plugin classloaders separate.
+def sharedSourceRoot = rootProject.findProperty('sharedSourceRoot') ?: rootProject.projectDir
+
+subprojects {
+    tasks.withType(Test).configureEach {
+        jvmArgs('--add-opens=java.base/jdk.internal.access=ALL-UNNAMED')
+    }
+    ['org.jetbrains.kotlin.android', 'org.jetbrains.kotlin.jvm',
+     'com.android.application', 'com.android.library'].each { pluginId ->
+        pluginManager.withPlugin(pluginId) {
+            pluginManager.apply('dev.detekt')
+            pluginManager.apply('org.jlleitschuh.gradle.ktlint')
+        }
+    }
+    pluginManager.withPlugin('com.android.application') {
+        def android = extensions.getByName('android')
+        android.packaging.jniLibs.keepDebugSymbols.addAll([
+            '**/libandroidx.graphics.path.so', '**/libdatastore_shared_counter.so'
+        ])
+        if (path.startsWith(':watchfaces:')) {
+            android.sourceSets.getByName('main').res.directories.add(
+                new File(sharedSourceRoot, 'watchfaces/shared-res').absolutePath)
+            // WFF XML/schema and code-free APK checks cover platform-loaded resources.
+            android.lint.disable.addAll([
+                'UnusedResources', 'NotShrinkingResources', 'IconLauncherShape', 'VectorRaster'
+            ])
+        }
+    }
+    pluginManager.withPlugin('dev.detekt') {
+        def detektType = plugins.getPlugin('dev.detekt').class.classLoader.loadClass('dev.detekt.gradle.Detekt')
+        tasks.withType(detektType).configureEach {
+            jvmTarget.set('17')
+            buildUponDefaultConfig = true
+            config.setFrom(new File(sharedSourceRoot, 'config/detekt/detekt.yml'))
+        }
+    }
+}

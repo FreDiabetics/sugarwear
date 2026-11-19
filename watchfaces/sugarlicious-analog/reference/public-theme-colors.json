@@ -1,0 +1,668 @@
+{
+  "source": "Public Ultra native editor, SM-L705F, 2026-10-21. Lossless 480px screenshots; no APK extraction.",
+  "measurement": {
+    "light": [
+      438,
+      232
+    ],
+    "middle": [
+      440,
+      240
+    ],
+    "vivid": [
+      438,
+      248
+    ],
+    "track": "middle composited with alpha 55/255 over black; four two-color themes use vivid as middle."
+  },
+  "palettes": [
+    {
+      "name": "Graphite",
+      "colors": [
+        "#FFE3E3E3",
+        "#FFBCBCBC",
+        "#FF292929",
+        "#FFDADADA"
+      ]
+    },
+    {
+      "name": "Cloud",
+      "colors": [
+        "#FFFFFFFF",
+        "#FFE4E4E4",
+        "#FF313131",
+        "#FFEAEAEA"
+      ]
+    },
+    {
+      "name": "Almond",
+      "colors": [
+        "#FFFFF7E4",
+        "#FFFCF7EA",
+        "#FF363532",
+        "#FFFCF7EB"
+      ]
+    },
+    {
+      "name": "Watermelon",
+      "colors": [
+        "#FFFFEAEA",
+        "#FFFF9391",
+        "#FF37201F",
+        "#FFFF4642"
+      ]
+    },
+    {
+      "name": "Pomelo",
+      "colors": [
+        "#FFFFF3F2",
+        "#FFFFA49F",
+        "#FF372322",
+        "#FFFF665D"
+      ]
+    },
+    {
+      "name": "Champagne",
+      "colors": [
+        "#FFFFE8DA",
+        "#FFFFC6A3",
+        "#FF372B23",
+        "#FFFF975D"
+      ]
+    },
+    {
+      "name": "Wheat",
+      "colors": [
+        "#FFFFF6E1",
+        "#FFFFE9B9",
+        "#FF373228",
+        "#FFFFCE63"
+      ]
+    },
+    {
+      "name": "Limoncello",
+      "colors": [
+        "#FFFEFFE9",
+        "#FFFCFFB6",
+        "#FF363727",
+        "#FFF9FF52"
+      ]
+    },
+    {
+      "name": "Key Lime",
+      "colors": [
+        "#FFFAFFE4",
+        "#FFEAFF8E",
+        "#FF32371F",
+        "#FFDEFF4C"
+      ]
+    },
+    {
+      "name": "Lemongrass",
+      "colors": [
+        "#FFF4FFDF",
+        "#FFEBFFC3",
+        "#FF33372A",
+        "#FFCEFF6C"
+      ]
+    },
+    {
+      "name": "Spring",
+      "colors": [
+        "#FFEBFFD2",
+        "#FFD3FF9B",
+        "#FF2E3721",
+        "#FFB0FF4D"
+      ]
+    },
+    {
+      "name": "Lime",
+      "colors": [
+        "#FFF0FFCD",
+        "#FFDEFF91",
+        "#FF30371F",
+        "#FFC7FF45"
+      ]
+    },
+    {
+      "name": "Pear",
+      "colors": [
+        "#FFEDFFD5",
+        "#FFD6FF9E",
+        "#FF2E3722",
+        "#FFAEFF4A"
+      ]
+    },
+    {
+      "name": "Grass Green",
+      "colors": [
+        "#FFE5FFE0",
+        "#FFADFF9A",
+        "#FF253721",
+        "#FF70FF3D"
+      ]
+    },
+    {
+      "name": "Proto Green",
+      "colors": [
+        "#FFE3FFE0",
+        "#FFA9FF9A",
+        "#FF243721",
+        "#FF4EFF58"
+      ]
+    },
+    {
+      "name": "Moss Green",
+      "colors": [
+        "#FFE8FFF2",
+        "#FFBEFFD9",
+        "#FF29372F",
+        "#FF57FF9D"
+      ]
+    },
+    {
+      "name": "Fern",
+      "colors": [
+        "#FFD1FFE6",
+        "#FF65DF9D",
+        "#FF163022",
+        "#FF41FF99"
+      ]
+    },
+    {
+      "name": "Spearmint",
+      "colors": [
+        "#FFE0FFE4",
+        "#FF9FF7AD",
+        "#FF223525",
+        "#FF52FF6D"
+      ]
+    },
+    {
+      "name": "Alpine Green",
+      "colors": [
+        "#FFCDDECD",
+        "#FFC3E9C3",
+        "#FF2A322A",
+        "#FFB7F297"
+      ]
+    },
+    {
+      "name": "Mint",
+      "colors": [
+        "#FFE5FFF5",
+        "#FFABFFDF",
+        "#FF253730",
+        "#FF5EFFC0"
+      ]
+    },
+    {
+      "name": "Jade",
+      "colors": [
+        "#FFDEF4EC",
+        "#FFBEECDB",
+        "#FF29332F",
+        "#FFAAF6D9"
+      ]
+    },
+    {
+      "name": "Steam Green",
+      "colors": [
+        "#FFE2F0E6",
+        "#FFDFDFDF",
+        "#FF303030",
+        "#FFBFDCC4"
+      ]
+    },
+    {
+      "name": "Sage",
+      "colors": [
+        "#FFE1ECE9",
+        "#FFCCE4DF",
+        "#FF2C3130",
+        "#FFBBF6E6"
+      ]
+    },
+    {
+      "name": "Avocado",
+      "colors": [
+        "#FFB4CCC2",
+        "#FF8BB6A5",
+        "#FF1E2724",
+        "#FFF5FFFB"
+      ]
+    },
+    {
+      "name": "Forest",
+      "colors": [
+        "#FFCDE1DA",
+        "#FF76B89F",
+        "#FF192822",
+        "#FF8EAFA3"
+      ]
+    },
+    {
+      "name": "Pine Green",
+      "colors": [
+        "#FFD3E2D3",
+        "#FFBFD9BF",
+        "#FF292F29",
+        "#FFACC89E"
+      ]
+    },
+    {
+      "name": "Seafoam",
+      "colors": [
+        "#FFEEFFFD",
+        "#FFE5FFFB",
+        "#FF313736",
+        "#FFD6FFF9"
+      ]
+    },
+    {
+      "name": "Stream",
+      "colors": [
+        "#FFDAFFFF",
+        "#FFBEF6FF",
+        "#FF293537",
+        "#FF93F0FF"
+      ]
+    },
+    {
+      "name": "Aqua",
+      "colors": [
+        "#FFD5FAFF",
+        "#FFA8F4FF",
+        "#FF243537",
+        "#FF5EEBFF"
+      ]
+    },
+    {
+      "name": "Lagoon",
+      "colors": [
+        "#FFCCEFFF",
+        "#FF99E0FF",
+        "#FF213037",
+        "#FF5ACDFF"
+      ]
+    },
+    {
+      "name": "Sky",
+      "colors": [
+        "#FFE6F5FF",
+        "#FFA8DDFF",
+        "#FF243037",
+        "#FF5EC1FF"
+      ]
+    },
+    {
+      "name": "Ocean",
+      "colors": [
+        "#FFE2EDFF",
+        "#FFA3C6FF",
+        "#FF232B37",
+        "#FF5E9BFF"
+      ]
+    },
+    {
+      "name": "Sapphire",
+      "colors": [
+        "#FFD6E5FF",
+        "#FF88B4FF",
+        "#FF1D2737",
+        "#FF639CFF"
+      ]
+    },
+    {
+      "name": "Royal Blue",
+      "colors": [
+        "#FFC6E3FF",
+        "#FF8BC6FF",
+        "#FF1E2B37",
+        "#FF3A9CFF"
+      ]
+    },
+    {
+      "name": "Arctic",
+      "colors": [
+        "#FFD8E6FF",
+        "#FF9EC2FF",
+        "#FF222A37",
+        "#FF619BFF"
+      ]
+    },
+    {
+      "name": "Icy Blue",
+      "colors": [
+        "#FFCFDBFF",
+        "#FFA5BAFF",
+        "#FF242837",
+        "#FF687EFF"
+      ]
+    },
+    {
+      "name": "Amethyst",
+      "colors": [
+        "#FFD6DAFF",
+        "#FF959DFD",
+        "#FF202237",
+        "#FF5D68FF"
+      ]
+    },
+    {
+      "name": "Lilac",
+      "colors": [
+        "#FFD8C8FF",
+        "#FFB99AFF",
+        "#FF282137",
+        "#FF8E58FF"
+      ]
+    },
+    {
+      "name": "Lavender",
+      "colors": [
+        "#FFEECBFF",
+        "#FFE2A5FF",
+        "#FF312437",
+        "#FFCC62FF"
+      ]
+    },
+    {
+      "name": "Flamingo",
+      "colors": [
+        "#FFFDE0FF",
+        "#FFF8A6FF",
+        "#FF352437",
+        "#FFF25FFF"
+      ]
+    },
+    {
+      "name": "Verbena",
+      "colors": [
+        "#FFFFD9F3",
+        "#FFFFB3E6",
+        "#FF372732",
+        "#FFFF66CE"
+      ]
+    },
+    {
+      "name": "Guava",
+      "colors": [
+        "#FFFFDFDC",
+        "#FFFFB1AC",
+        "#FF372625",
+        "#FFFF776D"
+      ]
+    },
+    {
+      "name": "Coral",
+      "colors": [
+        "#FFFFE8E5",
+        "#FFFFA294",
+        "#FF372320",
+        "#FFFF5B43"
+      ]
+    },
+    {
+      "name": "Peach",
+      "colors": [
+        "#FFFFF5EF",
+        "#FFFDB78F",
+        "#FF37271F",
+        "#FFFF985E"
+      ]
+    },
+    {
+      "name": "Orange",
+      "colors": [
+        "#FFFFD1C4",
+        "#FFFF997A",
+        "#FF37211A",
+        "#FFFF693B"
+      ]
+    },
+    {
+      "name": "Chai",
+      "colors": [
+        "#FFF4EBE0",
+        "#FFD8AB77",
+        "#FF2F251A",
+        "#FFF0A752"
+      ]
+    },
+    {
+      "name": "Honey",
+      "colors": [
+        "#FFFFF1DB",
+        "#FFF8C67C",
+        "#FF352B1B",
+        "#FFFFB74A"
+      ]
+    },
+    {
+      "name": "Melon",
+      "colors": [
+        "#FFFFF4DD",
+        "#FFFFD88A",
+        "#FF372F1E",
+        "#FFFFC551"
+      ]
+    },
+    {
+      "name": "Dandelion",
+      "colors": [
+        "#FFFFFEE0",
+        "#FFFFFA86",
+        "#FF37361D",
+        "#FFFFF630"
+      ]
+    },
+    {
+      "name": "Milkshake",
+      "colors": [
+        "#FFFEF6E1",
+        "#FFFEF6E1",
+        "#FF373531",
+        "#FFFEF6E1"
+      ]
+    },
+    {
+      "name": "Sand",
+      "colors": [
+        "#FFFFF9E1",
+        "#FFC4B575",
+        "#FF2A2719",
+        "#FFF1D870"
+      ]
+    },
+    {
+      "name": "Salmon",
+      "colors": [
+        "#FFFFF4EA",
+        "#FFFAE7D6",
+        "#FF36322E",
+        "#FFFFDAB8"
+      ]
+    },
+    {
+      "name": "Amber",
+      "colors": [
+        "#FFFFF0D2",
+        "#FFFFD889",
+        "#FF372F1E",
+        "#FFFFCC63"
+      ]
+    },
+    {
+      "name": "Charcoal",
+      "colors": [
+        "#FFF2F6FF",
+        "#FFA0A3AB",
+        "#FF232325",
+        "#FFDFE3EF"
+      ]
+    },
+    {
+      "name": "Ocean Research",
+      "colors": [
+        "#FFDFFFF3",
+        "#FFA9FFDF",
+        "#FF243730",
+        "#FFFF8A00"
+      ]
+    },
+    {
+      "name": "Nothing",
+      "colors": [
+        "#FFFF4D4D",
+        "#FFFEFEFE",
+        "#FF373737",
+        "#FFFEFEFE"
+      ]
+    },
+    {
+      "name": "Submarine",
+      "colors": [
+        "#FFD2D2D2",
+        "#FFF5F5F5",
+        "#FF353535",
+        "#FFFF5B58"
+      ]
+    },
+    {
+      "name": "Proto Blue",
+      "colors": [
+        "#FFE5F2FF",
+        "#FF2391FF",
+        "#FF081F37",
+        "#FF2391FF"
+      ]
+    },
+    {
+      "name": "Khaki",
+      "colors": [
+        "#FFDCDCD5",
+        "#FFC6CCA3",
+        "#FF2B2C23",
+        "#FFAFBA69"
+      ]
+    },
+    {
+      "name": "Olive Vibrant",
+      "colors": [
+        "#FFEFF0E4",
+        "#FFEEFF80",
+        "#FF33371C",
+        "#FFCEFF1C"
+      ]
+    },
+    {
+      "name": "Olive Dull",
+      "colors": [
+        "#FFEFF0E4",
+        "#FFDFDFDF",
+        "#FF303030",
+        "#FFE8F0B3"
+      ]
+    },
+    {
+      "name": "Candy",
+      "colors": [
+        "#FFB5FBFF",
+        "#FFE2FDFF",
+        "#FF313737",
+        "#FFFF6DC9"
+      ]
+    },
+    {
+      "name": "United 24",
+      "colors": [
+        "#FFE1EAFF",
+        "#FFF7EA49",
+        "#FF353210",
+        "#FF2F69FF"
+      ]
+    },
+    {
+      "name": "Iridescent",
+      "colors": [
+        "#FFD8F7FF",
+        "#FFBAD1FF",
+        "#FF282D37",
+        "#FF5836FF"
+      ]
+    },
+    {
+      "name": "Industrial",
+      "colors": [
+        "#FFDAEBFF",
+        "#FFFF6F6F",
+        "#FF371818",
+        "#FFFF2A2A"
+      ]
+    },
+    {
+      "name": "Green Shock",
+      "colors": [
+        "#FFDAF9FF",
+        "#FF84FFE2",
+        "#FF1C3731",
+        "#FF58FF32"
+      ]
+    },
+    {
+      "name": "Juniper Haze",
+      "colors": [
+        "#FFEBEBEB",
+        "#FFB0FF54",
+        "#FF263712",
+        "#FF8356FF"
+      ]
+    },
+    {
+      "name": "Neon Green",
+      "colors": [
+        "#FFD2FFDF",
+        "#FF00FF88",
+        "#FF00371D",
+        "#FF3881FF"
+      ]
+    },
+    {
+      "name": "Neon Lime",
+      "colors": [
+        "#FFD9D9D9",
+        "#FF94BFFF",
+        "#FF202937",
+        "#FFACFF38"
+      ]
+    },
+    {
+      "name": "Neon Orange",
+      "colors": [
+        "#FFFFCCB1",
+        "#FFFF935C",
+        "#FF372014",
+        "#FFFF5F0D"
+      ]
+    },
+    {
+      "name": "Proto Orange",
+      "colors": [
+        "#FFF2F2F2",
+        "#FFFF8316",
+        "#FF371C05",
+        "#FFFF8316"
+      ]
+    },
+    {
+      "name": "Proto Red",
+      "colors": [
+        "#FFF2F2F2",
+        "#FFFF0F0F",
+        "#FF370303",
+        "#FFFF0F0F"
+      ]
+    }
+  ]
+}

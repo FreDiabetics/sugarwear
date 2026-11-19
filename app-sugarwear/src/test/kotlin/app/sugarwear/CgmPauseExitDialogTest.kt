@@ -22,6 +22,7 @@ class CgmPauseExitDialogTest {
             awaitCgmSettingsUi(activity) { vm.state.value.snapshot != null && !vm.state.value.loading }
             val before = CgmSensorStateStore(activity).read()
             activity.pauseCollectorWithExitOffer()
+            awaitCgmSettingsUi(activity) { !vm.state.value.loading && !CgmSensorStateStore(activity).read().collectorEnabled }
             val dialog = ShadowDialog.getLatestDialog()
             assertTrue(dialog.isShowing)
             assertNotNull(dialog.window!!.decorView.findViewWithTag<android.view.View>("pause-exit-confirm"))
@@ -29,10 +30,7 @@ class CgmPauseExitDialogTest {
             assertFalse(CgmSensorStateStore(activity).read().collectorEnabled)
             assertEquals(before.sensor, CgmSensorStateStore(activity).read().sensor)
             assertEquals(before.lastReading, CgmSensorStateStore(activity).read().lastReading)
-            dialog.window!!
-                .decorView
-                .findViewWithTag<android.view.View>("pause-exit-cancel")
-                .performClick()
+            dialog.dismiss()
         } finally {
             controller.pause().stop().destroy()
             Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()

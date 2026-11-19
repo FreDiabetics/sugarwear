@@ -36,7 +36,7 @@ internal class CgmExpectedWindowLedger(
     /** Remove scheduled-window metadata; never touch stored glucose readings. */
     fun clearAll() =
         synchronized(lock) {
-            check(preferences.edit().clear().commit()) { "G7 window ledger cleanup failed" }
+            preferences.clearSynchronously("G7 window ledger cleanup failed")
         }
 
     fun create(

@@ -440,6 +440,9 @@ internal class CgmReadingDatabase(
 
     override suspend fun getRecent(sinceEpochMs: Long): List<CgmReading> = query("measured_at>=?", arrayOf(sinceEpochMs.toString()))
 
+    fun getGraphHistory(nowEpochMs: Long): List<CgmReading> =
+        query("measured_at>=?", arrayOf((nowEpochMs - CgmCollectorBackfillProtocol.MAX_WINDOW_MS).toString()), limit = MAX_ROWS)
+
     override suspend fun getRange(
         fromEpochMs: Long,
         toEpochMs: Long,

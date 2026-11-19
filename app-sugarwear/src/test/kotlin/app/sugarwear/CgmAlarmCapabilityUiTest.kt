@@ -12,10 +12,8 @@ import android.content.pm.ResolveInfo
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -32,30 +30,18 @@ class CgmAlarmCapabilityUiTest {
     @get:org.junit.Rule val mainDispatcher = CgmMainDispatcherRule()
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
-    @Test fun `unsupported exemption screen is explained without a dead permission button`() {
-        val fake =
-            ResolveInfo().apply {
-                activityInfo =
-                    ActivityInfo().apply {
-                        packageName = "com.google.android.apps.wearable.settings"
-                        name = "com.google.android.clockwork.settings.FakeSettingsActivity"
-                        exported = true
-                        enabled = true
-                        applicationInfo =
-                            ApplicationInfo().apply {
-                                flags = ApplicationInfo.FLAG_SYSTEM
-                                packageName = "com.google.android.apps.wearable.settings"
-                            }
-                    }
-            }
-        registerPolicyActivity(fake.activityInfo)
+    @Test fun `permissions activity displays four canonical permission cards`() {
         val controller = Robolectric.buildActivity(CgmPermissionsActivity::class.java).setup().visible()
         try {
             val activity = controller.get()
-            awaitCgmSettingsUi(activity) { texts(activity.window.decorView).any { it.text == "Nicht stören" } }
-            val views = descendants(activity.window.decorView).toList()
-            assertTrue(views.filterIsInstance<TextView>().any { it.text == "Auf dieser Uhr nicht verfügbar" })
-            assertFalse(views.filterIsInstance<Button>().any { it.text == "Systemfreigabe öffnen" })
+            awaitCgmSettingsUi(activity) { texts(activity.window.decorView).any { it.text == "Benachrichtigungen" } }
+            val titles = texts(activity.window.decorView).map { it.text.toString() }.toList()
+            assertTrue(titles.contains("Benachrichtigungen"))
+            assertTrue(titles.contains("Genaue Alarme"))
+            assertTrue(titles.contains("Bluetooth"))
+            assertTrue(titles.contains("Hintergrundbetrieb/Akkuoptimierungen"))
+            assertFalse(titles.contains("Nicht stören"))
+            assertFalse(titles.contains("Alarmkanäle"))
         } finally {
             controller.pause().stop().destroy()
             shadowOf(android.os.Looper.getMainLooper()).idle()
@@ -93,24 +79,26 @@ class CgmAlarmCapabilityUiTest {
         assertEquals(Settings.ACTION_SETTINGS, cgmAlarmSettingsAction(snapshot)?.action)
     }
 
-    @Test fun `unsupported exemption does not trap setup when actual system alarms are allowed`() {
+    @Test fun `four step setup evaluates permissions cleanly`() {
         val access = CgmSystemAccessSnapshot(true, true, true, true, false, listOf(CgmAlarmChannelAccess("alarm", "Alarm", 2, false)))
         val alarm = CgmAlarmSystemSnapshot(false, true, true, 15, 15, 2, NotificationManager.INTERRUPTION_FILTER_ALL, false)
         val model = CgmSetupViewModel { }
-        model.restore(4, false)
+        model.restore(0, false)
         assertTrue(model.granted(access, alarm))
-        assertFalse(model.granted(access, alarm.copy(interruptionFilter = NotificationManager.INTERRUPTION_FILTER_NONE)))
-        model.restore(5, false)
+        model.restore(1, false)
         assertTrue(model.granted(access, alarm))
-        assertFalse(model.granted(access.copy(alarmChannels = listOf(CgmAlarmChannelAccess("alarm", "Alarm", 0, false))), alarm))
+        model.restore(2, false)
+        assertTrue(model.granted(access, alarm))
+        model.restore(3, false)
+        assertTrue(model.granted(access, alarm))
     }
 
     @Test fun `test notification warns that total silence blocks its bundled sound`() {
         val manager = context.getSystemService(NotificationManager::class.java)
         shadowOf(manager).setNotificationPolicyAccessGranted(true)
         manager.setInterruptionFilter(NotificationManager.INTERRUPTION_FILTER_NONE)
-        CgmAlarmNotifier.showTest(context, CgmAlarmType.VERY_HIGH, CgmAlarmSettingsStore.read(context).copy(soundEnabled = true))
-        val notification = shadowOf(manager).getNotification(CgmAlarmNotifier.testNotificationId(CgmAlarmType.VERY_HIGH))
+        CgmAlarmNotifier.showTest(context, SugarWearAlarmType.HIGH, CgmAlarmSettingsStore.read(context))
+        val notification = shadowOf(manager).getNotification(CgmAlarmNotifier.testNotificationId(SugarWearAlarmType.HIGH))
         assertTrue(
             notification.extras
                 .getCharSequence(Notification.EXTRA_TEXT)

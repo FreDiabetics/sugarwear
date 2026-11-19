@@ -8,11 +8,38 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.net.toUri
 
+internal enum class CgmBackgroundRestrictionStatus {
+    ALLOWED,
+    RESTRICTED,
+    UNKNOWN,
+}
+
+internal data class CgmBackgroundAccessSnapshot(
+    val autoRevokeWhitelisted: CgmBackgroundRestrictionStatus,
+    val batteryOptimizationIgnored: Boolean,
+) {
+    val overallOk: Boolean get() = autoRevokeWhitelisted != CgmBackgroundRestrictionStatus.RESTRICTED && batteryOptimizationIgnored
+}
+
 internal object CgmBackgroundAccess {
     fun isBatteryUnrestricted(context: Context): Boolean =
         context
             .getSystemService(PowerManager::class.java)
             .isIgnoringBatteryOptimizations(context.packageName)
+
+    fun isAutoRevokeWhitelisted(context: Context): CgmBackgroundRestrictionStatus =
+        runCatching {
+            val whitelisted = context.packageManager.isAutoRevokeWhitelisted()
+            if (whitelisted) CgmBackgroundRestrictionStatus.ALLOWED else CgmBackgroundRestrictionStatus.RESTRICTED
+        }.getOrElse {
+            CgmBackgroundRestrictionStatus.UNKNOWN
+        }
+
+    fun snapshot(context: Context): CgmBackgroundAccessSnapshot =
+        CgmBackgroundAccessSnapshot(
+            autoRevokeWhitelisted = isAutoRevokeWhitelisted(context),
+            batteryOptimizationIgnored = isBatteryUnrestricted(context),
+        )
 
     // User-initiated exemption is required for the direct BLE glucose collector,
     // whose core data and alert path cannot be deferred by Doze.

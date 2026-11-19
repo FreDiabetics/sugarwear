@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shared_settings">Einstellungen</string>
+    <string name="shared_color_rgba">R %1$d · G %2$d · B %3$d · A %4$d</string>
+    <string name="shared_color_presets_recent">Presets / zuletzt verwendet</string>
+    <string name="shared_signal_loss">Signalverlust</string>
+    <string name="shared_reception_paused">Datenempfang pausiert</string>
+    <string name="shared_reception_paused_multiline">Datenempfang\npausiert</string>
+    <string name="shared_apply">Übernehmen</string>
+</resources>

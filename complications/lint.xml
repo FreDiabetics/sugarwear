@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- These large vectors are static complication-picker previews, not runtime icons. -->
+    <issue id="VectorRaster">
+        <ignore path="src/main/res/drawable/direct_to_watch_graph_preview.xml" />
+        <ignore path="src/main/res/drawable/direct_to_watch_header_preview.xml" />
+    </issue>
+</lint>

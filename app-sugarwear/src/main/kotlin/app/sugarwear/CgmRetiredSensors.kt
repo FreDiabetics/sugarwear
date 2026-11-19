@@ -21,7 +21,7 @@ internal class CgmRetiredSensors(
     /** Old deny-list entries are not retained after explicit disconnection. */
     fun clearAll() =
         synchronized(lock) {
-            check(preferences.edit().clear().commit()) { "Old G7 exclusion list could not be removed" }
+            preferences.clearSynchronously("Old G7 exclusion list could not be removed")
         }
 
     fun contains(address: String?): Boolean =

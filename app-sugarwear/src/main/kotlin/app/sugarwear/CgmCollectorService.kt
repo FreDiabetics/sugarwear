@@ -522,7 +522,7 @@ class CgmCollectorService : Service() {
                                         if (protocolState == CgmProtocolState.SCANNING) now else current.lastScanAtEpochMs,
                                     health = health,
                                 )
-                            persist(next)
+                            if (persist(next) && protocolState == CgmProtocolState.AUTHENTICATED) CgmConnectionCue.confirmed(this@CgmCollectorService, next)
                             updateAttemptCycleForProtocolState(attemptId, protocolState, now)
                             recordAttemptProtocolState(attemptId, protocolState, collectionSensor.sensorId)
                             scope.launch {

@@ -1,0 +1,163 @@
+[
+  {
+    "WatchFace": "aaps-v4",
+    "Package": "app.aapswear.watchface.aapsv4",
+    "ActiveSha256": "12733D37D7FBABDB392BC562075CCA4403B6291168D648BFA24772280A59F572",
+    "AmbientSha256": "6359C169EE305AC2C144D09B5C02D032D2B7B45E13BA88C29D3964552CBFD81B",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-v2",
+    "Package": "app.aapswear.watchface.aapsv2",
+    "ActiveSha256": "E496A814EF6016CA01ACD90A0F4E2133322DD86CDD91089D1C6648201B7EB365",
+    "AmbientSha256": "B93052402A805E6919E7372CAB4A1463A10B170D8D47017AFD7EF42644B612F7",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-standard",
+    "Package": "app.aapswear.watchface.aapsstandard",
+    "ActiveSha256": "7764C912C21143981AA4AE4227FAD3C0119A0C342CBE9BC2AD17BAEBDA019557",
+    "AmbientSha256": "037D04FE659B23906ED57D3F434281802A4A7C3FE9CCF6135241999B81B6177B",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "aaps-circle",
+    "Package": "app.aapswear.watchface.aapscircle",
+    "ActiveSha256": "CF3AA7B27CDF3D77E3167B0E6C9B4D9DE765D73F49E04EFAE7BE1D6D2F397FA2",
+    "AmbientSha256": "88E1E23BC38D855305F266A743044BC5986A11B57CE19CD50AA4632E30E46C12",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "aaps-digital-style",
+    "Package": "app.aapswear.watchface.aapsdigitalstyle",
+    "ActiveSha256": "86711B96B04CE0FF37F6C671BD01CCAF0A6492F245E9100FDCFAFA71399E5994",
+    "AmbientSha256": "648085A0910024840099BA531D1A83DEA55CA298C9B65F51568E95C9398C8FA5",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-big-chart",
+    "Package": "app.aapswear.watchface.aapsbigchart",
+    "ActiveSha256": "7198A73ECF786C7C9095D2039F3B486ACA38A9C43E26704A8E53DF67FA7B2B61",
+    "AmbientSha256": "FC41633859F2248E36725E71C170C22459863385C117AC40DC6A4EAF15CDB30F",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-large",
+    "Package": "app.aapswear.watchface.aapslarge",
+    "ActiveSha256": "AD652B29F5CD2E36583D7643F788CA53BBAC3305DA9BFAF10DA7F0C174223750",
+    "AmbientSha256": "75CC34C39F2999891E56B729F29B29DB98865EEED81F7D9DDB2A3D878C88067D",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-no-chart",
+    "Package": "app.aapswear.watchface.aapsnochart",
+    "ActiveSha256": "0EADC9A7513B79AA185ABACA242E2067B98011DA0A5BF9A8AD013D8D238BACEE",
+    "AmbientSha256": "0BFF486996A09AEE71D770FF8647E63A55B1BF15559D81FF19EB185C8A503968",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-cockpit",
+    "Package": "app.aapswear.watchface.aapscockpit",
+    "ActiveSha256": "9016BD964433CB0DDDA68B7B1DFC9370F309AEB522406D10EFBC560E01A1930D",
+    "AmbientSha256": "1BD1B4A36CD2267EE863C5180945FBF785B2F70D0C6BA9D1572AAA099351575F",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-v2-tt-dark",
+    "Package": "app.aapswear.watchface.aapsv2ttdark",
+    "ActiveSha256": "770ECC67B60B92BEE4517A89F556C37B5FA04A8DCDB95D6E19A53889E8009981",
+    "AmbientSha256": "1E6C9A96497B7049D03EA7DEEDB1FC2370C02B9D30287CD0A615F81FD8BACF82",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aaps-community",
+    "Package": "app.aapswear.watchface.aapscommunity",
+    "ActiveSha256": "A5398D1B02FB052CC705649FAF42334B0AB5315DF84B7D3DEC8E0A278CC1A118",
+    "AmbientSha256": "22F2A9E9A58222C770E07154E04406A9FB4E61861304F1B4ACF867B0880650EB",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "aimico",
+    "Package": "app.aapswear.watchface.aimico",
+    "ActiveSha256": "24CF22CCA65BDE21C7E9FE6E74041301BC71A58EC536F5F72205C8E5149D4BF3",
+    "AmbientSha256": "FA7F0A24BAA6EC92EBCE1CE7E407BAA27F22AA09068269AE0C6015A17B9BA59C",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "analog-g-watch",
+    "Package": "app.aapswear.watchface.analoggwatch",
+    "ActiveSha256": "723505DCA41588E687AF8892D03FEAA5ADC44C545DD5C096874301A586DC009A",
+    "AmbientSha256": "EFAE8495E4C727165E6D084E234A3F8C8E0A1569B15890B3933CBEE77E2C5757",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "blue-ring",
+    "Package": "app.aapswear.watchface.bluering",
+    "ActiveSha256": "25839250C6450BD580CEA2A588F7806D08B8701F93BE552567A876337F058941",
+    "AmbientSha256": "E847E2C924F1AC4D221F3ED98C00CB3B0C2904539D5A14FE6CA7B5A032F9A39F",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "digital-big-graph",
+    "Package": "app.aapswear.watchface.digitalbiggraph",
+    "ActiveSha256": "BF66C4E190F685281C7975145C1BC878559E7D31AF59039B50AD6CC157CCCB3A",
+    "AmbientSha256": "891BC762110F5E6AF187EB5797A633671FBD1EFEB526B86CCC9D424A8A5DE417",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "digital-g-watch",
+    "Package": "app.aapswear.watchface.digitalgwatch",
+    "ActiveSha256": "33FA0A879C3724D26D30F3428C5AF7D46FA6275C68EBE606A2A5315190CF8710",
+    "AmbientSha256": "15C7390BC8371479C3E17BCABE531FE6A051C0CBD1658D298CA5EB78824D61AE",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "gears",
+    "Package": "app.aapswear.watchface.gears",
+    "ActiveSha256": "FF9DABF9691F672DBD45CF857CABB4FC2929E8A70B987269B4CA5F4CCFB61C60",
+    "AmbientSha256": "A9118CE8E0AE268D8264AD634C224616649287B40A593B98A3B0AC4CB7DE03A4",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "gota",
+    "Package": "app.aapswear.watchface.gota",
+    "ActiveSha256": "9C95A76911466870AC87019E5950A56F2D36B6BBF6EEB71B29E3196B7F7C4C84",
+    "AmbientSha256": "654AE4B15E9CCED4317A60A351CE47562CE0AB9556EB6B955476EF3C8B2B0B3E",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "lucky-loop-koeln",
+    "Package": "app.aapswear.watchface.luckyloopkoeln",
+    "ActiveSha256": "FEA4465A11E7F825528D01530728F87A8746DB00AF22CB46E8B4E710BD09C332",
+    "AmbientSha256": "0EFC50FDF24175FEBFE7FEE6B41C94D450ECF0C7D1FFD2D9DCB1B1EC4DBC01A5",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "p-zero",
+    "Package": "app.aapswear.watchface.pzero",
+    "ActiveSha256": "D64D9372F3CE39D5F9C40B8F3D69048E42617F8ADD497159E1FA79D16C957AE4",
+    "AmbientSha256": "B3BB24EE0CC0C43E16EFA5E68FA99747CDC6743E3DDB34FAA79B3A380A838CC8",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "robby",
+    "Package": "app.aapswear.watchface.robby",
+    "ActiveSha256": "4494B4A2A54A65D064E5865AF692D97B5FD2E5D4A811ABD7F185DF6B4F847447",
+    "AmbientSha256": "E2CFE044AE146B8D4F27C80C54BF61A54D426EE8892C55AB1B1E7AB7A64BDBD3",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  },
+  {
+    "WatchFace": "simple-digital",
+    "Package": "app.aapswear.watchface.simpledigital",
+    "ActiveSha256": "11CAD015B1A41FD5A5E0CD64527C5A7A9FE40B122EA9D7A70DC1FD9491D3E050",
+    "AmbientSha256": "E78C60CF0BE57D78B14D7EE44AD095AC86693924E6A893571C706C1803E29EEF",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+  },
+  {
+    "WatchFace": "steam-punk",
+    "Package": "app.aapswear.watchface.steampunk",
+    "ActiveSha256": "5E83C323AE4934B1DA58D5AF3C2AC898903126B4A66063E4C93C931742CD9683",
+    "AmbientSha256": "231E2862200C18B821718AD72716C836CB705FB245E33927207298B2EF1EE4FE",
+    "AmbientState": "mWakefulness=Dozing; Display State=DOZE"
+  }
+]

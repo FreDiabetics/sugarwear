@@ -1,0 +1,1374 @@
+{
+  "sourceName": "Sugarlicious Analog.wfs",
+  "sourceSha256": "2B2E3E818DE8B74AEDD503C38975967FAC79AB042D16C4336DD010E72E63051F",
+  "sourceCanvas": 450,
+  "targetCanvas": 512,
+  "slots": [
+    {
+      "name": "Upper Left Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 171.37412587412575,
+          "y": 186.66083916083912,
+          "width": 114.99999999999947,
+          "height": 115,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Progress Bar",
+          "field": "rangedValue",
+          "type": "progressBar",
+          "x": 51.499999999999986,
+          "y": 64.29999999999994,
+          "width": 98.70224861173217,
+          "height": 117.35993817244734,
+          "rotation": 0,
+          "pivot": {
+            "x": 175.66335950554895,
+            "y": 136.2779101475022
+          },
+          "stroke": 15,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": {
+            "value": {
+              "value": 189
+            },
+            "min": {
+              "value": 0
+            },
+            "max": {
+              "value": 360
+            },
+            "useWeight": {
+              "value": false
+            },
+            "colors": {
+              "value": "#FFFFFF"
+            },
+            "interpolate": {
+              "value": false
+            },
+            "linearDirection": {
+              "value": "right"
+            },
+            "circularRangeStartAngle": {
+              "value": 285
+            },
+            "circularRangeSweepAngle": {
+              "value": 48
+            },
+            "circularDirection": {
+              "value": "CW"
+            },
+            "circularWidth": {
+              "value": 359
+            },
+            "circularHeight": {
+              "value": 359
+            },
+            "circularCenterX": {
+              "value": 173.38368581888778
+            },
+            "circularCenterY": {
+              "value": 159.93567109181194
+            },
+            "circularLink": {
+              "value": true
+            },
+            "movement": {
+              "value": "normal"
+            },
+            "movementDirection": {
+              "value": "CW"
+            }
+          }
+        },
+        {
+          "name": "Icon",
+          "field": "icon",
+          "type": "image",
+          "x": 44.3500552704097,
+          "y": 194.1571898348361,
+          "width": 22,
+          "height": 22.00000000000004,
+          "rotation": 273.3061743626798,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 225.01478155306174,
+          "y": 37.04759713136784,
+          "width": 188.00000000000003,
+          "height": 376,
+          "rotation": -24,
+          "pivot": {
+            "x": 1.836970198721029e-14,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": 27,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 33
+          },
+          "textAlign": "start",
+          "textStyle": {
+            "bold": false,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": true
+            },
+            "width": {
+              "value": 376
+            },
+            "height": {
+              "value": 376
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": 3.4535039735955356e-14
+            },
+            "centerY": {
+              "value": 188
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Upper Right Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 167.50000000000026,
+          "y": 167.5,
+          "width": 114.99999999999947,
+          "height": 115,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Progress Bar",
+          "field": "rangedValue",
+          "type": "progressBar",
+          "x": 51.77361466118184,
+          "y": 64.16874405993015,
+          "width": 98.70224861173217,
+          "height": 117.35993817244734,
+          "rotation": 90,
+          "pivot": {
+            "x": 175.66335950554895,
+            "y": 136.2779101475022
+          },
+          "stroke": 15,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": {
+            "value": {
+              "value": 189
+            },
+            "min": {
+              "value": 0
+            },
+            "max": {
+              "value": 360
+            },
+            "useWeight": {
+              "value": false
+            },
+            "colors": {
+              "value": "#FFFFFF"
+            },
+            "interpolate": {
+              "value": false
+            },
+            "linearDirection": {
+              "value": "right"
+            },
+            "circularRangeStartAngle": {
+              "value": 285
+            },
+            "circularRangeSweepAngle": {
+              "value": 48
+            },
+            "circularDirection": {
+              "value": "CW"
+            },
+            "circularWidth": {
+              "value": 359
+            },
+            "circularHeight": {
+              "value": 359
+            },
+            "circularCenterX": {
+              "value": 173.38368581888778
+            },
+            "circularCenterY": {
+              "value": 159.93567109181194
+            },
+            "circularLink": {
+              "value": true
+            },
+            "movement": {
+              "value": "normal"
+            },
+            "movementDirection": {
+              "value": "CW"
+            }
+          }
+        },
+        {
+          "name": "Icon",
+          "field": "icon",
+          "type": "image",
+          "x": 235.26669636447892,
+          "y": 40.90720763675466,
+          "width": 22,
+          "height": 22.00000000000004,
+          "rotation": 372.2737220509197,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 225.0465272647501,
+          "y": 36.960843816758086,
+          "width": 188.00000000000003,
+          "height": 376,
+          "rotation": 67,
+          "pivot": {
+            "x": 1.836970198721029e-14,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": 27,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 33
+          },
+          "textAlign": "start",
+          "textStyle": {
+            "bold": false,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": true
+            },
+            "width": {
+              "value": 376
+            },
+            "height": {
+              "value": 376
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": 3.4535039735955356e-14
+            },
+            "centerY": {
+              "value": 188
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Lower Right Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 167.50000000000026,
+          "y": 167.5,
+          "width": 114.99999999999947,
+          "height": 115,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Icon",
+          "field": "icon",
+          "type": "image",
+          "x": 386.60002969781226,
+          "y": 227.57387430342138,
+          "width": 22,
+          "height": 22.00000000000004,
+          "rotation": 453.99703028488614,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Progress Bar",
+          "field": "rangedValue",
+          "type": "progressBar",
+          "x": 51.6424678699842,
+          "y": 65.20940900078502,
+          "width": 98.70224861173217,
+          "height": 117.35993817244734,
+          "rotation": 178,
+          "pivot": {
+            "x": 175.66335950554895,
+            "y": 136.2779101475022
+          },
+          "stroke": 15,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": {
+            "value": {
+              "value": 168
+            },
+            "min": {
+              "value": 0
+            },
+            "max": {
+              "value": 360
+            },
+            "useWeight": {
+              "value": false
+            },
+            "colors": {
+              "value": "#FFFFFF"
+            },
+            "interpolate": {
+              "value": false
+            },
+            "linearDirection": {
+              "value": "right"
+            },
+            "circularRangeStartAngle": {
+              "value": 285
+            },
+            "circularRangeSweepAngle": {
+              "value": 48
+            },
+            "circularDirection": {
+              "value": "CW"
+            },
+            "circularWidth": {
+              "value": 359
+            },
+            "circularHeight": {
+              "value": 359
+            },
+            "circularCenterX": {
+              "value": 173.38368581888778
+            },
+            "circularCenterY": {
+              "value": 159.93567109181194
+            },
+            "circularLink": {
+              "value": true
+            },
+            "movement": {
+              "value": "normal"
+            },
+            "movementDirection": {
+              "value": "CW"
+            }
+          }
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 37.007371081508154,
+          "y": 36.99999999999986,
+          "width": 188,
+          "height": 376,
+          "rotation": 336,
+          "pivot": {
+            "x": 100,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": 27,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 33
+          },
+          "textAlign": "end",
+          "textStyle": {
+            "bold": false,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": true
+            },
+            "width": {
+              "value": 376
+            },
+            "height": {
+              "value": 376
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": 188
+            },
+            "centerY": {
+              "value": 188
+            },
+            "direction": {
+              "value": {
+                "type": "CCW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Lower Left Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 180.99999999999991,
+          "y": 181.66666666666666,
+          "width": 92,
+          "height": 92,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Icon",
+          "field": "icon",
+          "type": "image",
+          "x": 42.99999999999994,
+          "y": 228,
+          "width": 22,
+          "height": 22,
+          "rotation": -270,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 37.00437088317389,
+          "y": 37.01474599613644,
+          "width": 188,
+          "height": 376,
+          "rotation": -100,
+          "pivot": {
+            "x": 100,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": 26,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 32
+          },
+          "textAlign": "start",
+          "textStyle": {
+            "bold": false,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": false,
+          "curve": {
+            "enabled": {
+              "value": true
+            },
+            "width": {
+              "value": 376
+            },
+            "height": {
+              "value": 376
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": 188
+            },
+            "centerY": {
+              "value": 188
+            },
+            "direction": {
+              "value": {
+                "type": "CCW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Center Left Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 73,
+          "y": 171,
+          "width": 108.33337721271099,
+          "height": 108.33337721271099,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 80,
+          "y": 227,
+          "width": 98,
+          "height": 28,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": 22,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 27
+          },
+          "textAlign": "center",
+          "textStyle": {
+            "bold": true,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": false
+            },
+            "width": {
+              "value": 100
+            },
+            "height": {
+              "value": 100
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": -3.3158758364674794
+            },
+            "centerY": {
+              "value": 106.1923076923076
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        },
+        {
+          "name": "Title",
+          "field": "shortTitle",
+          "type": "text",
+          "x": 80,
+          "y": 196,
+          "width": 94,
+          "height": 27.307718536570583,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 173,
+            "g": 173,
+            "b": 173,
+            "a": 255
+          },
+          "fontSize": 24,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 29
+          },
+          "textAlign": "center",
+          "textStyle": {
+            "bold": true,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": false
+            },
+            "width": {
+              "value": 100
+            },
+            "height": {
+              "value": 100
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": -0.8333332391432542
+            },
+            "centerY": {
+              "value": 43.94871794871801
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Center Right Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 269,
+          "y": 171,
+          "width": 108.33337721271099,
+          "height": 108.33337721271099,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 276,
+          "y": 227,
+          "width": 94,
+          "height": 28,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": 22,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 27
+          },
+          "textAlign": "center",
+          "textStyle": {
+            "bold": true,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": false
+            },
+            "width": {
+              "value": 100
+            },
+            "height": {
+              "value": 100
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": -16.698717948717675
+            },
+            "centerY": {
+              "value": 111.69230769230761
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        },
+        {
+          "name": "Title",
+          "field": "shortTitle",
+          "type": "text",
+          "x": 276,
+          "y": 196,
+          "width": 94,
+          "height": 26.53847672696371,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 173,
+            "g": 173,
+            "b": 173,
+            "a": 255
+          },
+          "fontSize": 22,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 27
+          },
+          "textAlign": "center",
+          "textStyle": {
+            "bold": true,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": false
+            },
+            "width": {
+              "value": 100
+            },
+            "height": {
+              "value": 100
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": -10.435897435897166
+            },
+            "centerY": {
+              "value": 44.333348521835546
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Center Bottom Complication",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 158.9996202323578,
+          "y": 247,
+          "width": 132.00075953528435,
+          "height": 130.99964511781948,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Progress Bar",
+          "field": "rangedValue",
+          "type": "progressBar",
+          "x": 165,
+          "y": 254,
+          "width": 120,
+          "height": 105.96266658713867,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 56.623716571589725
+          },
+          "stroke": 10,
+          "color": {
+            "r": 244,
+            "g": 118,
+            "b": 64,
+            "a": 255,
+            "type": "color"
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": {
+            "value": {
+              "value": 75
+            },
+            "min": {
+              "value": 0
+            },
+            "max": {
+              "value": 100
+            },
+            "useWeight": {
+              "value": false
+            },
+            "colors": {
+              "value": "#FFFFFF"
+            },
+            "interpolate": {
+              "value": false
+            },
+            "linearDirection": {
+              "value": "right"
+            },
+            "circularRangeStartAngle": {
+              "value": -140
+            },
+            "circularRangeSweepAngle": {
+              "value": 280
+            },
+            "circularDirection": {
+              "value": "CW"
+            },
+            "circularWidth": {
+              "value": 120
+            },
+            "circularHeight": {
+              "value": 120
+            },
+            "circularCenterX": {
+              "value": 60
+            },
+            "circularCenterY": {
+              "value": 60
+            },
+            "circularLink": {
+              "value": true
+            },
+            "movement": {
+              "value": "normal"
+            },
+            "movementDirection": {
+              "value": "CW"
+            }
+          }
+        },
+        {
+          "name": "Icon",
+          "field": "icon",
+          "type": "image",
+          "x": 211.9,
+          "y": 350.83021386574706,
+          "width": 26.2,
+          "height": 26.001295099892406,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Text",
+          "field": "shortText",
+          "type": "text",
+          "x": 164.73878369041364,
+          "y": 292.71415776263706,
+          "width": 120.52243261917269,
+          "height": 39.869457209771106,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 177,
+            "b": 70,
+            "a": 255,
+            "type": "color"
+          },
+          "fontSize": 35,
+          "font": {
+            "type": "system",
+            "value": "SYNC_TO_DEVICE",
+            "name": "Sync to Device",
+            "height": 42
+          },
+          "textAlign": "center",
+          "textStyle": {
+            "bold": true,
+            "italic": false,
+            "underline": false,
+            "strikeThrough": false
+          },
+          "ellipsis": true,
+          "curve": {
+            "enabled": {
+              "value": false
+            },
+            "width": {
+              "value": 100
+            },
+            "height": {
+              "value": 100
+            },
+            "startAngle": {
+              "value": 0
+            },
+            "sweepAngle": {
+              "value": 180
+            },
+            "centerX": {
+              "value": 0
+            },
+            "centerY": {
+              "value": 75
+            },
+            "direction": {
+              "value": {
+                "type": "CW"
+              }
+            },
+            "link": {
+              "value": true
+            }
+          },
+          "range": null
+        }
+      ]
+    },
+    {
+      "name": "Graph Compilation",
+      "children": [
+        {
+          "name": "Slot bound",
+          "field": "clipper",
+          "type": "drawRectangle",
+          "x": 51.87481007135244,
+          "y": 54.99990922374971,
+          "width": 346.2503798572951,
+          "height": 121.33356331850304,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 136,
+            "g": 136,
+            "b": 136,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        },
+        {
+          "name": "Image",
+          "field": "smallImage",
+          "type": "image",
+          "x": 113,
+          "y": 55.909910948638476,
+          "width": 224,
+          "height": 121.33356331850304,
+          "rotation": 0,
+          "pivot": {
+            "x": 50,
+            "y": 50
+          },
+          "stroke": null,
+          "color": {
+            "r": 255,
+            "g": 255,
+            "b": 255,
+            "a": 255
+          },
+          "fontSize": null,
+          "font": null,
+          "textAlign": null,
+          "textStyle": null,
+          "ellipsis": null,
+          "curve": null,
+          "range": null
+        }
+      ]
+    }
+  ]
+}

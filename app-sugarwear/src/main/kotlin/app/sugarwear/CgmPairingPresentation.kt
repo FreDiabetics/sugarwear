@@ -60,7 +60,9 @@ internal fun canStartCgmPairing(
     step: CgmPairingScreenStep?,
     inFlight: Boolean,
     code: String,
-): Boolean = step == CgmPairingScreenStep.ENTER_CODE && !inFlight && code.length == 4 && code.all(Char::isDigit)
+): Boolean = step == CgmPairingScreenStep.ENTER_CODE && !inFlight && isValidCgmPairingCode(code)
+
+internal fun isValidCgmPairingCode(code: String): Boolean = code.length == 4 && code.all(Char::isDigit)
 
 internal fun shouldScheduleCgmPairingCompletion(
     step: CgmPairingScreenStep?,

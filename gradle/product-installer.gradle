@@ -1,0 +1,79 @@
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
+
+// Reused by both product builds; repositories configure only their own APK lists.
+abstract class ProductInstallerTask extends DefaultTask {
+    @InputFiles abstract ConfigurableFileCollection getPhoneApks()
+    @InputFiles abstract ConfigurableFileCollection getWatchApks()
+    @Input abstract Property<Boolean> getRequiresPhone()
+    @Input abstract Property<Boolean> getLegacyMigration()
+    @Inject abstract ExecOperations getExecOperations()
+
+    // Gradle's decorated task invokes these helpers from Groovy closures.
+    // Keep them visible to dynamic dispatch rather than private.
+    @TaskAction
+    void install() {
+        if (legacyMigration.get()) throw new GradleException('Legacy migration artifacts are not normal product installers')
+        def devices = adb(['devices']).readLines().drop(1)
+            .collect { it.trim() }.findAll { it.endsWith('\tdevice') }
+            .collect { it.tokenize('\t').first() }.unique { physicalId(it) }
+        def watches = devices.findAll { isWatch(it) }
+        def phones = devices.findAll { !watches.contains(it) }
+        if (watches.size() != 1) throw new GradleException("Genau eine Wear-OS-Watch wird erwartet: ${describe(watches)}")
+        if (requiresPhone.get() && phones.size() != 1) throw new GradleException("Genau ein Smartphone wird erwartet: ${describe(phones)}")
+        // Validate every artifact before installing any package.
+        (phoneApks.files + watchApks.files).each { apk ->
+            if (!apk.isFile()) throw new GradleException("APK fehlt: ${apk.absolutePath}")
+        }
+        if (requiresPhone.get()) phoneApks.files.each { installApk(phones.first(), it) }
+        watchApks.files.each { installApk(watches.first(), it) }
+    }
+
+    boolean isWatch(String serial) {
+        adb(['-s', serial, 'shell', 'getprop', 'ro.build.characteristics']).trim()
+            .split(',').any { it.trim().equalsIgnoreCase('watch') }
+    }
+    String model(String serial) {
+        adb(['-s', serial, 'shell', 'getprop', 'ro.product.model']).trim() ?: 'unbekannt'
+    }
+    String physicalId(String serial) {
+        adb(['-s', serial, 'shell', 'getprop', 'ro.serialno']).trim() ?: serial
+    }
+    String describe(List<String> serials) {
+        serials.collect { "${model(it)} [$it]" }.join(', ') ?: '0'
+    }
+    void installApk(String serial, File apk) {
+        logger.lifecycle("Installiere ${apk.name} auf ${model(serial)} [$serial]")
+        def output = adb(['-s', serial, 'install', '-r', '-t', apk.absolutePath])
+        if (!output.readLines().any { it.trim().equalsIgnoreCase('Success') }) {
+            throw new GradleException("ADB bestaetigt die Installation nicht: $output")
+        }
+    }
+    String adb(List<String> arguments) {
+        def stdout = new ByteArrayOutputStream()
+        def stderr = new ByteArrayOutputStream()
+        def executable = adbExecutable()
+        def result = execOperations.exec {
+            commandLine([executable] + arguments)
+            standardOutput = stdout
+            errorOutput = stderr
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) throw new GradleException("ADB fehlgeschlagen (${result.exitValue}): $stderr\n$stdout")
+        stdout.toString('UTF-8')
+    }
+    String adbExecutable() {
+        def name = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows') ? 'adb.exe' : 'adb'
+        def sdk = System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME')
+        def executable = sdk ? new File(sdk, "platform-tools/$name") : null
+        executable?.isFile() ? executable.absolutePath : name
+    }
+}
+
+tasks.register(rootProject.property('productInstallTaskName').toString(), ProductInstallerTask) {
+    group = 'install'
+    phoneApks.from(rootProject.property('productPhoneApks'))
+    watchApks.from(rootProject.property('productWatchApks'))
+    requiresPhone.set(!phoneApks.isEmpty())
+    legacyMigration.set(providers.gradleProperty('legacyProductMigration').map { it == 'true' }.orElse(false))
+}

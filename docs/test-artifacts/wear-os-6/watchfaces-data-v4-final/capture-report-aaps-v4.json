@@ -1,0 +1,7 @@
+{
+  "WatchFace": "aaps-v4",
+  "Package": "app.aapswear.watchface.aapsv4",
+  "ActiveSha256": "2538458D0DC452C7891725CEE9DABDA56153527A6366D0763D826E444702D9FE",
+  "AmbientSha256": "2CDD816507757DE219632B1E94AEA81A94A8FB32B50A8CB89CDE42D737B90BE9",
+  "AmbientState": "mWakefulness=Dozing; Display State=DOZE_SUSPEND"
+}

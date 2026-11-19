@@ -41,10 +41,10 @@ internal fun deriveCgmStatusPillState(
         return CgmStatusPillState.NO_ACTIVE_SENSOR
     }
     if (!state.collectorEnabled) return CgmStatusPillState.PAUSED
-    if (sensor.state == CgmSensorState.ERROR || state.lastReading?.status == CgmReadingStatus.SENSOR_ERROR) {
+    if (sensor.state == CgmSensorState.ERROR || (cgmReadingBelongsToSession(state, state.lastReading) && state.lastReading?.status == CgmReadingStatus.SENSOR_ERROR)) {
         return CgmStatusPillState.SENSOR_ERROR
     }
-    val reading = state.lastReading
+    val reading = state.lastReading?.takeIf { cgmReadingBelongsToSession(state, it) }
     return when (
         CgmPresentationPolicy.classify(
             reading?.timestampEpochMs,

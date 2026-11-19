@@ -5,8 +5,6 @@ import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import app.sugarlicious.sensor.protocol.CgmAlarmSettings
-import app.sugarlicious.sensor.protocol.CgmAlarmType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -14,11 +12,15 @@ internal data class CgmSettingsAccessState(
     val palette: CgmAppearancePalette,
     val access: CgmSystemAccessSnapshot,
     val alarmAccess: CgmAlarmSystemSnapshot,
-    val alarms: CgmAlarmSettings,
+    val alarms: SugarWearAlarmSettings,
     val volumeOverride: Boolean,
     val volumePercent: Int,
     val sensor: app.sugarlicious.sensor.protocol.CgmPersistedState,
     val requestedPermissions: Set<String>,
+    val silentOverride: Boolean = false,
+    val localAlarmsEnabled: Boolean = false,
+    val pauseUntilEpochMs: Long? = null,
+    val lastPauseDurationMinutes: Int = 60,
 )
 
 /** Adapts canonical preference and system-access stores; never launches permission UI. */
@@ -35,21 +37,52 @@ internal class CgmSettingsAccessRepository(
             CgmAlarmVolume.percent(app),
             CgmSensorStateStore(app).read(),
             requested(),
+            CgmAlarmVolume.silentOverrideEnabled(app),
+            CgmAlertPolicyStore.configuredEnabled(app),
+            CgmAlarmPauseStore.pausedUntil(app),
+            CgmAlarmPauseStore.lastPauseDurationMinutes(app),
         )
 
     fun prepareChannels() = CgmAlarmNotifier.prepareCurrentChannels(app)
 
-    fun edit(edit: CgmAlarmSettingsEdit) {
-        val settings = applyCgmAlarmSettingsEdit(CgmAlarmSettingsStore.read(app), edit)
+    fun edit(edit: CgmAlarmSettingsEdit, profile: SugarWearAlarmProfile) {
+        val settings = applyCgmAlarmSettingsEdit(CgmAlarmSettingsStore.read(app), edit, profile)
         CgmAlarmSettingsStore.write(app, settings)
-        CgmAlarmNotifier.ensureAllChannels(app, settings)
+        CgmAlarmNotifier.prepareCurrentChannels(app)
     }
 
-    fun test(type: CgmAlarmType) = CgmAlarmNotifier.showTest(app, type, CgmAlarmSettingsStore.read(app))
+    fun test(type: SugarWearAlarmType, profile: SugarWearAlarmProfile) =
+        CgmAlarmNotifier.showTest(app, type, CgmAlarmSettingsStore.read(app).forProfile(profile))
 
     fun volume(enabled: Boolean, percent: Int?) = CgmAlarmVolume.configure(app, enabled, percent ?: CgmAlarmVolume.percent(app))
 
-    fun adjustVolume(delta: Int) = CgmAlarmVolume.configure(app, true, CgmAlarmVolume.percent(app) + delta)
+    fun adjustVolume(delta: Int) = CgmAlarmVolume.configure(app, CgmAlarmVolume.enabled(app), CgmAlarmVolume.percent(app) + delta)
+
+    fun silentOverride(enabled: Boolean) = CgmAlarmVolume.configureSilentOverride(app, enabled)
+
+    fun localAlarms(enabled: Boolean) {
+        CgmAlertPolicyStore.setLocalEnabled(app, enabled)
+        if (enabled) {
+            CgmAlarmCoordinator.onSignalLoss(app, CgmSensorStateStore(app).read().lastReading)
+            CgmAlarmCoordinator.restore(app)
+        } else {
+            CgmAlarmCoordinator.clearSuppressed(app)
+        }
+    }
+
+    fun pauseAlarms(durationMinutes: Int) {
+        CgmAlarmPauseStore.setPause(app, durationMinutes)
+        CgmSensorStateStore(app).read().lastReading?.let {
+            CgmAlarmCoordinator.onReading(app, it)
+        }
+    }
+
+    fun clearAlarmPause() {
+        CgmAlarmPauseStore.clearPause(app)
+        CgmSensorStateStore(app).read().lastReading?.let {
+            CgmAlarmCoordinator.onReading(app, it)
+        }
+    }
 
     fun completeSetup() = app.getSharedPreferences("g7_setup", Context.MODE_PRIVATE).edit { putBoolean("complete", true) }
 
@@ -64,8 +97,9 @@ internal class CgmSettingsAccessRepository(
 }
 
 internal data class CgmAlarmNavigationState(
-    val selectedAlarm: CgmAlarmType? = null,
+    val selectedAlarm: SugarWearAlarmType? = null,
     val alarmPage: String? = null,
+    val editedAlarmProfile: SugarWearAlarmProfile? = null,
 )
 
 @dagger.hilt.android.lifecycle.HiltViewModel
@@ -89,7 +123,7 @@ internal class CgmSettingsAccessViewModel(
         worker.submit({ if (prepare) repository.prepareChannels() })
     }
 
-    fun selectAlarm(type: CgmAlarmType?) {
+    fun selectAlarm(type: SugarWearAlarmType?) {
         navigationState.value = navigation.value.copy(selectedAlarm = type)
     }
 
@@ -97,12 +131,16 @@ internal class CgmSettingsAccessViewModel(
         navigationState.value = navigation.value.copy(alarmPage = page)
     }
 
-    fun edit(edit: CgmAlarmSettingsEdit) {
-        worker.submit({ repository.edit(edit) })
+    fun editAlarmProfile(profile: SugarWearAlarmProfile) {
+        navigationState.value = navigation.value.copy(editedAlarmProfile = profile)
     }
 
-    fun test(type: CgmAlarmType) {
-        worker.submit({ repository.test(type) })
+    fun edit(edit: CgmAlarmSettingsEdit, profile: SugarWearAlarmProfile = SugarWearAlarmProfile.DAY) {
+        worker.submit({ repository.edit(edit, profile) })
+    }
+
+    fun test(type: SugarWearAlarmType, profile: SugarWearAlarmProfile = SugarWearAlarmProfile.DAY) {
+        worker.submit({ repository.test(type, profile) })
     }
 
     fun volume(enabled: Boolean, percent: Int? = null) {
@@ -111,6 +149,22 @@ internal class CgmSettingsAccessViewModel(
 
     fun adjustVolume(delta: Int) {
         worker.submit({ repository.adjustVolume(delta) })
+    }
+
+    fun silentOverride(enabled: Boolean) {
+        worker.submit({ repository.silentOverride(enabled) })
+    }
+
+    fun localAlarms(enabled: Boolean) {
+        worker.submit({ repository.localAlarms(enabled) })
+    }
+
+    fun pauseAlarms(durationMinutes: Int) {
+        worker.submit({ repository.pauseAlarms(durationMinutes) })
+    }
+
+    fun clearAlarmPause() {
+        worker.submit({ repository.clearAlarmPause() })
     }
 
     fun completeSetup() {

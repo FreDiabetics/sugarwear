@@ -1,0 +1,79 @@
+id,apex_id,name,light,medium,vivid,kind,origin
+0,48,Graphite,E3E3E3,BCBCBC,DADADA,base,original
+1,49,Cloud,FFFFFF,E4E4E4,EAEAEA,base,original
+2,50,Almond,FFF7E4,FFF7E4,FCF7EB,base,original
+3,51,Watermelon,FFEAEA,FF9391,FF4642,base,original
+4,52,Pomelo,FFF3F2,FFA49F,FF665D,base,original
+5,10,Champagne,FFE8DA,FFC6A3,FF975D,base,original
+6,53,Wheat,FFF6E1,FFE9B9,FFCE63,base,original
+7,54,Limoncello,FEFFE9,FCFFB6,F9FF52,base,original
+8,55,Keylime,FAFFE4,EAFF8E,DEFF4C,base,original
+9,56,Lemongrass,F4FFDF,EBFFC3,CEFF6C,base,original
+10,57,Spring,EBFFD2,D3FF9B,B0FF4D,base,original
+11,58,Lime,F0FFCD,DEFF91,C7FF45,base,original
+12,59,Pear,EDFFD5,D6FF9E,AEFF4A,base,original
+13,60,Grass Green,E5FFE0,ADFF9A,70FF3D,base,original
+79,100,Proto Green,E3FFE0,A9FF9A,4EFF58,base,original
+15,101,Moss,E8FFF2,BEFFD9,57FF9D,base,original
+16,63,Fern,D1FFE6,65DF9D,41FF99,base,original
+17,64,Spearmint,E0FFE4,9FF7AD,52FF6D,base,original
+72,65,Alpine Green,CDDECD,C3E9C3,B7F297,base,original
+18,66,Mint,E5FFF5,ABFFDF,5EFFC0,base,original
+19,67,Jade,DEF4EC,BEECDB,AAF6D9,base,original
+20,68,Steam Green,E2F0E6,DFDFDF,BFDCC4,base,original
+21,69,Sage,E1ECE9,CCE4DF,BBF6E6,base,original
+22,70,Avocado,B4CCC2,8BB6A5,F5FFFB,base,original
+23,71,Forest,CDE1DA,76B89F,8EAFA3,base,original
+71,102,Pine,D3E2D3,BFD9BF,ACC89E,base,original
+24,73,Seafoam,EEFFFD,E5FFFB,D6FFF9,base,original
+25,74,Stream,DAFFFF,BEF6FF,93F0FF,base,original
+26,16,Aqua,D5FAFF,A8F4FF,5EEBFF,base,original
+27,75,Lagoon,CCEFFF,99E0FF,5ACDFF,base,original
+29,76,Sky,E6F5FF,A8DDFF,5EC1FF,base,original
+30,77,Ocean,E2EDFF,A3C6FF,5E9BFF,base,original
+31,78,Sapphire,D6E5FF,88B4FF,639CFF,base,original
+32,79,Royalblue,C6E3FF,8BC6FF,3A9CFF,base,original
+33,80,Arctic,D8E6FF,9EC2FF,619BFF,base,original
+34,17,Icy Blue,CFDBFF,A5BAFF,687EFF,base,original
+35,15,Amethyst,D6DAFF,959DFD,5D68FF,base,original
+36,81,Lilac,D8C8FF,B99AFF,8E58FF,base,original
+38,14,Lavender,EECBFF,E2A5FF,CC62FF,base,original
+39,11,Flamingo,FDE0FF,F8A6FF,F25FFF,base,original
+40,13,Verbena,FFD9F3,FFB3E6,FF66CE,base,original
+41,12,Guava,FFDFDC,FFB1AC,FF776D,base,original
+42,82,Coral,FFE8E5,FFA294,FF5B43,base,original
+43,83,Peach,FFF5EF,FDB78F,FF985E,base,original
+44,84,Orange,FFD1C4,FF997A,FF693B,base,original
+45,85,Chai,F4EBE0,D8AB77,F0A752,base,original
+46,86,Honey,FFF1DB,F8C67C,FFB74A,base,original
+47,87,Melon,FFF4DD,FFD88A,FFC551,base,original
+48,88,Dandelion,FFFEE0,FFFA86,FFF630,base,original
+49,89,Milkshake,FEF6E1,FEF6E1,FEF6E1,base,original
+50,90,Sand,FFF9E1,C4B575,F1D870,base,original
+51,91,Salmon,FFF4EA,FAE7D6,FFDAB8,base,original
+52,9,Amber,FFF0D2,FFD889,FFCC63,base,original
+54,92,Charcoal,F2F6FF,A0A3AB,DFE3EF,base,original
+55,93,Oceanresearch,DFFFF3,A9FFDF,FF8A00,combination,original
+56,94,Nothing,FF4D4D,FEFEFE,FEFEFE,combination,original
+57,95,Submarine,D2D2D2,F5F5F5,FF5B58,combination,original
+58,96,Protoblue,E5F2FF,2391FF,2391FF,base,original
+59,97,Khaki,DCDCD5,C6CCA3,AFBA69,base,original
+60,47,Olive Vibrant,EFF0E4,EEFF80,CEFF1C,base,original
+61,46,Olive Dull,EFF0E4,DFDFDF,E8F0B3,base,original
+62,45,Candy,B5FBFF,E2FDFF,FF6DC9,combination,original
+63,103,United 24,E1EAFF,F7EA49,2F69FF,combination,original
+64,43,Iridescent,D8F7FF,BAD1FF,5836FF,combination,original
+65,42,Industrial,DAEBFF,FF6F6F,FF2A2A,combination,original
+66,41,Green Shock,DAF9FF,84FFE2,58FF32,combination,original
+67,104,Juniper Haze,EBEBEB,B0FF54,8356FF,combination,original
+68,39,Neon Green,D2FFDF,00FF88,3881FF,combination,original
+69,38,Neon Lime,D9D9D9,94BFFF,ACFF38,combination,original
+70,37,Neon Orange,FFCCB1,FF935C,FF5F0D,base,original
+73,98,Proto Orange,F2F2F2,FF8316,FF8316,base,original
+74,99,Proto Red,F2F2F2,FF0F0F,FF0F0F,base,original
+75,105,Oak Brown,D9CBC5,D7BBAB,CCA792,base,original
+76,106,Walnut Brown,E0D9D4,C8B5A3,B49E88,base,original
+77,107,Grey Brown,DBD8D3,C1B9AE,B8AD9F,base,original
+78,108,Grey Mud,E4E3DA,C7C4AE,AFAC91,base,original
+14,61,Olivgrün,D4DAB6,A4AF73,758544,base,extra
+999,999,Reinweiß,FFFFFF,FFFFFF,FFFFFF,base,extra

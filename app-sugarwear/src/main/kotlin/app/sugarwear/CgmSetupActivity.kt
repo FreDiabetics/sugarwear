@@ -1,7 +1,6 @@
 package app.sugarwear
 
 import android.Manifest
-import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -28,7 +27,7 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
         }
     private val step get() = setup.state.value.step
     private val awaitingSystem get() = setup.state.value.awaitingSystem
-    private val steps = listOf("Bluetooth", "Benachrichtigungen", "Hintergrundbetrieb", "Genaue Alarme", "Nicht stören", "Alarmkanäle", "Alarmlautstärke")
+    private val steps = listOf("Benachrichtigungen", "Genaue Alarme", "Bluetooth", "Hintergrundbetrieb/Akkuoptimierungen")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -113,11 +112,7 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
         card.addView(text(explanation()))
         card.addView(
             text(
-                if (step == steps.lastIndex) {
-                    "Lautstärke prüfen"
-                } else if (step == 4 && !checkNotNull(access.state.value.snapshot).alarmAccess.policySettingsAvailable) {
-                    cgmAlarmAccessLabel(checkNotNull(access.state.value.snapshot).alarmAccess)
-                } else if (granted()) {
+                if (granted()) {
                     "Erlaubt"
                 } else {
                     "Noch nicht erlaubt"
@@ -125,17 +120,12 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
                 true,
             ),
         )
-        val actionLabel =
-            when (step) {
-                4 -> cgmAlarmSettingsAction(checkNotNull(access.state.value.snapshot).alarmAccess)?.label
-                steps.lastIndex -> "Alarme öffnen"
-                else -> "Systemeinstellung öffnen"
-            }
-        if (actionLabel != null) card.addView(button(actionLabel) { openStep() })
+        val actionLabel = "Systemeinstellung öffnen"
+        card.addView(button(actionLabel) { openStep() })
         root.addView(
             button(
                 if (step == steps.lastIndex) {
-                    "Fertig"
+                    if (granted()) "Fertig" else "Später einrichten"
                 } else if (granted()) {
                     "Weiter"
                 } else {
@@ -153,16 +143,17 @@ class CgmSetupActivity : CgmSettingsComposeActivity() {
     private fun openStep() {
         if (!setup.beginSystemRequest()) return
         when (step) {
-            0, 1 -> {
-                val permissions = if (step == 0) arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT) else arrayOf(Manifest.permission.POST_NOTIFICATIONS)
+            0 -> {
+                val missing = CgmSystemAccess.missingRuntimePermissions(this).filter { it == Manifest.permission.POST_NOTIFICATIONS }.toTypedArray()
+                if (missing.isNotEmpty()) permissionLauncher.launch(missing) else CgmSystemAccess.open(this, CgmSystemAccess.notificationSettingsIntents(packageName))
+            }
+            1 -> if (!CgmSystemAccess.open(this, CgmSystemAccess.exactAlarmSettingsIntents(packageName))) unavailable()
+            2 -> {
+                val permissions = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
                 val missing = CgmSystemAccess.missingRuntimePermissions(this).filter { it in permissions }.toTypedArray()
                 if (missing.isNotEmpty()) permissionLauncher.launch(missing) else CgmSystemAccess.open(this, CgmSystemAccess.appSettingsIntents(packageName))
             }
-            2 -> if (!CgmBackgroundAccess.openBatterySettings(this)) unavailable()
-            3 -> if (!CgmSystemAccess.open(this, CgmSystemAccess.exactAlarmSettingsIntents(packageName))) unavailable()
-            4 -> if (CgmAlarmSystemAccess.openRecommendedSettings(this, checkNotNull(access.state.value.snapshot).alarmAccess) != CgmSettingsOpenResult.OPENED) unavailable()
-            5 -> if (!CgmSystemAccess.open(this, CgmSystemAccess.notificationSettingsIntents(packageName))) unavailable()
-            else -> startActivity(Intent(this, CgmAlarmSettingsActivity::class.java))
+            3 -> if (!CgmBackgroundAccess.openBatterySettings(this)) unavailable()
         }
     }
 
