@@ -21,6 +21,7 @@ internal enum class CgmSettingsSection(
     ALARMS("Alarme", "Glukosealarme und notwendige Systemrechte"),
     SUGARWEAR("Sensor", "Verbinden, trennen und Datenempfang pausieren"),
     VIGIL("Vigil", "Watchface"),
+    SHARE("Share & Follow", "Eigene G7-Werte an Dexcom Share senden"),
     ABOUT("Über", "SugarWear"),
 }
 
