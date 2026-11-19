@@ -197,7 +197,7 @@ internal class DexcomShareUploadClient(
         throw DexcomShareProtocolException(
             issue = issue,
             serverCode = code,
-            recoverable = result.status in 500..599 || result.status == 429,
+            recoverable = issue == DexcomShareUploadError.RATE_LIMIT || (issue == DexcomShareUploadError.SERVER && result.status in 500..599),
         )
     }
 
