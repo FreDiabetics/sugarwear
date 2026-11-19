@@ -188,6 +188,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                         DexcomShareUploadScheduler.stop(this@CgmShareSettingsActivity)
                         render()
                     } catch (error: Exception) {
+                        android.util.Log.w("SugarWearShare", "Share credentials save failed: ${error.javaClass.simpleName}")
                         Toast.makeText(this@CgmShareSettingsActivity, "Share-Konto konnte nicht sicher gespeichert werden", Toast.LENGTH_LONG).show()
                     }
                 }
@@ -218,6 +219,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     store.readConfig()?.let { store.markError(it, problem.issue) }
                 }
             } catch (error: Exception) {
+                android.util.Log.w("SugarWearShare", "Share account check failed: ${error.javaClass.simpleName}")
                 withContext(Dispatchers.IO) {
                     store.readConfig()?.let { store.markError(it, DexcomShareUploadError.SERVER) }
                 }
