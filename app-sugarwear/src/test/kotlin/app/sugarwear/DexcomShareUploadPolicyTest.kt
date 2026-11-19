@@ -8,6 +8,8 @@ import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 class DexcomShareUploadPolicyTest {
     private val now = 1_800_000_000_000L
