@@ -11,7 +11,9 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-internal enum class DexcomShareRegion(val server: String) {
+internal enum class DexcomShareRegion(
+    val server: String,
+) {
     US("https://share2.dexcom.com/ShareWebServices/Services/"),
     INTERNATIONAL("https://shareous1.dexcom.com/ShareWebServices/Services/"),
 }
@@ -45,7 +47,9 @@ internal data class DexcomShareUploadStatus(
 )
 
 /** Share secrets use their own Keystore key; they never enter BLE credentials or logs. */
-internal class DexcomShareUploadStore(context: Context) {
+internal class DexcomShareUploadStore(
+    context: Context,
+) {
     private val preferences = context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
     fun status(): DexcomShareUploadStatus =
@@ -55,8 +59,9 @@ internal class DexcomShareUploadStore(context: Context) {
             region = region(),
             lastConnectionEpochMs = preferences.getLong(KEY_LAST_CONNECTION, 0L),
             lastUploadEpochMs = preferences.getLong(KEY_LAST_UPLOAD, 0L),
-            error = runCatching { DexcomShareUploadError.valueOf(preferences.getString(KEY_ERROR, "NONE") ?: "NONE") }
-                .getOrDefault(DexcomShareUploadError.SERVER),
+            error =
+                runCatching { DexcomShareUploadError.valueOf(preferences.getString(KEY_ERROR, "NONE") ?: "NONE") }
+                    .getOrDefault(DexcomShareUploadError.SERVER),
         )
 
     fun enabled(): Boolean = preferences.getBoolean(KEY_ENABLED, false)
@@ -75,7 +80,8 @@ internal class DexcomShareUploadStore(context: Context) {
         val sealedSerial = seal(receiverSerial.trim())
         synchronized(lock) {
             check(
-                preferences.edit()
+                preferences
+                    .edit()
                     .putString(KEY_ACCOUNT, sealedAccount)
                     .putString(KEY_PASSWORD, sealedPassword)
                     .putString(KEY_RECEIVER, sealedSerial)
@@ -94,7 +100,13 @@ internal class DexcomShareUploadStore(context: Context) {
         synchronized(lock) {
             if (value) require(readConfig() != null) { "Share account must be configured first" }
             if (enabled() == value) return
-            check(preferences.edit().putBoolean(KEY_ENABLED, value).putLong(KEY_REVISION, revision() + 1L).commit()) {
+            check(
+                preferences
+                    .edit()
+                    .putBoolean(KEY_ENABLED, value)
+                    .putLong(KEY_REVISION, revision() + 1L)
+                    .commit(),
+            ) {
                 "Dexcom Share setting could not be persisted"
             }
         }
@@ -136,7 +148,8 @@ internal class DexcomShareUploadStore(context: Context) {
             if (!enabled() || revision() != config.revision) return@synchronized false
             val key = cursorKey(config, sensorId, sessionId)
             check(
-                preferences.edit()
+                preferences
+                    .edit()
                     .putLong(key, maxOf(preferences.getLong(key, 0L), lastMeasurementEpochMs))
                     .putLong(KEY_LAST_UPLOAD, nowEpochMs)
                     .putLong(KEY_LAST_CONNECTION, nowEpochMs)
@@ -190,7 +203,8 @@ internal class DexcomShareUploadStore(context: Context) {
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
             init(
-                KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                KeyGenParameterSpec
+                    .Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                     .setRandomizedEncryptionRequired(true)

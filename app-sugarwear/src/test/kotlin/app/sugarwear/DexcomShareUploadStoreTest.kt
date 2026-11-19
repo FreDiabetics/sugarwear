@@ -21,7 +21,12 @@ class DexcomShareUploadStoreTest {
     private val config = DexcomShareUploadConfig("account", "password", "AB12345678", DexcomShareRegion.INTERNATIONAL, 3L)
 
     @Before fun before() {
-        preferences.edit().clear().putBoolean("enabled", true).putLong("revision", 3L).commit()
+        preferences
+            .edit()
+            .clear()
+            .putBoolean("enabled", true)
+            .putLong("revision", 3L)
+            .commit()
     }
 
     @After fun after() {

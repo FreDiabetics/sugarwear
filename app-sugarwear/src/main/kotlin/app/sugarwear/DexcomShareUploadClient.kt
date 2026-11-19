@@ -16,7 +16,10 @@ internal interface DexcomShareHttpTransport {
     fun post(url: String, body: JSONObject? = null): DexcomShareHttpResponse
 }
 
-internal data class DexcomShareHttpResponse(val status: Int, val body: String)
+internal data class DexcomShareHttpResponse(
+    val status: Int,
+    val body: String,
+)
 
 internal class DexcomShareHttpsTransport : DexcomShareHttpTransport {
     override fun post(url: String, body: JSONObject?): DexcomShareHttpResponse {
@@ -34,11 +37,14 @@ internal class DexcomShareHttpsTransport : DexcomShareHttpTransport {
             }
             val status = connection.responseCode
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val content = stream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
-                val limit = CharArray(8_193)
-                val count = reader.read(limit)
-                if (count < 0) "" else String(limit, 0, count.coerceAtMost(8_192))
-            }.orEmpty()
+            val content =
+                stream
+                    ?.bufferedReader(Charsets.UTF_8)
+                    ?.use { reader ->
+                        val limit = CharArray(8_193)
+                        val count = reader.read(limit)
+                        if (count < 0) "" else String(limit, 0, count.coerceAtMost(8_192))
+                    }.orEmpty()
             return DexcomShareHttpResponse(status, content)
         } finally {
             connection.disconnect()
@@ -60,42 +66,44 @@ internal class DexcomShareUploadClient(
     private var sessionForAccount: String? = null
     private var sessionForRevision: Long = -1L
 
-    suspend fun testAccount(config: DexcomShareUploadConfig) = withContext(Dispatchers.IO) {
-        authenticate(config, force = true)
-        Unit
-    }
+    suspend fun testAccount(config: DexcomShareUploadConfig) =
+        withContext(Dispatchers.IO) {
+            authenticate(config, force = true)
+            Unit
+        }
 
     /** Returns only on confirmed server acceptance. Reauthentication and monitoring recovery are bounded. */
-    suspend fun upload(config: DexcomShareUploadConfig, rows: List<DexcomShareEgv>) = withContext(Dispatchers.IO) {
-        require(rows.isNotEmpty() && rows.size <= DexcomShareUploadPolicy.MAX_BATCH)
-        var session = authenticate(config)
-        var refreshed = false
-        var started = false
-        while (true) {
-            try {
-                postUpload(config, session, rows)
-                return@withContext
-            } catch (problem: DexcomShareProtocolException) {
-                when {
-                    problem.serverCode in setOf("SessionNotValid", "SessionIdNotFound") && !refreshed -> {
-                        refreshed = true
-                        session = authenticate(config, force = true)
+    suspend fun upload(config: DexcomShareUploadConfig, rows: List<DexcomShareEgv>) =
+        withContext(Dispatchers.IO) {
+            require(rows.isNotEmpty() && rows.size <= DexcomShareUploadPolicy.MAX_BATCH)
+            var session = authenticate(config)
+            var refreshed = false
+            var started = false
+            while (true) {
+                try {
+                    postUpload(config, session, rows)
+                    return@withContext
+                } catch (problem: DexcomShareProtocolException) {
+                    when {
+                        problem.serverCode in setOf("SessionNotValid", "SessionIdNotFound") && !refreshed -> {
+                            refreshed = true
+                            session = authenticate(config, force = true)
+                        }
+                        problem.serverCode == "MonitoringSessionNotActive" && !started -> {
+                            started = true
+                            request(config, "Publisher/StartRemoteMonitoringSession", null, session, config.receiverSerial)
+                        }
+                        problem.serverCode == "DuplicateEgvPosted" && rows.size == 1 -> return@withContext
+                        problem.serverCode == "DuplicateEgvPosted" && rows.size > 1 -> {
+                            // A duplicate response for a batch cannot prove which rows were accepted.
+                            rows.forEach { postUpload(config, session, listOf(it), acceptDuplicate = true) }
+                            return@withContext
+                        }
+                        else -> throw problem
                     }
-                    problem.serverCode == "MonitoringSessionNotActive" && !started -> {
-                        started = true
-                        request(config, "Publisher/StartRemoteMonitoringSession", null, session, config.receiverSerial)
-                    }
-                    problem.serverCode == "DuplicateEgvPosted" && rows.size == 1 -> return@withContext
-                    problem.serverCode == "DuplicateEgvPosted" && rows.size > 1 -> {
-                        // A duplicate response for a batch cannot prove which rows were accepted.
-                        rows.forEach { postUpload(config, session, listOf(it), acceptDuplicate = true) }
-                        return@withContext
-                    }
-                    else -> throw problem
                 }
             }
         }
-    }
 
     private fun postUpload(
         config: DexcomShareUploadConfig,
@@ -118,23 +126,25 @@ internal class DexcomShareUploadClient(
     private fun authenticate(config: DexcomShareUploadConfig, force: Boolean = false): String {
         if (!force && sessionForRevision == config.revision) sessionForAccount?.let { return it }
         sessionForAccount = null
-        val account = request(
-            config,
-            "General/AuthenticatePublisherAccount",
-            JSONObject()
-                .put("accountName", config.account)
-                .put("password", config.password)
-                .put("applicationId", APPLICATION_ID),
-        )
+        val account =
+            request(
+                config,
+                "General/AuthenticatePublisherAccount",
+                JSONObject()
+                    .put("accountName", config.account)
+                    .put("password", config.password)
+                    .put("applicationId", APPLICATION_ID),
+            )
         val accountId = decodeUuid(account)
-        val login = request(
-            config,
-            "General/LoginPublisherAccountById",
-            JSONObject()
-                .put("accountId", accountId)
-                .put("password", config.password)
-                .put("applicationId", APPLICATION_ID),
-        )
+        val login =
+            request(
+                config,
+                "General/LoginPublisherAccountById",
+                JSONObject()
+                    .put("accountId", accountId)
+                    .put("password", config.password)
+                    .put("applicationId", APPLICATION_ID),
+            )
         return decodeUuid(login).also {
             sessionForAccount = it
             sessionForRevision = config.revision
@@ -153,18 +163,19 @@ internal class DexcomShareUploadClient(
         sessionId: String? = null,
         receiverSerial: String? = null,
     ): String {
-        val endpoint = buildString {
-            append(config.region.server)
-            append(path)
-            if (sessionId != null) {
-                append("?sessionId=")
-                append(URLEncoder.encode(sessionId, "UTF-8"))
-                if (receiverSerial != null) {
-                    append("&serialNumber=")
-                    append(URLEncoder.encode(receiverSerial, "UTF-8"))
+        val endpoint =
+            buildString {
+                append(config.region.server)
+                append(path)
+                if (sessionId != null) {
+                    append("?sessionId=")
+                    append(URLEncoder.encode(sessionId, "UTF-8"))
+                    if (receiverSerial != null) {
+                        append("&serialNumber=")
+                        append(URLEncoder.encode(receiverSerial, "UTF-8"))
+                    }
                 }
             }
-        }
         val result =
             try {
                 transport.post(endpoint, body)

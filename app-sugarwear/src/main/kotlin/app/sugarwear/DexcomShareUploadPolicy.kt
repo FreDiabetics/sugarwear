@@ -38,7 +38,8 @@ internal object DexcomShareUploadPolicy {
         afterEpochMs: Long,
         nowEpochMs: Long,
     ): List<DexcomShareEgv> =
-        readings.asSequence()
+        readings
+            .asSequence()
             .filter { reading ->
                 reading.source == DataSourceId.DEXCOM_G7_WATCH &&
                     reading.status == CgmReadingStatus.VALID &&
@@ -51,8 +52,7 @@ internal object DexcomShareUploadPolicy {
                     reading.receivedAtEpochMs > 0L &&
                     reading.glucoseMgDl.isFinite() &&
                     reading.glucoseMgDl in 20.0..600.0
-            }
-            .sortedBy { it.timestampEpochMs }
+            }.sortedBy { it.timestampEpochMs }
             .distinctBy { it.timestampEpochMs }
             .take(MAX_BATCH)
             .map {
@@ -61,8 +61,7 @@ internal object DexcomShareUploadPolicy {
                     glucoseMgDl = it.glucoseMgDl.roundToInt(),
                     trendOrdinal = dexcomTrendOrdinal(it.trend),
                 )
-            }
-            .toList()
+            }.toList()
 
     fun payload(receiverSerial: String, entries: List<DexcomShareEgv>): JSONObject {
         require(receiverSerial.matches(Regex("[A-Za-z0-9_-]{5,40}")))
