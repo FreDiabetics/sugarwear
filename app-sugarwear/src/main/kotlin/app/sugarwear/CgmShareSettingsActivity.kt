@@ -12,27 +12,24 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import androidx.activity.viewModels
 import java.text.DateFormat
 import java.util.Date
 
 /** One UI Watch layout: confirmed Share & Follow design, independent of the collector screens. */
 @dagger.hilt.android.AndroidEntryPoint
 class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
-    private val store by lazy { DexcomShareUploadStore(this) }
-    private var connecting = false
+    private val settings by viewModels<DexcomShareSettingsViewModel>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        bindSettingsState(settings.state, render = ::render)
         render()
     }
 
     override fun onResume() {
         super.onResume()
+        settings.refresh()
         render()
     }
 
@@ -41,7 +38,9 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         applyCgmSystemChrome(window, Color.BLACK)
         val white = palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY)
         val gray = palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)
-        val status = store.status()
+        val ui = settings.state.value
+        val status = ui.status
+        val connecting = ui.connecting
         val root =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -145,13 +144,11 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
     }
 
     private fun toggle() {
-        if (store.enabled()) {
-            store.setEnabled(false)
-            DexcomShareUploadScheduler.stop(this)
-            render()
+        if (settings.state.value.status.enabled) {
+            settings.toggleUpload()
             return
         }
-        if (!store.status().configured) {
+        if (!settings.state.value.status.configured) {
             accountDialog()
             return
         }
@@ -161,14 +158,12 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             .setMessage("Eigene Glukosewerte werden über das Internet an Dexcom übertragen. Die inoffizielle Anbindung kann ausfallen und ersetzt keine medizinischen Alarme.")
             .setNegativeButton("Abbrechen", null)
             .setPositiveButton("Aktivieren") { _, _ ->
-                store.setEnabled(true)
-                DexcomShareUploadScheduler.start(this)
-                render()
+                settings.toggleUpload()
             }.show()
     }
 
     private fun accountDialog() {
-        val region = store.region()
+        val region = settings.state.value.status.region
         val items = arrayOf("EU / International", "USA")
         val fields =
             LinearLayout(this).apply {
@@ -231,55 +226,18 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     return@setOnClickListener
                 }
                 dialog.dismiss()
-                lifecycleScope.launch {
-                    try {
-                        withContext(Dispatchers.IO) {
-                            store.saveAccount(user, secret, receiver, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
-                        }
-                        DexcomShareUploadScheduler.stop(this@CgmShareSettingsActivity)
-                        render()
-                    } catch (error: Exception) {
-                        android.util.Log.w("SugarWearShare", "Share credentials save failed: ${error.javaClass.simpleName}")
-                        Toast.makeText(this@CgmShareSettingsActivity, "Share-Konto konnte nicht sicher gespeichert werden", Toast.LENGTH_LONG).show()
-                    }
-                }
+                settings.saveAccount(user, secret, receiver, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
             }
         }
         dialog.show()
     }
 
     private fun testConnection() {
-        if (connecting || !store.status().configured) {
-            if (!store.status().configured) accountDialog()
+        if (settings.state.value.connecting || !settings.state.value.status.configured) {
+            if (!settings.state.value.status.configured) accountDialog()
             return
         }
-        connecting = true
-        render()
-        lifecycleScope.launch {
-            try {
-                val config =
-                    withContext(Dispatchers.IO) { store.readConfig() }
-                        ?: throw IllegalStateException("Missing Share credentials")
-                withContext(Dispatchers.IO) {
-                    DexcomShareUploadClient().testAccount(config)
-                    store.markVerified(config, System.currentTimeMillis())
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (problem: DexcomShareProtocolException) {
-                withContext(Dispatchers.IO) {
-                    store.readConfig()?.let { store.markError(it, problem.issue) }
-                }
-            } catch (error: Exception) {
-                android.util.Log.w("SugarWearShare", "Share account check failed: ${error.javaClass.simpleName}")
-                withContext(Dispatchers.IO) {
-                    store.readConfig()?.let { store.markError(it, DexcomShareUploadError.SERVER) }
-                }
-            } finally {
-                connecting = false
-                render()
-            }
-        }
+        settings.testConnection()
     }
 
     private fun confirmClear() {
@@ -289,11 +247,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             .setMessage("Die Zugangsdaten werden von der Watch entfernt und Uploads gestoppt. Sensordaten bleiben erhalten.")
             .setNegativeButton("Abbrechen", null)
             .setPositiveButton("Entfernen") { _, _ ->
-                DexcomShareUploadScheduler.stop(this)
-                lifecycleScope.launch {
-                    withContext(Dispatchers.IO) { store.clear() }
-                    render()
-                }
+                settings.clearAccount()
             }.show()
     }
 
