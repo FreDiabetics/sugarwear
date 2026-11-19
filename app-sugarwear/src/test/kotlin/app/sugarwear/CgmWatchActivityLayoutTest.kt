@@ -1037,7 +1037,7 @@ class CgmWatchActivityLayoutTest {
         collect(root)
 
         assertNotNull(findText(root, "Sensorempfang"))
-        assertEquals(listOf("Anzeige", "Berechtigungen", "Alarme", "Sensor", "Vigil", "Über"), CgmSettingsSection.entries.map { it.title })
+        assertEquals(listOf("Anzeige", "Berechtigungen", "Alarme", "Sensor", "Vigil", "Share & Follow", "Über"), CgmSettingsSection.entries.map { it.title })
         assertEquals(
             CgmSettingsSection.entries.map { "settings-category-${it.name.lowercase()}" },
             headers.map { it.tag.toString() },
