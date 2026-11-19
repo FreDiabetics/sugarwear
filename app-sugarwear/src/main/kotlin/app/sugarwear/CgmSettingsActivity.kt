@@ -146,6 +146,7 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
                 CgmSettingsSection.ALARMS -> Intent(this, CgmAlarmSettingsActivity::class.java)
                 CgmSettingsSection.SUGARWEAR -> Intent(this, CgmSystemStatusActivity::class.java)
                 CgmSettingsSection.VIGIL -> Intent(this, CgmDirectToWatchSettingsActivity::class.java)
+                CgmSettingsSection.SHARE -> Intent(this, CgmShareSettingsActivity::class.java)
                 CgmSettingsSection.ABOUT -> return
             }
         startActivity(intent)
