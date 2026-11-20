@@ -120,7 +120,10 @@ internal class CgmAlarmFullBleedView(
                 val rapid = artwork == CgmAlarmArtwork.RAPID_RISE || artwork == CgmAlarmArtwork.RAPID_FALL
                 val valueText =
                     if (frozenGlucoseMgDl != null && frozenGlucoseMgDl.isFinite()) {
-                        kotlin.math.round(frozenGlucoseMgDl).toInt().toString()
+                        kotlin.math
+                            .round(frozenGlucoseMgDl)
+                            .toInt()
+                            .toString()
                     } else {
                         cgmGlucoseOnlyNumberText(reading)
                     }
