@@ -71,14 +71,14 @@ internal object SugarWearAlarmStateMachine {
                             triggeredAtEpochMs = nowEpochMs,
                             lastNotifiedAtEpochMs = nowEpochMs,
                             triggerGlucoseMgDl = glucoseMgDl,
-                        triggerTrend = trend,
+                            triggerTrend = trend,
                         )
                     } else {
                         updatedBase.copy(
                             state = SugarWearAlarmState.PENDING_DELAY,
                             conditionFirstMetAtEpochMs = firstMet,
                             triggerGlucoseMgDl = glucoseMgDl,
-                        triggerTrend = trend,
+                            triggerTrend = trend,
                         )
                     }
                 }

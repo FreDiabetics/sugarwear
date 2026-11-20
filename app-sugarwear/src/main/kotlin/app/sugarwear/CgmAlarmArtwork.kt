@@ -119,8 +119,11 @@ internal class CgmAlarmFullBleedView(
             CgmAlarmArtwork.HIGH, CgmAlarmArtwork.LOW, CgmAlarmArtwork.LOW_SOON, CgmAlarmArtwork.RAPID_RISE, CgmAlarmArtwork.RAPID_FALL -> {
                 val rapid = artwork == CgmAlarmArtwork.RAPID_RISE || artwork == CgmAlarmArtwork.RAPID_FALL
                 val valueText =
-                    frozenGlucoseMgDl?.takeIf { it.isFinite() }?.let { kotlin.math.round(it).toInt().toString() }
-                        ?: cgmGlucoseOnlyNumberText(reading)
+                    if (frozenGlucoseMgDl != null && frozenGlucoseMgDl.isFinite()) {
+                        kotlin.math.round(frozenGlucoseMgDl).toInt().toString()
+                    } else {
+                        cgmGlucoseOnlyNumberText(reading)
+                    }
                 val arrowTrend =
                     if (frozenGlucoseMgDl != null) {
                         frozenTrend
