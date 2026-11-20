@@ -19,6 +19,20 @@ internal fun cgmAlarmSoundUri(
         .appendPath(type.id)
         .build()
 
+/**
+ * New user-supplied sounds are preferred when installed. Older installations retain
+ * their existing, validated bundled audio instead of silently losing alarm sound.
+ */
+internal fun openCgmAlarmSoundAsset(
+    context: Context,
+    type: SugarWearAlarmType,
+): AssetFileDescriptor =
+    try {
+        context.assets.openFd(SugarWearAlarmDefaults.preferredAudioAssetPath(type))
+    } catch (missing: FileNotFoundException) {
+        context.assets.openFd(cgmAlarmSoundAsset(type))
+    }
+
 class CgmAlarmSoundProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
@@ -31,7 +45,7 @@ class CgmAlarmSoundProvider : ContentProvider() {
             SugarWearAlarmType.fromId(pathSegment)
                 ?: runCatching { SugarWearAlarmType.valueOf(pathSegment.uppercase()) }.getOrNull()
                 ?: throw FileNotFoundException("Unknown alarm sound: $pathSegment")
-        return requireNotNull(context).assets.openFd(cgmAlarmSoundAsset(type))
+        return openCgmAlarmSoundAsset(requireNotNull(context), type)
     }
 
     override fun query(
