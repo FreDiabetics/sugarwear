@@ -273,7 +273,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 val user = account.text.toString().trim()
                 val secret = selectedPassword
                 val receiver = serial.text.toString().trim()
-                if (user.isBlank() || secret.isBlank() || !receiver.matches(Regex("[A-Za-z0-9_-]{5,40}"))) {
+                if (user.isBlank() || secret.isNullOrBlank() || !receiver.matches(Regex("[A-Za-z0-9_-]{5,40}"))) {
                     Toast.makeText(this, "Gespeichertes Passwort wählen und gültige Share-Seriennummer eingeben", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
