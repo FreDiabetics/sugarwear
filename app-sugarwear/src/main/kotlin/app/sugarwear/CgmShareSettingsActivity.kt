@@ -235,6 +235,13 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                         "Keine passenden gespeicherten Zugangsdaten. Bitte einen unterstützten Passwortmanager einrichten.",
                         Toast.LENGTH_LONG,
                     ).show()
+                } catch (error: Exception) {
+                    android.util.Log.w("SugarWearShare", "Credential provider failed: ${error.javaClass.simpleName}")
+                    Toast.makeText(
+                        this@CgmShareSettingsActivity,
+                        "Passwortmanager derzeit nicht verfügbar.",
+                        Toast.LENGTH_LONG,
+                    ).show()
                 }
             }
         }
