@@ -148,6 +148,29 @@ class CgmAlarmsTest {
     }
 
     @Test
+    fun `new alarm requests full screen while restored alarm stays tappable without relaunch`() {
+        val settings = CgmAlarmSettingsStore.read(context).copy(globalMuteAll = true)
+        val alarm =
+            SugarWearAlarmInstance(
+                type = SugarWearAlarmType.LOW,
+                state = SugarWearAlarmState.ACTIVE,
+                triggeredAtEpochMs = NOW,
+            )
+
+        CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
+        val fresh = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(fresh)
+        assertNotNull(fresh.fullScreenIntent)
+        assertNotNull(fresh.contentIntent)
+
+        CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
+        val restored = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(restored)
+        assertNull(restored.fullScreenIntent)
+        assertNotNull(restored.contentIntent)
+    }
+
+    @Test
     fun `active notification is restored after process restart`() {
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         notificationManager.cancel(LOW_NOTIFICATION_ID)
