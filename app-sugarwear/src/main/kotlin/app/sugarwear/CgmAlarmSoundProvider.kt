@@ -30,6 +30,7 @@ internal fun openCgmAlarmSoundAsset(
     try {
         context.assets.openFd(SugarWearAlarmDefaults.preferredAudioAssetPath(type))
     } catch (missing: FileNotFoundException) {
+        android.util.Log.i("SugarWearAlarmAudio", "Optional sound unavailable for ${type.name}; using bundled fallback", missing)
         context.assets.openFd(cgmAlarmSoundAsset(type))
     }
 
