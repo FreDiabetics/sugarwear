@@ -277,7 +277,7 @@ class CgmAlarmsTest {
         assertTrue(CgmAlertPolicyStore.alarmsEnabled(context))
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
-        assertNull(notification.fullScreenIntent)
+        assertNotNull(notification.fullScreenIntent)
         assertNotNull(notification.contentIntent)
         assertEquals(listOf("Schlummerzeit · 10 Min.", "Stumm", "Vibrieren"), notification.actions.map { it.title.toString() })
         CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = false))
