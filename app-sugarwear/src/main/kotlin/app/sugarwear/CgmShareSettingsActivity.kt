@@ -4,7 +4,6 @@ import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -12,6 +11,14 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetPasswordOption
+import androidx.credentials.PasswordCredential
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.activity.viewModels
 import java.text.DateFormat
 import java.util.Date
@@ -181,22 +188,57 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 setPadding(dp(20), dp(4), dp(20), dp(4))
             }
 
-        fun field(hintText: String, password: Boolean = false): EditText =
+        fun field(hintText: String): EditText =
             EditText(this).apply {
                 hint = hintText
                 isSingleLine = true
                 textSize = 14f
-                inputType =
-                    if (password) {
-                        InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-                    } else {
-                        InputType.TYPE_CLASS_TEXT
-                    }
                 fields.addView(this, LinearLayout.LayoutParams(-1, dp(52)))
             }
         val account = field("Dexcom-Kontoname")
-        val password = field("Dexcom-Passwort", true)
         val serial = field("Share-Receiver-Seriennummer")
+        // Wear OS must not request passwords using a watch text field. The system
+        // credential picker handles user verification and never exposes the secret in a View.
+        var selectedPassword: String? = null
+        val credentialPicker =
+            label("Gespeichertes Dexcom-Passwort wählen", Color.WHITE, true, 13f).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = dp(48)
+                isClickable = true
+                isFocusable = true
+                contentDescription = "Passwort über den Android Passwortmanager auswählen"
+            }
+        credentialPicker.setOnClickListener {
+            lifecycleScope.launch {
+                try {
+                    val response =
+                        CredentialManager
+                            .create(this@CgmShareSettingsActivity)
+                            .getCredential(
+                                context = this@CgmShareSettingsActivity,
+                                request = GetCredentialRequest(listOf(GetPasswordOption())),
+                            )
+                    val passwordCredential = response.credential as? PasswordCredential
+                    if (passwordCredential == null) {
+                        Toast.makeText(this@CgmShareSettingsActivity, "Kein Passwort ausgewählt", Toast.LENGTH_SHORT).show()
+                    } else {
+                        selectedPassword = passwordCredential.password
+                        account.setText(passwordCredential.id)
+                        credentialPicker.text = "Passwort sicher ausgewählt"
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: GetCredentialException) {
+                    android.util.Log.i("SugarWearShare", "Credential selection unavailable: ${error.javaClass.simpleName}")
+                    Toast.makeText(
+                        this@CgmShareSettingsActivity,
+                        "Keine passenden gespeicherten Zugangsdaten. Bitte einen unterstützten Passwortmanager einrichten.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+        fields.addView(credentialPicker)
         fields.addView(label("Die Share-Seriennummer ist nicht der G7-Kopplungscode.", Color.LTGRAY, false, 12f))
         var selected = if (region == DexcomShareRegion.INTERNATIONAL) 0 else 1
         fields.addView(label("Serverregion", Color.LTGRAY, true, 13f))
@@ -229,16 +271,17 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val user = account.text.toString().trim()
-                val secret = password.text.toString()
+                val secret = selectedPassword
                 val receiver = serial.text.toString().trim()
                 if (user.isBlank() || secret.isBlank() || !receiver.matches(Regex("[A-Za-z0-9_-]{5,40}"))) {
-                    Toast.makeText(this, "Konto, Passwort und gültige Share-Seriennummer eingeben", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Gespeichertes Passwort wählen und gültige Share-Seriennummer eingeben", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
                 dialog.dismiss()
                 settings.saveAccount(user, secret, receiver, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
             }
         }
+        dialog.setOnDismissListener { selectedPassword = null }
         dialog.show()
     }
 
