@@ -26,7 +26,7 @@ internal fun cgmErrorSignature(error: CgmCollectorError): String = "${error.code
 
 /** High-priority surface reserved for an actually actionable direct-Watch problem. */
 internal object CgmErrorNotifier {
-    private const val CHANNEL_ID = "direct_watch_collector_errors_v5"
+    private const val CHANNEL_ID = "direct_watch_collector_errors_v6"
     private const val CHANNEL_NAME = "SugarWear-Fehler"
     private const val NOTIFICATION_ID = 7002
     private const val PREFS = "g7_error_notifications"
