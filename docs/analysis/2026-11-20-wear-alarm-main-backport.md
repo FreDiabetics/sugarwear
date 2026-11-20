@@ -8,6 +8,7 @@ Alarm-Fix auf Basis von `main`, unabhängig vom experimentellen Dexcom-Share-PR 
 - Google dokumentiert `setFullScreenIntent()` / `USE_FULL_SCREEN_INTENT` als **nicht auf Wear OS unterstützt**: https://developer.android.com/training/wearables/notifications . Die Wiederherstellung ist darum **Best-Effort**, nicht systemseitig garantierte automatische Vollbildanzeige. Normale hoch priorisierte lokale Alarmbenachrichtigungen bleiben der unterstützte Fallback. Keine Hintergrundstart- oder DND-Umgehungen.
 - Hoch/Tief, dringend Tief und dringend Tief bald: Auslösewert **und Trend zum Auslösezeitpunkt** werden im Alarm-Snapshot (Sensor-/Session-bezogen, über Neustart) gespeichert; die Vollbildansicht nutzt diese statt neuer CGM-Werte. Andere Anzeigen bleiben live.
 - Bestehende Grenzen durch Benachrichtigungsberechtigung, benutzergesteuerte Kanäle, DND, Watch-System und Alarm-Snooze bleiben wirksam.
+- Der bisherige Collector-Fehlerkanal `direct_watch_collector_errors_v5` spielte zusätzlich zum zentralen technischen Alarm einen Ton/Vibration. Ein neuer stummer v6-Kanal verhindert Doppelalarmierung, ohne die Meldungsanzeige zu entfernen.
 
 ## Original MP4-Alarmtöne
 Folgende unveränderte Benutzerdateien wurden geprüft (MP4/AAC, 48 kHz, Stereo), jeweils unter `app-sugarwear/src/main/assets/alarms/`:
