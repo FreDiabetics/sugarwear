@@ -118,7 +118,7 @@ class CgmAlarmAudioService : Service() {
             player = next
             next.setAudioAttributes(attributes)
             next.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK)
-            assets.openFd(cgmAlarmSoundAsset(type)).use { next.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
+            openCgmAlarmSoundAsset(this, type).use { next.setDataSource(it.fileDescriptor, it.startOffset, it.length) }
             next.setOnCompletionListener { if (player === it) stopSelf() }
             next.setOnErrorListener { _, what, extra ->
                 android.util.Log.e("G7AlarmAudio", "Alarm playback failed: $what/$extra")

@@ -103,6 +103,8 @@ data class SugarWearAlarmInstance(
     val snoozedUntilEpochMs: Long? = null,
     val lastNotifiedAtEpochMs: Long? = null,
     val triggerGlucoseMgDl: Double? = null,
+    /** Trend captured with the triggering reading; never replaced by later CGM samples. */
+    val triggerTrend: String? = null,
     val technicalErrorSignature: String? = null,
 )
 

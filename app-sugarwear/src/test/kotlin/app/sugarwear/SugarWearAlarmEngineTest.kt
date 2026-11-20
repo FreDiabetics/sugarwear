@@ -16,7 +16,37 @@ class SugarWearAlarmEngineTest {
         val updated = SugarWearAlarmEngine.evaluate(later, null, 0, 0, initial.updatedInstances, settings, 1_300_000L)
         val alarm = updated.updatedInstances.getValue(SugarWearAlarmType.LOW)
         assertEquals(65.0, alarm.triggerGlucoseMgDl!!, 0.0)
+        assertEquals("SINGLE_DOWN", alarm.triggerTrend)
         assertEquals(first.timestampEpochMs, alarm.measuredAtEpochMs)
+    }
+
+    @Test
+    fun `high alarm stores the value and trend at activation after the configured delay`() {
+        val type = SugarWearAlarmType.HIGH
+        val defaults = SugarWearAlarmDefaults.defaultSettings()
+        val settings = defaults.copy(rules = defaults.rules + (type to defaults.ruleFor(type).copy(highDelayMinutes = 5)))
+        val first = reading(195.0).copy(trend = app.sugarlicious.model.Trend.SINGLE_UP)
+        val pending = SugarWearAlarmEngine.evaluate(first, null, 0L, 0L, emptyMap(), settings, first.timestampEpochMs)
+        val triggerTime = first.timestampEpochMs + 5 * 60_000L
+        val atTrigger =
+            first.copy(
+                id = "trigger",
+                glucoseMgDl = 207.0,
+                trend = app.sugarlicious.model.Trend.FORTY_FIVE_UP,
+                timestampEpochMs = triggerTime,
+                receivedAtEpochMs = triggerTime,
+            )
+        val activated = SugarWearAlarmEngine.evaluate(atTrigger, null, 0L, 0L, pending.updatedInstances, settings, triggerTime)
+        val alarm = activated.updatedInstances.getValue(type)
+        assertEquals(SugarWearAlarmState.ACTIVE, alarm.state)
+        assertEquals(207.0, alarm.triggerGlucoseMgDl!!, 0.0)
+        assertEquals("FORTY_FIVE_UP", alarm.triggerTrend)
+        assertEquals(triggerTime, alarm.triggeredAtEpochMs)
+
+        val later = atTrigger.copy(id = "later", glucoseMgDl = 238.0, trend = app.sugarlicious.model.Trend.DOUBLE_UP, timestampEpochMs = triggerTime + 60_000L)
+        val next = SugarWearAlarmEngine.evaluate(later, null, 0L, 0L, activated.updatedInstances, settings, triggerTime + 60_000L)
+        assertEquals(207.0, next.updatedInstances.getValue(type).triggerGlucoseMgDl!!, 0.0)
+        assertEquals("FORTY_FIVE_UP", next.updatedInstances.getValue(type).triggerTrend)
     }
 
     @Test
