@@ -45,9 +45,11 @@ internal object CgmErrorNotifier {
         manager.createNotificationChannel(
             NotificationChannel(channelId, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Dringende Fehler von SugarWear"
-                enableVibration(true)
+                // The canonical technical alarm owns sound and vibration.
+                // This legacy collector-error surface must not double-play them.
+                enableVibration(false)
                 setSound(
-                    cgmAlarmSoundUri(context, SugarWearAlarmType.TECHNICAL_WARNING),
+                    null,
                     AudioAttributes
                         .Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
