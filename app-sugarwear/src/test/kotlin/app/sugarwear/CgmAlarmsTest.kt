@@ -81,6 +81,15 @@ class CgmAlarmsTest {
     }
 
     @Test
+    fun `legacy collector error channel stays silent to prevent duplicate technical sounds`() {
+        CgmErrorNotifier.ensureChannel(context)
+        val channel = notificationManager.getNotificationChannel(CgmErrorNotifier.channelId(context))
+        assertNotNull(channel)
+        assertNull(channel.sound)
+        assertFalse(channel.shouldVibrate())
+    }
+
+    @Test
     fun `all nine alarm channels are silent because the alarm service owns sound`() {
         val settings = CgmAlarmSettingsStore.read(context)
         CgmAlarmNotifier.ensureAllChannels(context, settings)
