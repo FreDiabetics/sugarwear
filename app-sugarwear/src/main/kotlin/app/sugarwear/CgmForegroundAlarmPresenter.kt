@@ -15,7 +15,9 @@ import android.os.Looper
  */
 internal class CgmForegroundAlarmPresenter(
     private val application: Application,
-) : Application.ActivityLifecycleCallbacks, SharedPreferences.OnSharedPreferenceChangeListener {
+) :
+    Application.ActivityLifecycleCallbacks,
+    SharedPreferences.OnSharedPreferenceChangeListener {
     private val preferences = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val seenEpisodes = mutableSetOf<String>()
