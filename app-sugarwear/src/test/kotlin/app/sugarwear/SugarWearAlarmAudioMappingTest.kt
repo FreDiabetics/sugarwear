@@ -17,6 +17,35 @@ class SugarWearAlarmAudioMappingTest {
     }
 
     @Test
+    fun `all nine active alarms have distinct user supplied audio mappings`() {
+        val expected =
+            mapOf(
+                SugarWearAlarmType.URGENT_LOW to "alarms/alerts_sounds_medium_urgent_low.mp4",
+                SugarWearAlarmType.URGENT_LOW_SOON to "alarms/alerts_sounds_medium_urgent_low_soon.mp4",
+                SugarWearAlarmType.LOW to "alarms/alerts_sounds_medium_low.mp4",
+                SugarWearAlarmType.HIGH to "alarms/alerts_sounds_medium_high.mp4",
+                SugarWearAlarmType.RAPID_RISE to "alarms/alerts_sounds_medium_rising_rate.mp4",
+                SugarWearAlarmType.RAPID_FALL to "alarms/alerts_sounds_medium_falling_rate.mp4",
+                SugarWearAlarmType.SIGNAL_LOSS to "alarms/alerts_sounds_medium_signal_loss.mp4",
+                SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM to "alarms/alerts_sounds_medium_bsi.mp4",
+                SugarWearAlarmType.TECHNICAL_WARNING to "alarms/alerts_sounds_medium_technical_alerts.mp4",
+            )
+        assertEquals(expected, SugarWearAlarmType.entries.associateWith(SugarWearAlarmDefaults::preferredAudioAssetPath))
+        assertEquals(expected.size, expected.values.distinct().size)
+        assertEquals("alarms/alerts_sounds_medium_system_alert.mp4", SugarWearAlarmDefaults.SYSTEM_ALERT_AUDIO_ASSET)
+    }
+
+    @Test
+    fun `old installations retain working fallback sound assets`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SugarWearAlarmType.entries.forEach { type ->
+            openCgmAlarmSoundAsset(context, type).use { descriptor ->
+                assertTrue(descriptor.length > 0L)
+            }
+        }
+    }
+
+    @Test
     fun `audio priority order is strictly defined`() {
         val pUrgentLow = SugarWearAlarmDefaults.priority(SugarWearAlarmType.URGENT_LOW)
         val pTech = SugarWearAlarmDefaults.priority(SugarWearAlarmType.TECHNICAL_WARNING)

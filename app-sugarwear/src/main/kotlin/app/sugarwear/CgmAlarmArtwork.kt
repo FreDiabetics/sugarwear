@@ -66,6 +66,8 @@ internal class CgmAlarmFullBleedView(
     private val mode: CgmAlarmContentMode = CgmAlarmContentMode.FULL_BLEED,
     onAcknowledge: (() -> Unit)? = null,
     titleOverride: String? = null,
+    frozenGlucoseMgDl: Double? = null,
+    frozenTrend: app.sugarlicious.model.Trend? = null,
 ) : ViewGroup(context) {
     private data class Placement(
         val child: View,
@@ -116,8 +118,19 @@ internal class CgmAlarmFullBleedView(
         when (artwork) {
             CgmAlarmArtwork.HIGH, CgmAlarmArtwork.LOW, CgmAlarmArtwork.LOW_SOON, CgmAlarmArtwork.RAPID_RISE, CgmAlarmArtwork.RAPID_FALL -> {
                 val rapid = artwork == CgmAlarmArtwork.RAPID_RISE || artwork == CgmAlarmArtwork.RAPID_FALL
+                val valueText =
+                    if (frozenGlucoseMgDl != null && frozenGlucoseMgDl.isFinite()) {
+                        kotlin.math
+                            .round(frozenGlucoseMgDl)
+                            .toInt()
+                            .toString()
+                    } else {
+                        cgmGlucoseOnlyNumberText(reading)
+                    }
                 val arrowTrend =
-                    if (reading == null) {
+                    if (frozenGlucoseMgDl != null) {
+                        frozenTrend
+                    } else if (reading == null) {
                         null
                     } else if (rapid) {
                         when {
@@ -145,12 +158,12 @@ internal class CgmAlarmFullBleedView(
                         .apply {
                             textSize = 80f * resources.configuration.fontScale
                             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                        }.measureText(cgmGlucoseOnlyNumberText(reading))
+                        }.measureText(valueText)
                         .coerceAtMost(220f)
                 val rowArrowWidth = if (rapid) rapidArrowSize * 2f + rapidGap else rapidArrowSize * arrowAspect
                 val rapidRowStart = (CgmAlarmDesignTokens.SIZE - rapidNumberWidth - rapidGap - rowArrowWidth) / 2f
                 text(
-                    cgmGlucoseOnlyNumberText(reading),
+                    valueText,
                     if (dynamicRow && hasTrend) {
                         rapidRowStart
                     } else if (hasTrend) {
