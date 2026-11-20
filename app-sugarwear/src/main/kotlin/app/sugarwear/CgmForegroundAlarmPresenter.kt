@@ -46,7 +46,8 @@ internal class CgmForegroundAlarmPresenter(
         mainHandler.post {
             val activity = resumedActivity ?: return@post
             if (activity.isFinishing || activity.isDestroyed) return@post
-            val alarm = CgmForegroundAlarmPresentation.pickNext(seenEpisodes, activeNotices()) ?: return@post
+            val alarm =
+                CgmForegroundAlarmPresentation.pickNext(seenEpisodes, activeNotices()) ?: return@post
             activity.startActivity(
                 CgmAlarmActivity
                     .intent(activity, alarm.type)

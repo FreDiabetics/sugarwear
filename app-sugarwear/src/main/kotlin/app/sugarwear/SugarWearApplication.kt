@@ -6,8 +6,8 @@ class SugarWearApplication : android.app.Application() {
 
     override fun onCreate() {
         super.onCreate()
-        registerActivityLifecycleCallbacks(alarmPresenter)
         app.sugarlicious.uishared.ProductMigrationLifecycle
             .requireReady(this)
+        registerActivityLifecycleCallbacks(alarmPresenter)
     }
 }

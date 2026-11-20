@@ -8,12 +8,12 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.core.app.NotificationCompat
-import androidx.core.graphics.drawable.IconCompat
-import androidx.wear.ongoing.OngoingActivity
 import android.media.AudioAttributes
+import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
+import androidx.wear.ongoing.OngoingActivity
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
