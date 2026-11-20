@@ -516,6 +516,9 @@ internal object CgmAlarmNotifier {
                 .setContentTitle(cgmAlarmHeadline(alarm.type))
                 .setContentText(audioAwareBody(context, body, settings))
                 .setContentIntent(open)
+                // Restore the former best-effort full-screen delivery. Wear OS may
+                // ignore this API; a normal notification always remains tappable.
+                .setFullScreenIntent(if (onlyAlertOnce) null else open, true)
                 .setCategory(Notification.CATEGORY_ALARM)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setOngoing(true)

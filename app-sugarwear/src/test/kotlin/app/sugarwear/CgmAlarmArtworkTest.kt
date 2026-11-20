@@ -75,6 +75,36 @@ class CgmAlarmArtworkTest {
         }
     }
 
+    @Test fun `full screen high and low show frozen trigger glucose and trend rather than newer CGM reading`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val later =
+            app.sugarlicious.sensor.protocol
+                .CgmReading(
+                    "later",
+                    app.sugarlicious.model.DataSourceId.DEXCOM_G7_WATCH,
+                    "sensor",
+                    "session",
+                    245.0,
+                    2L,
+                    2L,
+                    trend = app.sugarlicious.model.Trend.DOUBLE_UP,
+                )
+        for ((artwork, trigger) in listOf(CgmAlarmArtwork.HIGH to 202.0, CgmAlarmArtwork.LOW to 68.0, CgmAlarmArtwork.LOW_SOON to 79.0)) {
+            val view =
+                CgmAlarmFullBleedView(
+                    context,
+                    artwork,
+                    later,
+                    frozenGlucoseMgDl = trigger,
+                    frozenTrend = app.sugarlicious.model.Trend.SINGLE_DOWN,
+                )
+            val text = (0 until view.childCount).map { view.getChildAt(it) }.filterIsInstance<TextView>().map { it.text.toString() }
+            assertTrue("$artwork should show the trigger glucose", text.contains(trigger.toInt().toString()))
+            assertFalse("$artwork must not show later CGM glucose", text.contains("245"))
+            assertNotNull("$artwork should show the captured trend arrow", view.findViewWithTag<View>("alarm-trend-0"))
+        }
+    }
+
     @Test fun `all alarm types use common artwork and validated prediction uses soon artwork`() {
         assertEquals(CgmAlarmArtwork.RAPID_FALL, cgmAlarmArtwork(SugarWearAlarmType.RAPID_FALL))
         assertEquals(CgmAlarmArtwork.TECHNICAL_WARNING, cgmAlarmArtwork(SugarWearAlarmType.TECHNICAL_WARNING))

@@ -21,6 +21,7 @@ internal enum class CgmSettingsSection(
     ALARMS("Alarme", "Glukosealarme und notwendige Systemrechte"),
     SUGARWEAR("Sensor", "Verbinden, trennen und Datenempfang pausieren"),
     VIGIL("Vigil", "Watchface"),
+    SHARE("Share & Follow", "Eigene G7-Werte an Dexcom Share senden"),
     ABOUT("Über", "SugarWear"),
 }
 
@@ -145,6 +146,7 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
                 CgmSettingsSection.ALARMS -> Intent(this, CgmAlarmSettingsActivity::class.java)
                 CgmSettingsSection.SUGARWEAR -> Intent(this, CgmSystemStatusActivity::class.java)
                 CgmSettingsSection.VIGIL -> Intent(this, CgmDirectToWatchSettingsActivity::class.java)
+                CgmSettingsSection.SHARE -> Intent(this, CgmShareSettingsActivity::class.java)
                 CgmSettingsSection.ABOUT -> return
             }
         startActivity(intent)

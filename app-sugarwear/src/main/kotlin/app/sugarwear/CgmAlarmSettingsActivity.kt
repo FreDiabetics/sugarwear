@@ -93,6 +93,26 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                     },
                     cardParams(7),
                 )
+                if (!alarmAccess.notificationPermissionGranted || !alarmAccess.appNotificationsEnabled) {
+                    addView(
+                        card(palette).apply {
+                            addView(label("BENACHRICHTIGUNGEN BLOCKIERT", 10f, 0xFFFF5C69.toInt(), true))
+                            addView(
+                                label(
+                                    "SugarWear-Alarme können nicht auf der Uhr angezeigt werden. Erlaube App-Benachrichtigungen in den Uhreinstellungen.",
+                                    11f,
+                                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                                ),
+                            )
+                            addView(
+                                actionButton("Berechtigungen prüfen", palette) {
+                                    startActivity(android.content.Intent(this@CgmAlarmSettingsActivity, CgmPermissionsActivity::class.java))
+                                },
+                            )
+                        },
+                        cardParams(7),
+                    )
+                }
                 addView(pauseAlarmsCard(palette), cardParams(7))
                 addView(alarmProfilesCard(configured, activeProfile, editedProfile, palette), cardParams(7))
 

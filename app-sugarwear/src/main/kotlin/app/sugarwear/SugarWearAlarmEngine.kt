@@ -70,6 +70,7 @@ internal object SugarWearAlarmEngine {
                     receivedAtEpochMs = reading?.receivedAtEpochMs,
                     technicalErrorSignature = technicalError?.let { cgmErrorSignature(it) },
                     nowEpochMs = nowEpochMs,
+                    trend = freshReading?.trend?.name,
                 )
 
             updated[type] = nextInstance

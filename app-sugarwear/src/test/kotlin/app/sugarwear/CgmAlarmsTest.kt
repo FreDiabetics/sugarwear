@@ -81,6 +81,15 @@ class CgmAlarmsTest {
     }
 
     @Test
+    fun `legacy collector error channel stays silent to prevent duplicate technical sounds`() {
+        CgmErrorNotifier.ensureChannel(context)
+        val channel = notificationManager.getNotificationChannel(CgmErrorNotifier.channelId(context))
+        assertNotNull(channel)
+        assertNull(channel.sound)
+        assertFalse(channel.shouldVibrate())
+    }
+
+    @Test
     fun `all nine alarm channels are silent because the alarm service owns sound`() {
         val settings = CgmAlarmSettingsStore.read(context)
         CgmAlarmNotifier.ensureAllChannels(context, settings)
@@ -136,6 +145,29 @@ class CgmAlarmsTest {
     fun tearDown() {
         CgmAlarmCoordinator.clearSuppressed(context)
         CgmAlertPolicyStore.setPolicy(context, false)
+    }
+
+    @Test
+    fun `new alarm requests full screen while restored alarm stays tappable without relaunch`() {
+        val settings = CgmAlarmSettingsStore.read(context).copy(globalMuteAll = true)
+        val alarm =
+            SugarWearAlarmInstance(
+                type = SugarWearAlarmType.LOW,
+                state = SugarWearAlarmState.ACTIVE,
+                triggeredAtEpochMs = NOW,
+            )
+
+        CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
+        val fresh = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(fresh)
+        assertNotNull(fresh.fullScreenIntent)
+        assertNotNull(fresh.contentIntent)
+
+        CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
+        val restored = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(restored)
+        assertNull(restored.fullScreenIntent)
+        assertNotNull(restored.contentIntent)
     }
 
     @Test
@@ -245,7 +277,7 @@ class CgmAlarmsTest {
         assertTrue(CgmAlertPolicyStore.alarmsEnabled(context))
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
-        assertNull(notification.fullScreenIntent)
+        assertNotNull(notification.fullScreenIntent)
         assertNotNull(notification.contentIntent)
         assertEquals(listOf("Schlummerzeit · 10 Min.", "Stumm", "Vibrieren"), notification.actions.map { it.title.toString() })
         CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = false))
