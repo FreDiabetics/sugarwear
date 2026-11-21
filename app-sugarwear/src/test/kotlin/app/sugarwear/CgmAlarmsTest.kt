@@ -128,6 +128,9 @@ class CgmAlarmsTest {
 
     @Before
     fun setUp() {
+        // Real alarm delivery requires POST_NOTIFICATIONS on API 33+.
+        // Denied-permission behavior is covered by its own explicit test.
+        shadowOf(context as android.app.Application).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
         CgmSensorStateStore(context).save(
             app.sugarlicious.sensor.protocol
                 .CgmPersistedState(collectorEnabled = true),
