@@ -349,7 +349,7 @@ internal fun CgmAlarmScreenContent(
     }
 }
 
-/** Full-screen intent destination; no direct Bluetooth or sensor lifecycle operations. */
+/** Wear notification tap and foreground alarm destination; no sensor lifecycle operations. */
 @dagger.hilt.android.AndroidEntryPoint
 class CgmAlarmActivity : ComponentActivity() {
     private val model by viewModels<CgmAlarmViewModel>()

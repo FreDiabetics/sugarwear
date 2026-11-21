@@ -148,7 +148,7 @@ class CgmAlarmsTest {
     }
 
     @Test
-    fun `new alarm requests full screen while restored alarm stays tappable without relaunch`() {
+    fun `new and restored alarm use ongoing Wear notification without unsupported fullscreen intent`() {
         val settings = CgmAlarmSettingsStore.read(context).copy(globalMuteAll = true)
         val alarm =
             SugarWearAlarmInstance(
@@ -160,8 +160,10 @@ class CgmAlarmsTest {
         CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
         val fresh = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
         assertNotNull(fresh)
-        assertNotNull(fresh.fullScreenIntent)
+        assertNull(fresh.fullScreenIntent)
         assertNotNull(fresh.contentIntent)
+        assertEquals(android.app.Notification.CATEGORY_ALARM, fresh.category)
+        assertTrue(fresh.flags and android.app.Notification.FLAG_ONGOING_EVENT != 0)
 
         CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
         val restored = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
@@ -277,7 +279,7 @@ class CgmAlarmsTest {
         assertTrue(CgmAlertPolicyStore.alarmsEnabled(context))
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
         val notification = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
-        assertNotNull(notification.fullScreenIntent)
+        assertNull(notification.fullScreenIntent)
         assertNotNull(notification.contentIntent)
         assertEquals(listOf("Schlummerzeit · 10 Min.", "Stumm", "Vibrieren"), notification.actions.map { it.title.toString() })
         CgmSensorStateStore(context).save(CgmSensorStateStore(context).read().copy(collectorEnabled = false))
