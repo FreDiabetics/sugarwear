@@ -10,7 +10,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.lifecycle.withCreationCallback
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /** User-initiated access setup, shared by Pixel Watch and Galaxy Watch. */
 @dagger.hilt.android.AndroidEntryPoint
@@ -51,7 +54,9 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
         access.refresh(prepare = true)
         // Repost still-active notices after returning from Android notification settings,
         // without re-triggering audio or the foreground alarm screen.
-        CgmAlarmCoordinator.restore(this)
+        lifecycleScope.launch(Dispatchers.IO) {
+            CgmAlarmCoordinator.restore(applicationContext)
+        }
         render()
     }
 

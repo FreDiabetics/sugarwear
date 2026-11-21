@@ -489,9 +489,13 @@ internal object CgmAlarmNotifier {
         val channelId = channelId(context, alarm.type, settings)
         val episode = cgmAlarmEpisodeKey(alarm)
         val channelsReady =
-            runCatching { ensureAllChannels(context, settings) }
-                .onFailure { android.util.Log.e("CgmAlarmNotifier", "Cannot prepare alarm channels", it) }
-                .isSuccess
+            try {
+                ensureAllChannels(context, settings)
+                true
+            } catch (error: RuntimeException) {
+                android.util.Log.e("CgmAlarmNotifier", "Cannot prepare alarm channels", error)
+                false
+            }
         val open =
             PendingIntent.getActivity(
                 context,
@@ -507,8 +511,11 @@ internal object CgmAlarmNotifier {
                 (alarm.sensorId == null || alarm.sensorId == it.sensorId) && (alarm.sessionId == null || alarm.sessionId == it.sessionId)
             }
         if (!onlyAlertOnce) {
-            runCatching { playAlarm(context, alarm.type, settings) }
-                .onFailure { android.util.Log.e("CgmAlarmNotifier", "Alarm audio or vibration failed", it) }
+            try {
+                playAlarm(context, alarm.type, settings)
+            } catch (error: RuntimeException) {
+                android.util.Log.e("CgmAlarmNotifier", "Alarm audio or vibration failed", error)
+            }
         }
         if (!channelsReady) return
         val notifications = context.getSystemService(NotificationManager::class.java)
@@ -555,16 +562,21 @@ internal object CgmAlarmNotifier {
         // Its lifecycle is tied to this episode's notification (ACK/snooze/cancel).
         // OngoingActivity is optional UI. Its failure cannot suppress the
         // underlying notification or corrupt the persisted alarm episode.
-        runCatching {
+        try {
             OngoingActivity
                 .Builder(context, notificationId(alarm.type), builder)
                 .setStaticIcon(R.drawable.ic_cgm_notification)
                 .setTouchIntent(open)
                 .build()
                 .apply(context)
-        }.onFailure { android.util.Log.w("CgmAlarmNotifier", "Wear ongoing indicator unavailable", it) }
-        runCatching { notifications.notify(notificationId(alarm.type), builder.build()) }
-            .onFailure { android.util.Log.e("CgmAlarmNotifier", "Alarm notification submission failed", it) }
+        } catch (error: RuntimeException) {
+            android.util.Log.w("CgmAlarmNotifier", "Wear ongoing indicator unavailable", error)
+        }
+        try {
+            notifications.notify(notificationId(alarm.type), builder.build())
+        } catch (error: RuntimeException) {
+            android.util.Log.e("CgmAlarmNotifier", "Alarm notification submission failed", error)
+        }
     }
 
     fun cancel(
