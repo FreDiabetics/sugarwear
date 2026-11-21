@@ -6,9 +6,11 @@ import android.view.View
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
@@ -17,6 +19,12 @@ import java.io.File
 @Config(sdk = [35])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class CgmAlarmArtworkTest {
+    @Before
+    fun grantAlarmNotificationPermission() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        shadowOf(app).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     @Test fun `all artwork uses native text with unclipped geometry and original black background`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val output = File("build/reports/alarm-artwork").apply { mkdirs() }

@@ -30,6 +30,8 @@ class CgmTimedAlarmDeliveryTest {
     private var start = 0L
 
     @Before fun prepare() {
+        // Match a watch where the user allowed alarm notifications.
+        shadowOf(app).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
         start = System.currentTimeMillis()
         app
             .getSharedPreferences("g7_cgm_alarm_state", Context.MODE_PRIVATE)
