@@ -49,6 +49,9 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
     override fun onResume() {
         super.onResume()
         access.refresh(prepare = true)
+        // Repost still-active notices after returning from Android notification settings,
+        // without re-triggering audio or the foreground alarm screen.
+        CgmAlarmCoordinator.restore(this)
         render()
     }
 

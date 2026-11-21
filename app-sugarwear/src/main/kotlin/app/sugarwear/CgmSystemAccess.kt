@@ -29,6 +29,60 @@ internal data class CgmAlarmChannelAccess(
     val bypassDnd: Boolean,
 )
 
+
+/** A submitted notification is not proof that Wear OS displayed or announced it. */
+internal enum class CgmAlarmNotificationReadiness {
+    READY,
+    PERMISSION_MISSING,
+    APP_NOTIFICATIONS_DISABLED,
+    CHANNEL_DISABLED,
+    CHANNEL_NOT_PROMINENT,
+    CHANNEL_NOT_REGISTERED,
+    ;
+
+    val canSubmit: Boolean
+        get() = this != PERMISSION_MISSING && this != APP_NOTIFICATIONS_DISABLED
+
+    val label: String
+        get() =
+            when (this) {
+                READY -> "Alarmkanäle priorisiert"
+                PERMISSION_MISSING -> "Benachrichtigungen nicht erlaubt"
+                APP_NOTIFICATIONS_DISABLED -> "App-Benachrichtigungen deaktiviert"
+                CHANNEL_DISABLED -> "Mindestens ein Alarmkanal deaktiviert"
+                CHANNEL_NOT_PROMINENT -> "Mindestens ein Alarmkanal nicht priorisiert"
+                CHANNEL_NOT_REGISTERED -> "Alarmkanäle noch nicht eingerichtet"
+            }
+}
+
+internal fun cgmAlarmNotificationReadiness(
+    permissionGranted: Boolean,
+    appNotificationsEnabled: Boolean,
+    channelImportance: Int?,
+): CgmAlarmNotificationReadiness =
+    when {
+        !permissionGranted -> CgmAlarmNotificationReadiness.PERMISSION_MISSING
+        !appNotificationsEnabled -> CgmAlarmNotificationReadiness.APP_NOTIFICATIONS_DISABLED
+        channelImportance == null -> CgmAlarmNotificationReadiness.CHANNEL_NOT_REGISTERED
+        channelImportance == NotificationManager.IMPORTANCE_NONE -> CgmAlarmNotificationReadiness.CHANNEL_DISABLED
+        channelImportance < NotificationManager.IMPORTANCE_HIGH -> CgmAlarmNotificationReadiness.CHANNEL_NOT_PROMINENT
+        else -> CgmAlarmNotificationReadiness.READY
+    }
+
+internal fun cgmAlarmNotificationOverview(access: CgmSystemAccessSnapshot): CgmAlarmNotificationReadiness {
+    if (!access.notificationsGranted) return CgmAlarmNotificationReadiness.PERMISSION_MISSING
+    val states =
+        access.alarmChannels.map { channel ->
+            cgmAlarmNotificationReadiness(true, true, channel.importance)
+        }
+    return when {
+        CgmAlarmNotificationReadiness.CHANNEL_DISABLED in states -> CgmAlarmNotificationReadiness.CHANNEL_DISABLED
+        CgmAlarmNotificationReadiness.CHANNEL_NOT_REGISTERED in states -> CgmAlarmNotificationReadiness.CHANNEL_NOT_REGISTERED
+        CgmAlarmNotificationReadiness.CHANNEL_NOT_PROMINENT in states -> CgmAlarmNotificationReadiness.CHANNEL_NOT_PROMINENT
+        else -> CgmAlarmNotificationReadiness.READY
+    }
+}
+
 /** Reads system state; opening a settings screen never changes the reported grant. */
 internal object CgmSystemAccess {
     val bluetoothPermissions = arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)

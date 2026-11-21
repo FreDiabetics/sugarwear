@@ -107,6 +107,10 @@ private object CgmBootRecovery {
         // an asynchronous foreground-start timeout cannot be caught by startForegroundService.
         CgmReconnectAlarmScheduler.ensureCollectorSchedule(context, state)
         runCatching { CgmCollectorService.resumeEnabled(context) }
+            .onFailure { error ->
+                // The durable reconnect path has already been armed above.
+                android.util.Log.e("CgmBootRecovery", "Collector restart rejected; scheduled reconnect retained", error)
+            }
     }
 }
 

@@ -1,5 +1,6 @@
 package app.sugarwear
 
+import android.Manifest
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +9,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
@@ -486,7 +488,10 @@ internal object CgmAlarmNotifier {
     ) {
         val channelId = channelId(context, alarm.type, settings)
         val episode = cgmAlarmEpisodeKey(alarm)
-        ensureAllChannels(context, settings)
+        val channelsReady =
+            runCatching { ensureAllChannels(context, settings) }
+                .onFailure { android.util.Log.e("CgmAlarmNotifier", "Cannot prepare alarm channels", it) }
+                .isSuccess
         val open =
             PendingIntent.getActivity(
                 context,
@@ -501,7 +506,25 @@ internal object CgmAlarmNotifier {
             (reading ?: CgmSensorStateStore(context).read().lastReading)?.takeIf {
                 (alarm.sensorId == null || alarm.sensorId == it.sensorId) && (alarm.sessionId == null || alarm.sessionId == it.sessionId)
             }
-        if (!onlyAlertOnce) playAlarm(context, alarm.type, settings)
+        if (!onlyAlertOnce) {
+            runCatching { playAlarm(context, alarm.type, settings) }
+                .onFailure { android.util.Log.e("CgmAlarmNotifier", "Alarm audio or vibration failed", it) }
+        }
+        if (!channelsReady) return
+        val notifications = context.getSystemService(NotificationManager::class.java)
+        val delivery =
+            cgmAlarmNotificationReadiness(
+                permissionGranted = context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+                appNotificationsEnabled = notifications.areNotificationsEnabled(),
+                channelImportance = notifications.getNotificationChannel(channelId)?.importance,
+            )
+        if (!delivery.canSubmit) {
+            if (!onlyAlertOnce) android.util.Log.w("CgmAlarmNotifier", "Wear alarm notification blocked: ${delivery.name}")
+            return
+        }
+        if (delivery != CgmAlarmNotificationReadiness.READY && !onlyAlertOnce) {
+            android.util.Log.w("CgmAlarmNotifier", "Wear alarm not prominent: ${delivery.name}")
+        }
         val icon = IconCompat.createWithResource(context, app.sugarlicious.uishared.R.drawable.ic_alert)
         val body =
             when {
@@ -530,13 +553,18 @@ internal object CgmAlarmNotifier {
                 .addAction(NotificationCompat.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate", episode)).build())
         // The system-owned ongoing chip is reachable on the watch face/launcher.
         // Its lifecycle is tied to this episode's notification (ACK/snooze/cancel).
-        OngoingActivity
-            .Builder(context, notificationId(alarm.type), builder)
-            .setStaticIcon(R.drawable.ic_cgm_notification)
-            .setTouchIntent(open)
-            .build()
-            .apply(context)
-        context.getSystemService(NotificationManager::class.java).notify(notificationId(alarm.type), builder.build())
+        // OngoingActivity is optional UI. Its failure cannot suppress the
+        // underlying notification or corrupt the persisted alarm episode.
+        runCatching {
+            OngoingActivity
+                .Builder(context, notificationId(alarm.type), builder)
+                .setStaticIcon(R.drawable.ic_cgm_notification)
+                .setTouchIntent(open)
+                .build()
+                .apply(context)
+        }.onFailure { android.util.Log.w("CgmAlarmNotifier", "Wear ongoing indicator unavailable", it) }
+        runCatching { notifications.notify(notificationId(alarm.type), builder.build()) }
+            .onFailure { android.util.Log.e("CgmAlarmNotifier", "Alarm notification submission failed", it) }
     }
 
     fun cancel(
