@@ -2,6 +2,7 @@ package app.sugarwear
 
 import android.Manifest
 import android.app.Activity
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentFilter
@@ -22,6 +23,41 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class CgmSystemAccessTest {
     private val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+
+
+    @Test
+    fun `delivery gate distinguishes blocked permission app and channel priority`() {
+        val high = NotificationManager.IMPORTANCE_HIGH
+        assertEquals(CgmAlarmNotificationReadiness.READY, cgmAlarmNotificationReadiness(true, true, high))
+        assertEquals(CgmAlarmNotificationReadiness.PERMISSION_MISSING, cgmAlarmNotificationReadiness(false, true, high))
+        assertEquals(CgmAlarmNotificationReadiness.APP_NOTIFICATIONS_DISABLED, cgmAlarmNotificationReadiness(true, false, high))
+        assertEquals(CgmAlarmNotificationReadiness.CHANNEL_DISABLED, cgmAlarmNotificationReadiness(true, true, NotificationManager.IMPORTANCE_NONE))
+        assertEquals(CgmAlarmNotificationReadiness.CHANNEL_NOT_PROMINENT, cgmAlarmNotificationReadiness(true, true, NotificationManager.IMPORTANCE_DEFAULT))
+        assertEquals(CgmAlarmNotificationReadiness.CHANNEL_NOT_REGISTERED, cgmAlarmNotificationReadiness(true, true, null))
+        assertFalse(CgmAlarmNotificationReadiness.PERMISSION_MISSING.canSubmit)
+        assertFalse(CgmAlarmNotificationReadiness.APP_NOTIFICATIONS_DISABLED.canSubmit)
+        assertTrue(CgmAlarmNotificationReadiness.CHANNEL_DISABLED.canSubmit)
+    }
+
+    @Test
+    fun `summary exposes any disabled or quiet alarm channel`() {
+        fun access(importances: List<Int?>, notifications: Boolean = true) =
+            CgmSystemAccessSnapshot(
+                bluetoothGranted = true,
+                notificationsGranted = notifications,
+                batteryUnrestricted = true,
+                exactAlarmsGranted = true,
+                dndAccessGranted = false,
+                alarmChannels =
+                    importances.mapIndexed { index, importance ->
+                        CgmAlarmChannelAccess("alarm-$index", "Alarm $index", importance, false)
+                    },
+            )
+        assertEquals(CgmAlarmNotificationReadiness.READY, cgmAlarmNotificationOverview(access(listOf(4, 4))))
+        assertEquals(CgmAlarmNotificationReadiness.CHANNEL_DISABLED, cgmAlarmNotificationOverview(access(listOf(4, 0))))
+        assertEquals(CgmAlarmNotificationReadiness.CHANNEL_NOT_PROMINENT, cgmAlarmNotificationOverview(access(listOf(4, 3))))
+        assertEquals(CgmAlarmNotificationReadiness.PERMISSION_MISSING, cgmAlarmNotificationOverview(access(listOf(4), false)))
+    }
 
     private fun fakeSettingsInfo(system: Boolean = true) =
         ActivityInfo().apply {

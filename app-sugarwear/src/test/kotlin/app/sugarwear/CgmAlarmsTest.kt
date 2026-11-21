@@ -172,6 +172,25 @@ class CgmAlarmsTest {
         assertNotNull(restored.contentIntent)
     }
 
+
+    @Test
+    fun `denied notification permission retains the alarm for restoration`() {
+        val application = context as android.app.Application
+        val shadow = shadowOf(application)
+        shadow.denyPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        try {
+            CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+            assertTrue(CgmAlarmCoordinator.isActive(context, SugarWearAlarmType.LOW))
+            assertNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+
+            shadow.grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+            CgmAlarmCoordinator.restore(context, NOW + 1_000L)
+            assertNotNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+        } finally {
+            shadow.grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     @Test
     fun `active notification is restored after process restart`() {
         CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
