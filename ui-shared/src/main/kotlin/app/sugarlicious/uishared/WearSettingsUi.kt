@@ -23,7 +23,7 @@ object WearSettingsUi {
     const val MENU_TEXT: Int = 0xFFFFFFFF.toInt()
     const val MENU_SECONDARY: Int = 0xFFB6B6BB.toInt()
 
-    fun pageHeader(context: Context, title: String, textColor: Int, back: () -> Unit): LinearLayout =
+    fun pageHeader(context: Context, title: String, textColor: Int, back: (() -> Unit)? = null): LinearLayout =
         header(context, title, textColor, back).apply {
             val inset = dp(context, 11)
             setPadding(inset, 0, inset, 0)
@@ -291,22 +291,24 @@ object WearSettingsUi {
             )
         }
 
-    fun header(context: Context, title: String, textColor: Int, back: () -> Unit): LinearLayout =
+    fun header(context: Context, title: String, textColor: Int, back: (() -> Unit)? = null): LinearLayout =
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = dp(context, 56)
-            addView(
-                android.widget.ImageButton(context).apply {
-                    setImageDrawable(WearBackIcon(context, textColor))
-                    scaleType = android.widget.ImageView.ScaleType.CENTER
-                    contentDescription = "Zurück"
-                    tooltipText = "Zurück"
-                    background = android.graphics.drawable.InsetDrawable(background(context, Color.rgb(42, 42, 45), 24f), dp(context, 2))
-                    setOnClickListener { back() }
-                },
-                LinearLayout.LayoutParams(dp(context, 48), dp(context, 48)),
-            )
+            if (back != null) {
+                addView(
+                    android.widget.ImageButton(context).apply {
+                        setImageDrawable(WearBackIcon(context, textColor))
+                        scaleType = android.widget.ImageView.ScaleType.CENTER
+                        contentDescription = "Zurück"
+                        tooltipText = "Zurück"
+                        background = android.graphics.drawable.InsetDrawable(background(context, Color.rgb(42, 42, 45), 24f), dp(context, 2))
+                        setOnClickListener { back() }
+                    },
+                    LinearLayout.LayoutParams(dp(context, 48), dp(context, 48)),
+                )
+            }
             addView(
                 TextView(context).apply {
                     text = title
@@ -315,9 +317,14 @@ object WearSettingsUi {
                     setTextColor(textColor)
                     SystemTypography.apply(this, true)
                     if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
-                    setPadding(dp(context, 10), 0, 0, 0)
+                    gravity = if (back == null) Gravity.CENTER else Gravity.CENTER_VERTICAL
+                    setPadding(if (back == null) 0 else dp(context, 10), 0, 0, 0)
                 },
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
+                if (back == null) {
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                } else {
+                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                },
             )
         }
 }

@@ -6,10 +6,9 @@ import android.widget.LinearLayout
 internal fun Activity.cgmSettingsHeader(
     title: String,
     palette: CgmAppearancePalette,
-    back: () -> Unit = { finish() },
 ): LinearLayout =
     app.sugarlicious.uishared.WearSettingsUi
-        .pageHeader(this, title, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), back)
+        .pageHeader(this, title, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
 
 /** Menu chrome stays legible while the edited display palette retains its saved colors. */
 internal fun CgmAppearancePalette.settingsArgb(role: CgmAppearanceRole): Int =
