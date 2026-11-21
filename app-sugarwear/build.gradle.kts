@@ -62,6 +62,8 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
+    implementation("androidx.wear:wear-ongoing:1.1.0")
+    implementation("androidx.core:core:1.19.1")
     implementation("androidx.wear.tiles:tiles:1.6.2")
     implementation("androidx.wear.protolayout:protolayout:1.4.2")
     implementation("com.google.guava:guava:33.8.0-android")
