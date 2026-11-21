@@ -172,7 +172,6 @@ class CgmAlarmsTest {
         assertNotNull(restored.contentIntent)
     }
 
-
     @Test
     fun `denied notification permission retains the alarm for restoration`() {
         val application = context as android.app.Application

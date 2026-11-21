@@ -29,7 +29,6 @@ internal data class CgmAlarmChannelAccess(
     val bypassDnd: Boolean,
 )
 
-
 /** A submitted notification is not proof that Wear OS displayed or announced it. */
 internal enum class CgmAlarmNotificationReadiness {
     READY,

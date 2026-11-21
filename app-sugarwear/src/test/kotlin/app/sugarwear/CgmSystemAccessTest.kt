@@ -24,7 +24,6 @@ import org.robolectric.annotation.Config
 class CgmSystemAccessTest {
     private val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
 
-
     @Test
     fun `delivery gate distinguishes blocked permission app and channel priority`() {
         val high = NotificationManager.IMPORTANCE_HIGH
