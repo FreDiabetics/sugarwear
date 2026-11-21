@@ -122,6 +122,7 @@ internal data class CgmAlarmScreenState(
     val visible: Boolean = false,
     val active: Boolean = false,
     val triggerGlucose: Double? = null,
+    val triggerTrend: Trend? = null,
     val triggeredAtEpochMs: Long = 0L,
     val currentReading: CgmReading? = null,
     val snoozeMinutes: Int = 10,
@@ -186,6 +187,7 @@ class CgmAlarmViewModel
                             visible = visible,
                             active = active,
                             triggerGlucose = pending?.triggerGlucoseMgDl,
+                            triggerTrend = pending?.triggerTrend?.let { name -> Trend.entries.firstOrNull { it.name == name } },
                             triggeredAtEpochMs = pending?.triggeredAtEpochMs ?: 0L,
                             currentReading = currentReading,
                             snoozeMinutes = CgmAlarmDelivery.snoozeMinutes(context, type),
@@ -267,9 +269,31 @@ internal fun CgmAlarmScreenContent(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val artwork = cgmAlarmArtwork(type) ?: return
-        androidx.compose.runtime.key(type, artwork, state.currentReading, state.glucoseColor, state.trendStyle) {
+        // Only the full-screen high/low alarm uses the persisted trigger snapshot.
+        // The live glucose tile and all other alert surfaces retain their own data flow.
+        val frozenThresholdAlert =
+            type in
+                setOf(
+                    SugarWearAlarmType.HIGH,
+                    SugarWearAlarmType.LOW,
+                    SugarWearAlarmType.URGENT_LOW,
+                    SugarWearAlarmType.URGENT_LOW_SOON,
+                )
+        val artworkReading = if (frozenThresholdAlert) null else state.currentReading
+        androidx.compose.runtime.key(type, artwork, artworkReading, state.triggerGlucose, state.triggerTrend, state.glucoseColor, state.trendStyle) {
             androidx.compose.ui.viewinterop.AndroidView(
-                factory = { CgmAlarmFullBleedView(it, artwork, state.currentReading, state.glucoseColor, state.trendStyle, titleOverride = if (type == SugarWearAlarmType.TECHNICAL_WARNING) cgmAlarmHeadline(type) else null) },
+                factory = {
+                    CgmAlarmFullBleedView(
+                        it,
+                        artwork,
+                        artworkReading,
+                        state.glucoseColor,
+                        state.trendStyle,
+                        titleOverride = if (type == SugarWearAlarmType.TECHNICAL_WARNING) cgmAlarmHeadline(type) else null,
+                        frozenGlucoseMgDl = if (frozenThresholdAlert) state.triggerGlucose else null,
+                        frozenTrend = if (frozenThresholdAlert) state.triggerTrend else null,
+                    )
+                },
                 modifier = Modifier.fillMaxWidth().height(screenHeight),
             )
         }
@@ -325,7 +349,7 @@ internal fun CgmAlarmScreenContent(
     }
 }
 
-/** Full-screen intent destination; no direct Bluetooth or sensor lifecycle operations. */
+/** Wear notification tap and foreground alarm destination; no sensor lifecycle operations. */
 @dagger.hilt.android.AndroidEntryPoint
 class CgmAlarmActivity : ComponentActivity() {
     private val model by viewModels<CgmAlarmViewModel>()

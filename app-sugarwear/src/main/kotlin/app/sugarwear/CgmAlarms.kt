@@ -8,10 +8,12 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
 import android.media.AudioAttributes
+import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.net.toUri
+import androidx.wear.ongoing.OngoingActivity
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
@@ -500,32 +502,41 @@ internal object CgmAlarmNotifier {
                 (alarm.sensorId == null || alarm.sensorId == it.sensorId) && (alarm.sessionId == null || alarm.sessionId == it.sessionId)
             }
         if (!onlyAlertOnce) playAlarm(context, alarm.type, settings)
-        val icon = Icon.createWithResource(context, app.sugarlicious.uishared.R.drawable.ic_alert)
+        val icon = IconCompat.createWithResource(context, app.sugarlicious.uishared.R.drawable.ic_alert)
         val body =
             when {
                 alarm.type == SugarWearAlarmType.TECHNICAL_WARNING -> "Bitte den Systemstatus prüfen."
                 alarm.triggerGlucoseMgDl != null -> "${kotlin.math.round(alarm.triggerGlucoseMgDl).toInt()} mg/dL"
                 else -> cgmAlarmValue(presentationReading)
             }
-        context.getSystemService(NotificationManager::class.java).notify(
-            notificationId(alarm.type),
-            Notification
+        // Supported Wear OS path: a high-importance notification with a one-tap
+        // route to the existing full-bleed Activity. Wear does not support FSI.
+        val builder =
+            NotificationCompat
                 .Builder(context, channelId)
                 .setSmallIcon(R.drawable.ic_cgm_notification)
                 .setColor(color(context, alarm.type))
                 .setContentTitle(cgmAlarmHeadline(alarm.type))
                 .setContentText(audioAwareBody(context, body, settings))
                 .setContentIntent(open)
-                .setCategory(Notification.CATEGORY_ALARM)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setOnlyAlertOnce(onlyAlertOnce)
-                .addAction(Notification.Action.Builder(icon, "Schlummerzeit · ${CgmAlarmDelivery.snoozeMinutes(context, alarm.type)} Min.", open).build())
-                .addAction(Notification.Action.Builder(icon, "Stumm", CgmAlarmDelivery.pending(context, alarm.type, "mute", episode)).build())
-                .addAction(Notification.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate", episode)).build())
-                .build(),
-        )
+                .addAction(NotificationCompat.Action.Builder(icon, "Schlummerzeit · ${CgmAlarmDelivery.snoozeMinutes(context, alarm.type)} Min.", open).build())
+                .addAction(NotificationCompat.Action.Builder(icon, "Stumm", CgmAlarmDelivery.pending(context, alarm.type, "mute", episode)).build())
+                .addAction(NotificationCompat.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate", episode)).build())
+        // The system-owned ongoing chip is reachable on the watch face/launcher.
+        // Its lifecycle is tied to this episode's notification (ACK/snooze/cancel).
+        OngoingActivity
+            .Builder(context, notificationId(alarm.type), builder)
+            .setStaticIcon(R.drawable.ic_cgm_notification)
+            .setTouchIntent(open)
+            .build()
+            .apply(context)
+        context.getSystemService(NotificationManager::class.java).notify(notificationId(alarm.type), builder.build())
     }
 
     fun cancel(

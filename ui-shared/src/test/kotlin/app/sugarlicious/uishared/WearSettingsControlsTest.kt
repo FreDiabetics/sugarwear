@@ -167,6 +167,7 @@ class WearSettingsControlsTest {
         assertFalse(slider.isFocusableInTouchMode)
     }
 
+
     @Test fun `settings page headers use centered text without an explicit back button`() {
         val scaled =
             context.createConfigurationContext(

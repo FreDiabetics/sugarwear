@@ -111,6 +111,26 @@ internal object SugarWearAlarmDefaults {
             SugarWearAlarmType.TECHNICAL_WARNING -> "alarms/alerts_sounds_beep.mp4"
         }
 
+    /**
+     * Original Dexcom-style audio supplied for SugarWear. Optional until all binary
+     * assets are bundled; callers must fall back to audioAssetPath for older builds.
+     * System-alert is reserved for non-CGM watch system events (not a tenth CGM alarm).
+     */
+    fun preferredAudioAssetPath(type: SugarWearAlarmType): String =
+        when (type) {
+            SugarWearAlarmType.URGENT_LOW -> "alarms/alerts_sounds_medium_urgent_low.mp4"
+            SugarWearAlarmType.URGENT_LOW_SOON -> "alarms/alerts_sounds_medium_urgent_low_soon.mp4"
+            SugarWearAlarmType.LOW -> "alarms/alerts_sounds_medium_low.mp4"
+            SugarWearAlarmType.HIGH -> "alarms/alerts_sounds_medium_high.mp4"
+            SugarWearAlarmType.RAPID_RISE -> "alarms/alerts_sounds_medium_rising_rate.mp4"
+            SugarWearAlarmType.RAPID_FALL -> "alarms/alerts_sounds_medium_falling_rate.mp4"
+            SugarWearAlarmType.SIGNAL_LOSS -> "alarms/alerts_sounds_medium_signal_loss.mp4"
+            SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> "alarms/alerts_sounds_medium_bsi.mp4"
+            SugarWearAlarmType.TECHNICAL_WARNING -> "alarms/alerts_sounds_medium_technical_alerts.mp4"
+        }
+
+    const val SYSTEM_ALERT_AUDIO_ASSET = "alarms/alerts_sounds_medium_system_alert.mp4"
+
     fun priority(type: SugarWearAlarmType): Int =
         when (type) {
             SugarWearAlarmType.URGENT_LOW -> 100

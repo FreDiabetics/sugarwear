@@ -291,7 +291,6 @@ object WearSettingsUi {
             )
         }
 
-    /** Optional explicit back navigation; SugarWear settings use a centered, button-free header. */
     fun header(context: Context, title: String, textColor: Int, back: (() -> Unit)? = null): LinearLayout =
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -328,7 +327,6 @@ object WearSettingsUi {
                 },
             )
         }
-
 }
 
 /** Navigation is an icon, so increasing the system font never clips a text glyph. */

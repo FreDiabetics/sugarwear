@@ -81,6 +81,15 @@ class CgmAlarmsTest {
     }
 
     @Test
+    fun `legacy collector error channel stays silent to prevent duplicate technical sounds`() {
+        CgmErrorNotifier.ensureChannel(context)
+        val channel = notificationManager.getNotificationChannel(CgmErrorNotifier.channelId(context))
+        assertNotNull(channel)
+        assertNull(channel.sound)
+        assertFalse(channel.shouldVibrate())
+    }
+
+    @Test
     fun `all nine alarm channels are silent because the alarm service owns sound`() {
         val settings = CgmAlarmSettingsStore.read(context)
         CgmAlarmNotifier.ensureAllChannels(context, settings)
@@ -136,6 +145,31 @@ class CgmAlarmsTest {
     fun tearDown() {
         CgmAlarmCoordinator.clearSuppressed(context)
         CgmAlertPolicyStore.setPolicy(context, false)
+    }
+
+    @Test
+    fun `new and restored alarm use ongoing Wear notification without unsupported fullscreen intent`() {
+        val settings = CgmAlarmSettingsStore.read(context).copy(globalMuteAll = true)
+        val alarm =
+            SugarWearAlarmInstance(
+                type = SugarWearAlarmType.LOW,
+                state = SugarWearAlarmState.ACTIVE,
+                triggeredAtEpochMs = NOW,
+            )
+
+        CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = false)
+        val fresh = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(fresh)
+        assertNull(fresh.fullScreenIntent)
+        assertNotNull(fresh.contentIntent)
+        assertEquals(android.app.Notification.CATEGORY_ALARM, fresh.category)
+        assertTrue(fresh.flags and android.app.Notification.FLAG_ONGOING_EVENT != 0)
+
+        CgmAlarmNotifier.show(context, alarm, settings, onlyAlertOnce = true)
+        val restored = shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID)
+        assertNotNull(restored)
+        assertNull(restored.fullScreenIntent)
+        assertNotNull(restored.contentIntent)
     }
 
     @Test

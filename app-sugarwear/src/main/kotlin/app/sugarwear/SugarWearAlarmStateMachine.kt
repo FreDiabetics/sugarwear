@@ -14,6 +14,7 @@ internal object SugarWearAlarmStateMachine {
         receivedAtEpochMs: Long?,
         technicalErrorSignature: String?,
         nowEpochMs: Long,
+        trend: String? = null,
     ): SugarWearAlarmInstance {
         val current =
             previous ?: SugarWearAlarmInstance(
@@ -43,6 +44,7 @@ internal object SugarWearAlarmStateMachine {
                         state = SugarWearAlarmState.PENDING_DELAY,
                         conditionFirstMetAtEpochMs = nowEpochMs,
                         triggerGlucoseMgDl = glucoseMgDl,
+                        triggerTrend = trend,
                     )
                 } else {
                     updatedBase.copy(
@@ -50,6 +52,7 @@ internal object SugarWearAlarmStateMachine {
                         triggeredAtEpochMs = nowEpochMs,
                         lastNotifiedAtEpochMs = nowEpochMs,
                         triggerGlucoseMgDl = glucoseMgDl,
+                        triggerTrend = trend,
                     )
                 }
             }
@@ -68,12 +71,14 @@ internal object SugarWearAlarmStateMachine {
                             triggeredAtEpochMs = nowEpochMs,
                             lastNotifiedAtEpochMs = nowEpochMs,
                             triggerGlucoseMgDl = glucoseMgDl,
+                            triggerTrend = trend,
                         )
                     } else {
                         updatedBase.copy(
                             state = SugarWearAlarmState.PENDING_DELAY,
                             conditionFirstMetAtEpochMs = firstMet,
                             triggerGlucoseMgDl = glucoseMgDl,
+                            triggerTrend = trend,
                         )
                     }
                 }
