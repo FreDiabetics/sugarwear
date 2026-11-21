@@ -1,28 +1,27 @@
 # Wear OS alarm delivery and user-supplied sound migration (2026-11-20)
 
-## Verified constraints
+## Verified constraints and current implementation
 
-- On 2026-11-18, commit `5615f6f23f` removed the previously present
-  `Notification.Builder.setFullScreenIntent(...)` and `USE_FULL_SCREEN_INTENT`
-  manifest permission. This is the precise code regression in the user's
-  previously installed full-screen alert delivery. The original request is now
-  **restored only for a newly triggered alarm**; refreshes/restoration keep the
-  notification tappable without re-launching the activity.
-- [Android's Wear OS notification documentation](https://developer.android.com/training/wearables/notifications)
-  states full-screen intents are **not supported on Wear OS**. Restoring the
-  historical API is therefore a **best-effort compatibility attempt**, not a
-  guaranteed or officially supported background start on every watch. Never
-  bypass OS launch restrictions or claim a reliable full-screen alarm on Wear.
-- SugarWear's existing `CgmAlarmActivity` remains the full-bleed screen opened by
-  the alarm's `PendingIntent`. The supported fallback is an independent
-  high-importance `CATEGORY_ALARM` Wear notification with user action.
-  **Background automatic presentation of the full-screen activity is not guaranteed.**
-- Actual notifications additionally depend on Android `POST_NOTIFICATIONS` permission,
-  app-wide notification enablement, channel importance, active G7 collector, enabled
-  SugarWear alarms, per-alarm configuration, and suppression/snooze state.
-  Settings show an actionable warning when permission/app-wide notification access is blocked.
-- CGM resolver, sensor collection, alarm thresholds, acknowledgements and ownership
-  remain independent from the Dexcom Share upload adapter.
+- The historical `Notification.Builder.setFullScreenIntent(...)` call and
+  `USE_FULL_SCREEN_INTENT` permission are **not** part of the current Wear OS
+  alarm implementation. The Wear OS documentation states that full-screen intents
+  are unsupported, so an old experimental reintroduction was intentionally
+  superseded by SugarWear's later, supported notification implementation.
+- In the background, alarm episodes are delivered through a high-importance
+  `CATEGORY_ALARM` notification and a Wear OS `OngoingActivity` entry,
+  with a tap target that opens the existing black full-bleed `CgmAlarmActivity`.
+  When a SugarWear screen is already in the foreground, the alarm presenter can
+  bring up that activity for a newly triggered alarm. No foreground transition
+  is guaranteed when the app is not visible.
+- Delivery is conditional on `POST_NOTIFICATIONS`, the user enabling
+  notifications, channel importance, current CGM validity, alarm configuration
+  and snooze/ack state. The implementation reports blocked or downgraded
+  channels without overwriting the user's system choices.
+- The CGM resolver, direct G7 BLE collector and alarm ownership remain independent
+  of the optional Dexcom Share publisher.
+- Current background notification rules are documented in
+  `docs/wear-alarm-surface-policy-2026-11-20.md`. The later delivery recovery
+  changes are in PR #22 (`docs/wear-background-alarm-delivery-2026-11-21.md`).
 
 ## Supplied original medium sounds
 
@@ -62,7 +61,8 @@ the branch installs those binary attachments.
 ## Quality gates
 
 - Unit: nine distinct preferred mappings, nine working fallback descriptors,
-  new-vs-restored full-screen intent behavior, unchanged source alarm priority and protocol behavior.
+  new-vs-restored notification behavior without unsupported full-screen intent,
+  unchanged source alarm priority and protocol behavior.
 - Build: `test`, `assembleDebug`, static analysis/format, Android Lint,
   WFF validation per standard CI.
 - Required on real Wear OS hardware: foreground/background alarm posted;
