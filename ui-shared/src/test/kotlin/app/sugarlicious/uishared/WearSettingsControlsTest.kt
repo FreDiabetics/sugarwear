@@ -167,7 +167,6 @@ class WearSettingsControlsTest {
         assertFalse(slider.isFocusableInTouchMode)
     }
 
-
     @Test fun `settings page headers use centered text without an explicit back button`() {
         val scaled =
             context.createConfigurationContext(
@@ -178,8 +177,10 @@ class WearSettingsControlsTest {
         val width = WearSettingsUi.dp(scaled, 192)
         val header = WearSettingsUi.pageHeader(scaled, "Alarme", Color.WHITE)
         header.measure(
-            android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
-            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+            android.view.View.MeasureSpec
+                .makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
+            android.view.View.MeasureSpec
+                .makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
         )
         header.layout(0, 0, header.measuredWidth, header.measuredHeight)
 
