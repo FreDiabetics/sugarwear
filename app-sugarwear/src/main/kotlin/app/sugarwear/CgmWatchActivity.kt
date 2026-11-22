@@ -1106,12 +1106,7 @@ class CgmWatchActivity : ComponentActivity() {
             }
 
             graphHost.removeAllViews()
-            graphHost.addView(
-                label("Glukoseverlauf", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
-                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                    setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
-                },
-            )
+            graphHost.addView(graphHeader(palette))
             graphHost.addView(graphTile(snapshot.graphReadings, palette))
             updateGraphOnly(preserveScroll = false)
         }
@@ -1175,12 +1170,7 @@ class CgmWatchActivity : ComponentActivity() {
         val palette = activePalette ?: return
         preserveScrollPosition(preserveScroll) {
             val hours = directSettings.graphHours()
-            val latestTimestamp =
-                overviewState.snapshot
-                    ?.persisted
-                    ?.lastReading
-                    ?.timestampEpochMs
-            graphPeriodPill.text = cgmGraphScaleAgeLabel(hours, latestTimestamp, overviewState.now)
+            graphPeriodPill.text = "Glukoseverlauf · ${hours}h"
             val readings = overviewState.snapshot?.graphReadings.orEmpty()
             graphView.bind(
                 readings = readings,
@@ -1199,6 +1189,19 @@ class CgmWatchActivity : ComponentActivity() {
         update()
         if (enabled && screenBuilt) scrollView.post { scrollView.scrollTo(0, previousScrollY) }
     }
+
+    private fun graphHeader(palette: CgmAppearancePalette): TextView =
+        label("Glukoseverlauf · ${directSettings.graphHours()}h", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
+            graphPeriodPill = this
+            tag = "graph-scale-control"
+            contentDescription = "Graphskalierung"
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            setPadding(WearGlucoseCardStyle.CARD_RADIUS_DP.toInt().dp, 4.dp, 0, 5.dp)
+            setOnClickListener {
+                advanceGraphScale(directSettings.graphHours())
+                updateGraphOnly()
+            }
+        }
 
     private fun graphTile(
         readings: List<CgmReading>,
@@ -1220,29 +1223,6 @@ class CgmWatchActivity : ComponentActivity() {
                     )
                 }
             addView(graphView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 150.dp))
-
-            graphPeriodPill =
-                label("${hours}h", 11f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
-                    tag = "graph-scale-control"
-                    contentDescription = "Graphskalierung"
-                    gravity = Gravity.CENTER
-                    includeFontPadding = false
-                    setPadding(CgmGraphOverlayStyle.HORIZONTAL_PADDING_DP.dp, 0, CgmGraphOverlayStyle.HORIZONTAL_PADDING_DP.dp, 0)
-                    minWidth = 0
-                    minHeight = CgmGraphOverlayStyle.MIN_HEIGHT_DP.dp
-                    setOnClickListener {
-                        advanceGraphScale(directSettings.graphHours())
-                        updateGraphOnly()
-                    }
-                }
-            graphView.onHeaderColorChanged = { graphPeriodPill.setTextColor(it) }
-            addView(
-                graphPeriodPill,
-                FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.START).apply {
-                    topMargin = CgmGraphOverlayStyle.INSET_DP.dp
-                    marginStart = CgmGraphOverlayStyle.INSET_DP.dp
-                },
-            )
         }
     }
 

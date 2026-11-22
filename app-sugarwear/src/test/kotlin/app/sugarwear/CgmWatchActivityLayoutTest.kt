@@ -178,7 +178,7 @@ class CgmWatchActivityLayoutTest {
         assertSame(card, resume.parent)
         assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, card.layoutParams.height)
         assertNotNull(findScrollView(root))
-        val graphHost = root.findViewWithTag<View>("graph-scale-control").parent.parent as View
+        val graphHost = root.findViewWithTag<View>("graph-scale-control").parent as View
         assertTrue("Graph follows the growing glucose host", graphHost.top >= (card.parent as View).bottom)
         val titleCopies = mutableListOf<String>()
         collectText(root, titleCopies)
@@ -209,7 +209,7 @@ class CgmWatchActivityLayoutTest {
 
     @Test
     @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
-    fun `graph scale control centers dynamic bold system text with equal insets`() {
+    fun `graph heading groups title separator and scale above plot without reading age`() {
         val activity =
             Robolectric
                 .buildActivity(CgmWatchActivity::class.java)
@@ -219,22 +219,25 @@ class CgmWatchActivityLayoutTest {
                 .get()
                 .awaitUi()
         val pill = activity.window.decorView.findViewWithTag<TextView>("graph-scale-control")
-        val density = activity.resources.displayMetrics.density
-        val params = pill.layoutParams as android.widget.FrameLayout.LayoutParams
-        assertEquals((12 * density).roundToInt(), params.marginStart)
-        assertEquals(params.marginStart, params.topMargin)
-        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, params.width)
-        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, params.height)
-        assertEquals(android.view.Gravity.CENTER, pill.gravity)
-        assertFalse(pill.includeFontPadding)
-        assertEquals(pill.paddingLeft, pill.paddingRight)
-        assertEquals(700, pill.typeface.weight)
-        pill.text = "24h • 123456m"
+        val params = pill.layoutParams as LinearLayout.LayoutParams
+        val graphHost = pill.parent as ViewGroup
+        val glucoseTitle = findText(activity.window.decorView, "Glukose")!!
         measureAndLayout(activity.window.decorView)
+        assertTrue(pill.bottom <= graphHost.getChildAt(1).top)
+        assertEquals(1, (graphHost.getChildAt(1) as ViewGroup).childCount)
+        assertTrue(pill.text.matches(Regex("Glukoseverlauf · [0-9]+h")))
+        assertEquals(ViewGroup.LayoutParams.MATCH_PARENT, params.width)
+        assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, params.height)
+        assertEquals(android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL, pill.gravity)
+        assertEquals(glucoseTitle.paddingLeft, pill.paddingLeft)
+        assertEquals(glucoseTitle.paddingTop, pill.paddingTop)
+        assertEquals(glucoseTitle.paddingBottom, pill.paddingBottom)
+        assertEquals(700, pill.typeface.weight)
         assertTrue(pill.measuredWidth >= pill.paint.measureText(pill.text.toString()) + pill.paddingLeft + pill.paddingRight)
         val oldText = pill.text.toString()
         pill.performClick()
         assertFalse(oldText == pill.text.toString())
+        assertTrue(pill.text.matches(Regex("Glukoseverlauf · [0-9]+h")))
     }
 
     @Test
