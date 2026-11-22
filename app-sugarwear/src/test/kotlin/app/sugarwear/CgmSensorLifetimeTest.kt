@@ -14,9 +14,21 @@ class CgmSensorLifetimeTest {
     private val day = 24L * 60L * 60_000L
     private val start = 1_000_000_000L
 
-    private fun state(end: Long? = null, readingEnd: Long? = null, matching: Boolean = true) =
+    private fun state(
+        end: Long? = null,
+        readingEnd: Long? = null,
+        matching: Boolean = true,
+        graceEnd: Long? = null,
+        readingGraceEnd: Long? = null,
+    ) =
         CgmPersistedState(
-            sensor = CgmSensor(sensorId = "G7", sessionId = "session-A", sensorStartEpochMs = start, sensorEndEpochMs = end),
+            sensor = CgmSensor(
+                sensorId = "G7",
+                sessionId = "session-A",
+                sensorStartEpochMs = start,
+                sensorEndEpochMs = end,
+                graceEndEpochMs = graceEnd,
+            ),
             lastReading =
                 readingEnd?.let {
                     CgmReading(
@@ -28,6 +40,7 @@ class CgmSensorLifetimeTest {
                         timestampEpochMs = start,
                         receivedAtEpochMs = start,
                         sensorEndEpochMs = it,
+                        graceEndEpochMs = readingGraceEnd,
                     )
                 },
         )
@@ -71,6 +84,66 @@ class CgmSensorLifetimeTest {
         val expired = checkNotNull(cgmSensorLifetime(state(end = start + day), start + day + 1L))
         assertTrue(expired.expired)
         assertEquals(0, expired.remainingDaySegments)
+    }
+
+    @Test
+    fun `regular countdown is abbreviated while verified 12h grace stays separate`() {
+        val end = start + 10L * day
+        val now = end - day - 20L * 60L * 60_000L - 18L * 60_000L
+        val lifetime = checkNotNull(cgmSensorLifetime(state(end = end, graceEnd = end + 12L * 60L * 60_000L), now))
+        assertEquals("1T 20h 18m", lifetime.compactRemainingTime())
+        assertEquals("+ 12h Toleranzzeit", lifetime.toleranceTimeText())
+        assertEquals(2, lifetime.remainingDaySegments)
+        assertTrue(lifetime.hasVerifiedGraceEnd)
+        assertFalse(lifetime.inGracePeriod)
+    }
+
+    @Test
+    fun `grace begins after regular end and shows its actual remaining time`() {
+        val end = start + 10L * day
+        val graceEnd = end + 12L * 60L * 60_000L
+        val lifetime = checkNotNull(cgmSensorLifetime(state(end = end, graceEnd = graceEnd), end + 5L * 60_000L))
+        assertTrue(lifetime.expired)
+        assertTrue(lifetime.inGracePeriod)
+        assertFalse(lifetime.graceExpired)
+        assertEquals(0, lifetime.remainingDaySegments)
+        assertEquals("0T 0h 0m", lifetime.compactRemainingTime())
+        assertEquals("11h 55m Toleranzzeit", lifetime.toleranceTimeText())
+    }
+
+    @Test
+    fun `after grace expires no tolerance time is claimed`() {
+        val end = start + 10L * day
+        val graceEnd = end + 12L * 60L * 60_000L
+        val lifetime = checkNotNull(cgmSensorLifetime(state(end = end, graceEnd = graceEnd), graceEnd + 1L))
+        assertTrue(lifetime.graceExpired)
+        assertFalse(lifetime.inGracePeriod)
+        assertEquals("Toleranzzeit beendet", lifetime.toleranceTimeText())
+    }
+
+    @Test
+    fun `missing or inconsistent grace metadata never invents 12 hours`() {
+        val end = start + 10L * day
+        val noGrace = checkNotNull(cgmSensorLifetime(state(end = end), start))
+        assertFalse(noGrace.hasVerifiedGraceEnd)
+        assertNull(noGrace.toleranceTimeText())
+        val invalidGrace = checkNotNull(cgmSensorLifetime(state(end = end, graceEnd = end + day), start))
+        assertFalse(invalidGrace.hasVerifiedGraceEnd)
+        assertNull(invalidGrace.toleranceTimeText())
+    }
+
+    @Test
+    fun `grace deadline from reading must match active sensor session`() {
+        val end = start + 10L * day
+        val graceEnd = end + 12L * 60L * 60_000L
+        val fresh = checkNotNull(
+            cgmSensorLifetime(state(readingEnd = end, readingGraceEnd = graceEnd), start),
+        )
+        assertTrue(fresh.hasVerifiedGraceEnd)
+        val unrelated = checkNotNull(
+            cgmSensorLifetime(state(readingEnd = end, readingGraceEnd = graceEnd, matching = false), start),
+        )
+        assertFalse(unrelated.hasVerifiedGraceEnd)
     }
 
     @Test

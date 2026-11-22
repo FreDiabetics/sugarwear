@@ -42,6 +42,23 @@ class CgmConnectionsPresentationTest {
     }
 
     @Test
+    fun `sensor with verified grace end remains in grace rather than being marked ended`() {
+        val current = state()
+        val graceStart = now - 60_000L
+        val graceState =
+            current.copy(
+                sensor =
+                    current.sensor?.copy(
+                        sensorStartEpochMs = graceStart - 10L * day,
+                        sensorEndEpochMs = graceStart,
+                        graceEndEpochMs = graceStart + 12L * 60L * 60_000L,
+                    ),
+            )
+        assertEquals("Nachlaufphase", cgmConnectionsSensorStatus(graceState, now))
+        assertEquals("Sensorlaufzeit beendet", cgmConnectionsSensorStatus(graceState, graceStart + 12L * 60L * 60_000L))
+    }
+
+    @Test
     fun `no sensor warmup and pause have distinct states`() {
         assertEquals("Kein aktiver Sensor verbunden", cgmConnectionsSensorStatus(CgmPersistedState(), now))
         assertEquals("Sensoraufwärmung", cgmConnectionsSensorStatus(state(CgmSensorState.WARMUP), now))

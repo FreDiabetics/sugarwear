@@ -76,11 +76,11 @@ class CgmGlucosePacketParser : CgmPacketParser {
             else -> CgmSensorState.UNKNOWN
         }
 
-    private companion object {
-        const val OPCODE: Byte = 0x4e
-        const val MIN_PACKET_SIZE = 19
-        const val MAX_READING_AGE_SECONDS = 30 * 60L
-        const val CGM_SENSOR_LIFETIME_MS = 10L * 24L * 60L * 60_000L
+    companion object {
+        private const val OPCODE: Byte = 0x4e
+        private const val MIN_PACKET_SIZE = 19
+        private const val MAX_READING_AGE_SECONDS = 30 * 60L
+        private const val CGM_SENSOR_LIFETIME_MS = 10L * 24L * 60L * 60_000L
         const val CGM_GRACE_PERIOD_MS = 12L * 60L * 60_000L
     }
 }

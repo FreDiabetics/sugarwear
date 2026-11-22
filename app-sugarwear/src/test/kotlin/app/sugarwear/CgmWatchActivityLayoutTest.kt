@@ -1069,7 +1069,10 @@ class CgmWatchActivityLayoutTest {
         }
         val root = activity.window.decorView
         val segments = root.findViewWithTag<View>("sensor-life-segments") as ViewGroup
-        assertEquals(10, segments.childCount)
+        assertEquals(11, segments.childCount)
+        assertEquals("sensor-life-grace-segment", segments.getChildAt(0).tag)
+        val graceSegment = segments.getChildAt(0).layoutParams as LinearLayout.LayoutParams
+        assertEquals(0.5f, graceSegment.weight, 0f)
         val health = root.findViewWithTag<View>("connections-health-placeholder")
         assertNotNull(health)
         assertFalse(health.isClickable)

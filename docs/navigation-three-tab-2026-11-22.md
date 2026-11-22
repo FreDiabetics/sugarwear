@@ -26,3 +26,9 @@ Der Sensor-Endzeitpunkt stammt ausschließlich aus dem gespeicherten aktiven Sen
 5. Auf Samsung Galaxy Watch und Pixel Watch prüfen: 192dp/227dp rund, Scrollen ohne verdeckte Karten, Icon-Pille als letztes scrollbares Element aller Untermenüs und Long-Press-Beschriftungen, Back-Navigation, Sensorwechsel, unbekanntes Sensorende, aktiver Share-Status, AOD, Alarm-Overlay und Berechtigungsassistent.
 
 **Ungeprüft:** Geräte-Rendering und tatsächliche Navigations-/Pairing-Abläufe, solange keine Uhrmessung vorliegt. `main` bleibt unverändert.
+
+## Sensorrestzeit (23.11.2026)
+- Zeile 1 zeigt ausschließlich die verbleibende **reguläre** Laufzeit kompakt in Tagen, Stunden und Minuten: `1T 20h 18m`.
+- Zeile 2 zeigt `+ 12h Toleranzzeit`, wenn die zur aktiven G7-Sensor-Session gehörige, gültige zwölfstündige Nachlaufzeit im Sensor-/Messwertdatenvertrag verifiziert ist. Während der Nachlaufphase zeigt sie die **tatsächlich verbleibende** Zeit; danach `Toleranzzeit beendet`. Ohne verifizierte Daten keine erfundene Grace-Anzeige.
+- Im Fortschrittsbalken stehen rechts die bisherigen zehn Tagessegmente. **Ganz links** ist zusätzlich ein Segment mit halber Breite für die Toleranzzeit; es ist nur bis zum tatsächlichen Nachlauf-Endzeitpunkt aktiv. Kein Wechsel der existierenden Reihenfolge oder der Sensor-Ownership.
+- Die Tests decken reguläre Laufzeit, Session-Matching, Nachlaufphase, Ablauf und halbe Segmentbreite ab.

@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.viewModels
+import app.sugarlicious.sensor.protocol.CgmSensorState
 
 /** Home for sensor management and outgoing integrations, without a second collector. */
 @dagger.hilt.android.AndroidEntryPoint
@@ -70,14 +71,23 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                 )
             }
             val lifetime = cgmSensorLifetime(state, System.currentTimeMillis())
-            addView(segments(lifetime?.remainingDaySegments ?: 0, lifetime?.hasVerifiedEnd == true), cardSpacing(12))
+            addView(
+                segments(
+                    remaining = lifetime?.remainingDaySegments ?: 0,
+                    known = lifetime?.hasVerifiedEnd == true,
+                    graceAvailable = lifetime?.let { it.hasVerifiedGraceEnd && !it.graceExpired } == true &&
+                        sensor?.state != CgmSensorState.ENDED,
+                ),
+                cardSpacing(12),
+            )
             addView(
                 label(
                     when {
                         sensor == null -> "Kein Sensor gekoppelt"
                         lifetime?.hasVerifiedEnd != true -> "Verbleibende Laufzeit unbekannt"
-                        lifetime.expired -> "Reguläre Sensorlaufzeit beendet"
-                        else -> "${lifetime.days} Tage · ${lifetime.hours} Stunden · ${lifetime.minutes} Minuten"
+                        sensor?.state == CgmSensorState.ENDED || lifetime.graceExpired -> "Sensorlaufzeit beendet"
+                        lifetime.expired && !lifetime.inGracePeriod -> "Reguläre Sensorlaufzeit beendet"
+                        else -> lifetime.compactRemainingTime()
                     },
                     11f,
                     palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
@@ -85,6 +95,14 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                 ),
                 cardSpacing(9),
             )
+            if (sensor?.state != CgmSensorState.ENDED) {
+                lifetime?.toleranceTimeText()?.let { tolerance ->
+                    addView(
+                        label(tolerance, 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)),
+                        cardSpacing(5),
+                    )
+                }
+            }
             addView(
                 action(
                     if (sensor == null) "Sensor verbinden" else "Sensor verwalten",
@@ -143,10 +161,29 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         showSettingsView(checkNotNull(scrollView))
     }
 
-    private fun segments(remaining: Int, known: Boolean): View =
+    private fun segments(
+        remaining: Int,
+        known: Boolean,
+        graceAvailable: Boolean,
+    ): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             tag = "sensor-life-segments"
+            addView(
+                View(this@CgmConnectionsActivity).apply {
+                    tag = "sensor-life-grace-segment"
+                    contentDescription = "12h Toleranzzeit"
+                    background =
+                        GradientDrawable().apply {
+                            setColor(if (graceAvailable) 0xFF22EB60.toInt() else 0xFF4A4A50.toInt())
+                            cornerRadius = 3.dp.toFloat()
+                        }
+                },
+                LinearLayout.LayoutParams(0, 7.dp, 0.5f).apply {
+                    marginStart = 2.dp
+                    marginEnd = 2.dp
+                },
+            )
             repeat(10) { index ->
                 addView(
                     View(this@CgmConnectionsActivity).apply {

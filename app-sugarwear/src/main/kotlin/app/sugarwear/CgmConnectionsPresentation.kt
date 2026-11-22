@@ -14,10 +14,12 @@ internal fun cgmConnectionsSensorStatus(
     nowEpochMs: Long,
 ): String {
     val sensor = state.sensor ?: return "Kein aktiver Sensor verbunden"
+    val lifetime = cgmSensorLifetime(state, nowEpochMs)
     return when {
-        sensor.state == CgmSensorState.GRACE_PERIOD -> "Nachlaufphase"
-        sensor.state == CgmSensorState.ENDED || cgmSensorLifetime(state, nowEpochMs)?.expired == true -> "Sensorlaufzeit beendet"
+        sensor.state == CgmSensorState.ENDED || lifetime?.graceExpired == true -> "Sensorlaufzeit beendet"
         sensor.state == CgmSensorState.ERROR -> "Sensorfehler"
+        sensor.state == CgmSensorState.GRACE_PERIOD || lifetime?.inGracePeriod == true -> "Nachlaufphase"
+        lifetime?.expired == true -> "Sensorlaufzeit beendet"
         !state.collectorEnabled -> "Datenempfang pausiert"
         sensor.state == CgmSensorState.WARMUP -> "Sensoraufwärmung"
         state.connectionState == CgmConnectionState.CONNECTED &&
