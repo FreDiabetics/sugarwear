@@ -104,7 +104,7 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
                 LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(13.dp, 12.dp, 13.dp, 12.dp)
-                    background =
+                    this.background =
                         GradientDrawable().apply {
                             setColor(palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE))
                             cornerRadius = 22.dp.toFloat()
