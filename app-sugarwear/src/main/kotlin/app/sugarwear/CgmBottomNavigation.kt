@@ -3,6 +3,7 @@ package app.sugarwear
 import android.app.Activity
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
@@ -23,10 +24,7 @@ internal enum class CgmNavTab(
 
 internal object CgmBottomNavigation {
     private val ACCENT = 0xFF22EB60.toInt()
-    private val SURFACE = 0xFF0B0B0D.toInt()
-    private val SELECTED_SURFACE = 0xFF183C25.toInt()
     private val INACTIVE = 0xFFB4B4BB.toInt()
-    private val BORDER = 0xFF33363A.toInt()
 
     fun tabFor(activity: Activity): CgmNavTab? =
         when (activity) {
@@ -38,7 +36,12 @@ internal object CgmBottomNavigation {
         }
 
     /** Appends the same three destinations after all content, never over the viewport. */
-    fun appendAtEnd(activity: Activity, page: View, selected: CgmNavTab) {
+    fun appendAtEnd(
+        activity: Activity,
+        page: View,
+        selected: CgmNavTab,
+        palette: CgmAppearancePalette = CgmAppearanceStore(activity).load(),
+    ) {
         val root =
             when (page) {
                 is ScrollView -> page.getChildAt(0) as? LinearLayout
@@ -49,11 +52,12 @@ internal object CgmBottomNavigation {
 
         val existing = root.findViewWithTag<View>("sugarwear-nav-pill")
         if (existing?.parent === root) {
+            applyPillPalette(activity, existing, palette)
             if (root.getChildAt(root.childCount - 1) === existing) return
             root.removeView(existing)
         }
         root.addView(
-            pill(activity, selected),
+            existing ?: pill(activity, selected, palette),
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = 14.dp(activity)
@@ -62,18 +66,17 @@ internal object CgmBottomNavigation {
         )
     }
 
-    fun pill(activity: Activity, selected: CgmNavTab): View =
+    fun pill(
+        activity: Activity,
+        selected: CgmNavTab,
+        palette: CgmAppearancePalette = CgmAppearanceStore(activity).load(),
+    ): View =
         LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             tag = "sugarwear-nav-pill"
             setPadding(4.dp(activity), 4.dp(activity), 4.dp(activity), 4.dp(activity))
-            background =
-                GradientDrawable().apply {
-                    setColor(SURFACE)
-                    setStroke(1.dp(activity), BORDER)
-                    cornerRadius = 999f
-                }
+            applyPillPalette(activity, this, palette)
             CgmNavTab.entries.forEach { tab ->
                 val active = tab == selected
                 val color = if (active) ACCENT else INACTIVE
@@ -88,11 +91,7 @@ internal object CgmBottomNavigation {
                         isClickable = true
                         isFocusable = true
                         contentDescription = tab.title + if (active) ", ausgewählt" else ", öffnen"
-                        background =
-                            GradientDrawable().apply {
-                                setColor(if (active) SELECTED_SURFACE else SURFACE)
-                                cornerRadius = 999f
-                            }
+                        setBackgroundColor(Color.TRANSPARENT)
                         addView(
                             ImageView(activity).apply {
                                 setImageResource(
@@ -133,6 +132,19 @@ internal object CgmBottomNavigation {
             }
         }
 
+    private fun applyPillPalette(activity: Activity, pill: View, palette: CgmAppearancePalette) {
+        pill.background =
+            GradientDrawable().apply {
+                setColor(palette.argb(CgmAppearanceRole.MENU_SURFACE))
+                navigationPillBorderArgb(palette)?.let { setStroke(1.dp(activity), it) }
+                cornerRadius = 999f
+            }
+    }
+
     private fun Int.dp(activity: Activity): Int =
         (this * activity.resources.displayMetrics.density).toInt()
 }
+
+/** Uses the same configurable contour as the glucose/graph card, not menu chrome. */
+internal fun navigationPillBorderArgb(palette: CgmAppearancePalette): Int? =
+    palette.argb(CgmAppearanceRole.MENU_BORDER).takeIf { Color.alpha(it) != 0 }

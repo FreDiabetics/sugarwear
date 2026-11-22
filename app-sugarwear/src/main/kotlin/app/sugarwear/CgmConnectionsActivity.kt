@@ -115,7 +115,6 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         root.addView(
             card(palette).apply {
                 addView(label("Dexcom Share", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
-                addView(label("Einrichtung und Uploadstatus", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
                 addView(
                     action("Share & Follow öffnen", palette, "connections-share") {
                         startActivity(Intent(this@CgmConnectionsActivity, CgmShareSettingsActivity::class.java))
@@ -129,7 +128,6 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
             card(palette).apply {
                 tag = "connections-health-placeholder"
                 addView(label("Health Connect", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
-                addView(label("Noch nicht integriert", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
             },
             cardSpacing(10),
         )

@@ -1,6 +1,7 @@
 package app.sugarwear
 
 import android.app.Activity
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
@@ -85,6 +86,42 @@ class CgmBottomNavigationTest {
         } finally {
             controller.pause().stop().destroy()
         }
+    }
+
+    @Test
+    fun `pill follows the tile surface color and uses only configured tile contour`() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val page =
+            LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(TextView(activity).apply { text = "Inhalt" })
+            }
+        val scroll = ScrollView(activity).apply { addView(page) }
+        val withoutBorder =
+            CgmAppearancePalette(
+                mapOf(
+                    CgmAppearanceRole.GRAPH_BACKGROUND to 0xFF123456.toInt(),
+                    CgmAppearanceRole.MENU_BORDER to 0,
+                ),
+            )
+        CgmBottomNavigation.appendAtEnd(activity, scroll, CgmNavTab.CONNECTIONS, withoutBorder)
+        val pill = page.getChildAt(page.childCount - 1)
+        val initialBackground = pill.background as GradientDrawable
+        assertEquals(0xFF123456.toInt(), initialBackground.color?.defaultColor)
+        assertEquals(null, navigationPillBorderArgb(withoutBorder))
+        val configuredBorder = 0xFF22EB60.toInt()
+        val withBorder =
+            CgmAppearancePalette(
+                mapOf(
+                    CgmAppearanceRole.GRAPH_BACKGROUND to 0xFF654321.toInt(),
+                    CgmAppearanceRole.MENU_BORDER to configuredBorder,
+                ),
+            )
+        CgmBottomNavigation.appendAtEnd(activity, scroll, CgmNavTab.CONNECTIONS, withBorder)
+        assertSame(pill, page.getChildAt(page.childCount - 1))
+        assertEquals(0xFF654321.toInt(), (pill.background as GradientDrawable).color?.defaultColor)
+        assertEquals(configuredBorder, navigationPillBorderArgb(withBorder))
+        assertEquals(2, page.childCount)
     }
 
     private fun descendants(view: View): Sequence<View> =

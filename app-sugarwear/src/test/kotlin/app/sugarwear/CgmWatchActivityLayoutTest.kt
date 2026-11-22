@@ -1073,7 +1073,9 @@ class CgmWatchActivityLayoutTest {
         val health = root.findViewWithTag<View>("connections-health-placeholder")
         assertNotNull(health)
         assertFalse(health.isClickable)
-        assertNotNull(findText(root, "Noch nicht integriert"))
+        assertNotNull(findText(root, "Health Connect"))
+        assertNull(findText(root, "Noch nicht integriert"))
+        assertNull(findText(root, "Einrichtung und Uploadstatus"))
     }
 
     @Test

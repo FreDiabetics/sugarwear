@@ -14,6 +14,8 @@
 | Profil | Alarme zuerst; In-App-Unterkategorien, Tile-Unterkategorien, Vigil-Unterkategorien; danach Berechtigungen und Über |
 | Unterseiten | Bestehende Activity- und ViewModel-Strukturen behalten ihre wirksamen Einstellungen. Gemeinsame Icon-Pille als letzter Eintrag im jeweiligen scrollbaren Seiteninhalt |
 
+Die Icon-Pille verwendet die identische Kachelfarbe wie die Glukose-/Verlaufskachel (konfigurierter Kachelhintergrund). Eine Kontur wird ausschließlich mit der konfigurierten `Kachelkontur` gezeichnet und bleibt bei transparentem/ausgeschaltetem Farbwert vollständig aus. Die unteren Zusatzinfos „Einrichtung und Uploadstatus“ und „Noch nicht integriert“ im Verbindungsmenü werden nicht angezeigt; die Share-Verknüpfung und der nicht-interaktive Health-Connect-Platzhalter bleiben erhalten.
+
 Der Sensor-Endzeitpunkt stammt ausschließlich aus dem gespeicherten aktiven Sensor bzw. einem dazugehörigen Messwert aus derselben Sensor-Session. Ist er unbekannt, werden keine Resttage oder aktiven Segmente erfunden. Segmente zeigen aufgerundete, verbleibende Sensortage mit maximal zehn Markierungen.
 
 ## Umsetzungsschritte und Prüf-Gates
