@@ -54,7 +54,8 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                app.sugarlicious.uishared.WearSettingsUi.pagePadding(this)
+                app.sugarlicious.uishared.WearSettingsUi
+                    .pagePadding(this)
                 setBackgroundColor(background)
                 addView(cgmSettingsHeader("Profil", palette), fullWidth())
             }
@@ -72,7 +73,8 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
             )
             val rows =
                 sections.map { section ->
-                    app.sugarlicious.uishared.WearSettingsUi.navigationRow(
+                    app.sugarlicious.uishared.WearSettingsUi
+                        .navigationRow(
                         this,
                         section.title,
                         null,
@@ -123,7 +125,8 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
             )
         }
         scrollView =
-            CgmEdgeFadeScrollView(this).apply {
+            CgmEdgeFadeScrollView(this)
+                .apply {
                 isFillViewport = true
                 setBackgroundColor(background)
                 addView(root)
@@ -162,9 +165,12 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
         TextView(this).apply {
             text = value
             includeFontPadding = false
-            textSize = app.sugarlicious.uishared.WearSettingsUi.textSize(size)
+            textSize =
+                app.sugarlicious.uishared.WearSettingsUi
+                    .textSize(size)
             setTextColor(color)
-            app.sugarlicious.uishared.SystemTypography.apply(this, bold)
+            app.sugarlicious.uishared.SystemTypography
+                .apply(this, bold)
         }
 
     private fun fullWidth() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)

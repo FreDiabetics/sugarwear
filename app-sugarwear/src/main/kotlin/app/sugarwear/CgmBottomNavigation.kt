@@ -17,7 +17,9 @@ import androidx.core.widget.TextViewCompat
  * The one shared SugarWear navigation surface. It is not shown on setup
  * or on alarm presentation: neither flow may be covered by ordinary tabs.
  */
-internal enum class CgmNavTab(val title: String) {
+internal enum class CgmNavTab(
+    val title: String,
+) {
     OVERVIEW("Übersicht"),
     CONNECTIONS("Verbindungen"),
     PROFILE("Profil"),
@@ -91,7 +93,8 @@ internal object CgmBottomNavigation {
                                     1,
                                     TypedValue.COMPLEX_UNIT_SP,
                                 )
-                                app.sugarlicious.uishared.SystemTypography.apply(this, active)
+                                app.sugarlicious.uishared.SystemTypography
+                                    .apply(this, active)
                             },
                             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 20.dp(activity)),
                         )

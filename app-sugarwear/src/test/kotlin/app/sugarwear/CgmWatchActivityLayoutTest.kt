@@ -505,7 +505,7 @@ class CgmWatchActivityLayoutTest {
                         .get()
                         .awaitUi()
                         .window.decorView,
-                    "Sensor",
+                    "SENSOR",
                 ),
             )
             assertNotNull(

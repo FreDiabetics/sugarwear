@@ -42,13 +42,15 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                app.sugarlicious.uishared.WearSettingsUi.pagePadding(this)
+                app.sugarlicious.uishared.WearSettingsUi
+                    .pagePadding(this)
                 setBackgroundColor(background)
                 addView(cgmSettingsHeader("Verbindungen", palette), fullWidth())
             }
 
         val state = snapshot.sensor
-        val sensorCard = card(palette).apply {
+        val sensorCard = card(palette)
+        sensorCard.apply {
             addView(label("SENSOR", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
             val sensor = state.sensor
             addView(
@@ -79,9 +81,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                         sensor == null -> "Kein Sensor gekoppelt"
                         lifetime?.hasVerifiedEnd != true -> "Verbleibende Laufzeit unbekannt"
                         lifetime.expired -> "Reguläre Sensorlaufzeit beendet"
-                        else -> lifetime.days.toString() + " Tage · " +
-                            lifetime.hours.toString() + " Stunden · " +
-                            lifetime.minutes.toString() + " Minuten"
+                        else -> "${lifetime.days} Tage · ${lifetime.hours} Stunden · ${lifetime.minutes} Minuten"
                     },
                     11f,
                     palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
@@ -139,7 +139,8 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         )
 
         scrollView =
-            CgmEdgeFadeScrollView(this).apply {
+            CgmEdgeFadeScrollView(this)
+                .apply {
                 isFillViewport = true
                 setBackgroundColor(background)
                 addView(root)
@@ -157,10 +158,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                     View(this@CgmConnectionsActivity).apply {
                         background =
                             GradientDrawable().apply {
-                                setColor(
-                                    if (known && index < remaining) 0xFF22EB60.toInt()
-                                    else 0xFF4A4A50.toInt(),
-                                )
+                                setColor(if (known && index < remaining) 0xFF22EB60.toInt() else 0xFF4A4A50.toInt())
                                 cornerRadius = 3.dp.toFloat()
                             }
                     },
@@ -176,9 +174,12 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         TextView(this).apply {
             tag = viewTag
             text = title
-            textSize = app.sugarlicious.uishared.WearSettingsUi.textSize(11f)
+            textSize =
+                app.sugarlicious.uishared.WearSettingsUi
+                    .textSize(11f)
             setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY))
-            app.sugarlicious.uishared.SystemTypography.apply(this, true)
+            app.sugarlicious.uishared.SystemTypography
+                .apply(this, true)
             gravity = Gravity.CENTER
             minimumHeight = 48.dp
             isClickable = true
@@ -201,9 +202,12 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         TextView(this).apply {
             text = value
             includeFontPadding = false
-            textSize = app.sugarlicious.uishared.WearSettingsUi.textSize(size)
+            textSize =
+                app.sugarlicious.uishared.WearSettingsUi
+                    .textSize(size)
             setTextColor(color)
-            app.sugarlicious.uishared.SystemTypography.apply(this, bold)
+            app.sugarlicious.uishared.SystemTypography
+                .apply(this, bold)
         }
 
     private fun fullWidth() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
