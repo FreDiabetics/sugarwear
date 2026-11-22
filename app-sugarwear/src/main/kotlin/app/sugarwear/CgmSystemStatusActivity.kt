@@ -312,7 +312,17 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             )
                             addView(row("Geräte in der Nähe", if (hasNearbyPermission()) "Erlaubt" else "Nicht erlaubt", palette))
                             addView(row("Benachrichtigungsrecht", if (snapshot.access.notificationPermissionGranted) "Erlaubt" else "Nicht erlaubt", palette))
-                            addView(row("App-Benachrichtigungen", if (snapshot.access.appNotificationsEnabled) "Aktiv" else "Deaktiviert", palette))
+                            addView(
+                                row(
+                                    "App-Benachrichtigungen",
+                                    when {
+                                        !snapshot.access.notificationPermissionGranted -> "Erst nach Freigabe prüfbar"
+                                        snapshot.access.appNotificationsEnabled -> "Aktiv"
+                                        else -> "Deaktiviert"
+                                    },
+                                    palette,
+                                ),
+                            )
                             val notificationReadiness = cgmAlarmNotificationOverview(snapshot.access)
                             addView(row("Alarmzustellung", notificationReadiness.label, palette))
                             if (notificationReadiness != CgmAlarmNotificationReadiness.READY) {
