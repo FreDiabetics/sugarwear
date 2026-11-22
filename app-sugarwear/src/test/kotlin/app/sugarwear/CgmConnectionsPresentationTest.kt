@@ -12,52 +12,33 @@ class CgmConnectionsPresentationTest {
     private val now = 1_000_000_000L
     private val day = 24L * 60L * 60_000L
 
-    private fun state(sensorState: CgmSensorState = CgmSensorState.ACTIVE): CgmPersistedState =
-        CgmPersistedState(
-            sensor = CgmSensor(
-                sensorId = "G7",
-                sessionId = "session-A",
-                state = sensorState,
-                sensorStartEpochMs = now - day,
-                sensorEndEpochMs = now + day,
-            ),
-            collectorEnabled = true,
-        )
+    private fun state(sensorState: CgmSensorState = CgmSensorState.ACTIVE): CgmPersistedState {
+        val sensor = CgmSensor(sensorId = "G7", sessionId = "session-A", state = sensorState, sensorStartEpochMs = now - day, sensorEndEpochMs = now + day)
+        return CgmPersistedState(sensor = sensor, collectorEnabled = true)
+    }
 
     @Test
     fun `a saved active sensor does not imply a current BLE connection`() {
-        val state = state().copy(
-            connectionState = CgmConnectionState.DISCONNECTED,
-            authenticationState = CgmAuthenticationState.AUTHENTICATED,
-        )
-        assertEquals("Sensor aktiv", cgmConnectionsSensorStatus(state, now))
+        val saved = state().copy(connectionState = CgmConnectionState.DISCONNECTED, authenticationState = CgmAuthenticationState.AUTHENTICATED)
+        assertEquals("Sensor aktiv", cgmConnectionsSensorStatus(saved, now))
     }
 
     @Test
     fun `connected is shown only for the authenticated live BLE connection`() {
-        val state = state().copy(
-            connectionState = CgmConnectionState.CONNECTED,
-            authenticationState = CgmAuthenticationState.AUTHENTICATED,
-        )
-        assertEquals("Sensor verbunden", cgmConnectionsSensorStatus(state, now))
-        assertEquals(
-            "Sensor aktiv",
-            cgmConnectionsSensorStatus(state.copy(authenticationState = CgmAuthenticationState.UNKNOWN), now),
-        )
+        val connected = state().copy(connectionState = CgmConnectionState.CONNECTED, authenticationState = CgmAuthenticationState.AUTHENTICATED)
+        assertEquals("Sensor verbunden", cgmConnectionsSensorStatus(connected, now))
+        val unauthenticated = connected.copy(authenticationState = CgmAuthenticationState.UNKNOWN)
+        assertEquals("Sensor aktiv", cgmConnectionsSensorStatus(unauthenticated, now))
     }
 
     @Test
     fun `grace period and expiry do not masquerade as an active sensor`() {
-        assertEquals(
-            "Nachlaufphase",
-            cgmConnectionsSensorStatus(state(CgmSensorState.GRACE_PERIOD).copy(
-                sensor = state(CgmSensorState.GRACE_PERIOD).sensor?.copy(sensorEndEpochMs = now - 1L),
-            ), now),
-        )
-        assertEquals(
-            "Sensorlaufzeit beendet",
-            cgmConnectionsSensorStatus(state().copy(sensor = state().sensor?.copy(sensorEndEpochMs = now - 1L)), now),
-        )
+        val graceState = state(CgmSensorState.GRACE_PERIOD)
+        val grace = graceState.copy(sensor = graceState.sensor?.copy(sensorEndEpochMs = now - 1L))
+        assertEquals("Nachlaufphase", cgmConnectionsSensorStatus(grace, now))
+        val activeState = state()
+        val expired = activeState.copy(sensor = activeState.sensor?.copy(sensorEndEpochMs = now - 1L))
+        assertEquals("Sensorlaufzeit beendet", cgmConnectionsSensorStatus(expired, now))
     }
 
     @Test
