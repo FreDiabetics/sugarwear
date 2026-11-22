@@ -46,6 +46,25 @@ class SugarWearAlarmAudioMappingTest {
     }
 
     @Test
+    fun `all ten original sounds are packaged and each alarm resolves its preferred asset`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val preferred = SugarWearAlarmType.entries.map(SugarWearAlarmDefaults::preferredAudioAssetPath)
+        val paths = preferred + SugarWearAlarmDefaults.SYSTEM_ALERT_AUDIO_ASSET
+        assertEquals(10, paths.distinct().size)
+        paths.forEach { path ->
+            context.assets.openFd(path).use { descriptor ->
+                assertTrue("$path must be a nonempty original sound", descriptor.length > 10_000L)
+            }
+        }
+        SugarWearAlarmType.entries.forEach { type ->
+            val preferredPath = SugarWearAlarmDefaults.preferredAudioAssetPath(type)
+            val expectedLength = context.assets.openFd(preferredPath).use { it.length }
+            val actualLength = openCgmAlarmSoundAsset(context, type).use { it.length }
+            assertEquals("$type must use its original sound", expectedLength, actualLength)
+        }
+    }
+
+    @Test
     fun `audio priority order is strictly defined`() {
         val pUrgentLow = SugarWearAlarmDefaults.priority(SugarWearAlarmType.URGENT_LOW)
         val pTech = SugarWearAlarmDefaults.priority(SugarWearAlarmType.TECHNICAL_WARNING)
