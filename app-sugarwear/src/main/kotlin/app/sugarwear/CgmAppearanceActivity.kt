@@ -476,7 +476,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         }
     }
 
-    private fun topBar(palette: CgmAppearancePalette) = cgmSettingsHeader(selectedCategory ?: "Anzeige", palette) { navigateBack() }
+    private fun topBar(palette: CgmAppearancePalette) = cgmSettingsHeader(selectedCategory ?: "Anzeige", palette)
 
     private fun tileHoursRow(palette: CgmAppearancePalette) =
         LinearLayout(this).apply {

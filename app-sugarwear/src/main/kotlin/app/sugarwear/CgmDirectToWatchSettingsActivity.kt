@@ -363,7 +363,7 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
         }
     }
 
-    private fun topBar(p: CgmAppearancePalette) = cgmSettingsHeader(selectedCategory ?: "Vigil", p) { navigateBack() }
+    private fun topBar(p: CgmAppearancePalette) = cgmSettingsHeader(selectedCategory ?: "Vigil", p)
 
     private fun restoreScrollPosition(scrollY: Int) {
         val scheduledScrollY = scrollView.scrollY
