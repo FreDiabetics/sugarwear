@@ -220,16 +220,7 @@ class CgmWatchActivity : ComponentActivity() {
     private fun showScreen(view: View) {
         (view.parent as? ViewGroup)?.removeView(view)
         screenHost.removeAllViews()
-        val shell =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
-                addView(
-                    CgmBottomNavigation.footer(this@CgmWatchActivity, CgmNavTab.OVERVIEW),
-                    LinearLayout.LayoutParams(-1, -2),
-                )
-            }
-        screenHost.addView(shell, FrameLayout.LayoutParams(-1, -1))
+        screenHost.addView(view, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun refreshScreen() {
@@ -513,6 +504,7 @@ class CgmWatchActivity : ComponentActivity() {
         graphHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(graphHost, cardParams(top = 18))
         content.addView(header())
+        CgmBottomNavigation.appendAtEnd(this, content, CgmNavTab.OVERVIEW)
         scrollView =
             CgmEdgeFadeScrollView(this)
                 .apply {

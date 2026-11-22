@@ -211,6 +211,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 )
             }
         }
+        CgmBottomNavigation.appendAtEnd(this, root, CgmNavTab.PROFILE)
         restoreScrollPosition(restoreScrollY)
     }
 

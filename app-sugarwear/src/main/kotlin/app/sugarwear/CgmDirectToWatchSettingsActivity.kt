@@ -284,6 +284,7 @@ class CgmDirectToWatchSettingsActivity : CgmSettingsComposeActivity() {
         )
 
         addCategoryNavigation(palette)
+        CgmBottomNavigation.appendAtEnd(this, pageRoot, CgmNavTab.PROFILE)
         restoreScrollPosition(restoreScrollY)
     }
 

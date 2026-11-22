@@ -450,6 +450,7 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                 )
             }
 
+        CgmBottomNavigation.appendAtEnd(this, content, CgmNavTab.CONNECTIONS)
         val currentScroll = scrollView
         if (currentScroll == null) {
             scrollView = CgmEdgeFadeScrollView(this).apply { isFillViewport = true }.applyCgmEdgeFade()

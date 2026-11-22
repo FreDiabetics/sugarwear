@@ -130,6 +130,9 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
     }
 
     protected fun showSettingsView(view: View) {
+        CgmBottomNavigation.tabFor(this)?.let { tab ->
+            CgmBottomNavigation.appendAtEnd(this, view, tab)
+        }
         content.value = view
         host?.let { attach(it, view) }
         if (installed) return
@@ -139,20 +142,8 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
             val screen = content.collectAsStateWithLifecycle().value
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    LinearLayout(context).apply {
-                        orientation = LinearLayout.VERTICAL
-                        val frame = FrameLayout(context).also { host = it }
-                        addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
-                        CgmBottomNavigation.tabFor(this@CgmSettingsComposeActivity)?.let { tab ->
-                            addView(
-                                CgmBottomNavigation.footer(this@CgmSettingsComposeActivity, tab),
-                                LinearLayout.LayoutParams(-1, -2),
-                            )
-                        }
-                    }
-                },
-                update = { _ -> screen?.let { view -> host?.let { attach(it, view) } } },
+                factory = { FrameLayout(it).also { frame -> host = frame } },
+                update = { frame -> screen?.let { attach(frame, it) } },
             )
         }
     }

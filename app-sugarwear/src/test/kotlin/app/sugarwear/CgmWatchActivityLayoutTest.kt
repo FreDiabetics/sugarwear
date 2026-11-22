@@ -1038,7 +1038,13 @@ class CgmWatchActivityLayoutTest {
                     .get()
                     .awaitUi()
             val root = activity.window.decorView
-            assertNotNull(root.findViewWithTag<View>("sugarwear-footer"))
+            val pill = root.findViewWithTag<View>("sugarwear-nav-pill")
+            assertNotNull(pill)
+            val menuScroll = findScrollView(root)
+            assertNotNull(menuScroll)
+            val page = menuScroll!!.getChildAt(0) as ViewGroup
+            assertSame(page, pill.parent)
+            assertSame(pill, page.getChildAt(page.childCount - 1))
             for (tab in listOf("overview", "connections", "profile")) {
                 assertNotNull("Missing $tab on ${page.simpleName}", root.findViewWithTag<View>("nav-$tab"))
             }
@@ -1342,6 +1348,9 @@ class CgmWatchActivityLayoutTest {
         assertFalse(texts.any { it == "Collector starten" || it == "Collector stoppen" })
         assertFalse(texts.contains("←"))
         val root = activity.findViewById<View>(android.R.id.content)
+        val pill = root.findViewWithTag<View>("sugarwear-nav-pill")
+        assertNotNull(pill)
+        assertSame(findScrollView(root)?.getChildAt(0), pill.parent)
         assertNotNull(root.findViewWithTag<View>("nav-overview"))
         assertNotNull(root.findViewWithTag<View>("nav-connections"))
         assertNotNull(root.findViewWithTag<View>("nav-profile"))

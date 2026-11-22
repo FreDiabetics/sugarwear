@@ -158,6 +158,7 @@ class CgmPermissionsActivity : CgmSettingsComposeActivity() {
         card("Hintergrundbetrieb/Akkuoptimierungen", backgroundStatusText, "App-Inaktivitätsbeschränkungen und Akkuoptimierungen werden getrennt geprüft.", "Akkueinstellungen öffnen") {
             if (!CgmBackgroundAccess.openBatterySettings(this)) unavailable()
         }
+        CgmBottomNavigation.appendAtEnd(this, root, CgmNavTab.PROFILE)
         scroll.post { scroll.scrollTo(0, y) }
     }
 

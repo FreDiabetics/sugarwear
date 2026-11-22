@@ -4,19 +4,15 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.core.widget.TextViewCompat
+import android.widget.ScrollView
+import android.widget.Toast
 
-/**
- * The one shared SugarWear navigation surface. It is not shown on setup
- * or on alarm presentation: neither flow may be covered by ordinary tabs.
- */
+/** Shared SugarWear navigation: one pill at the end of each scrollable menu. */
 internal enum class CgmNavTab(
     val title: String,
 ) {
@@ -30,6 +26,7 @@ internal object CgmBottomNavigation {
     private val SURFACE = 0xFF0B0B0D.toInt()
     private val SELECTED_SURFACE = 0xFF183C25.toInt()
     private val INACTIVE = 0xFFB4B4BB.toInt()
+    private val BORDER = 0xFF33363A.toInt()
 
     fun tabFor(activity: Activity): CgmNavTab? =
         when (activity) {
@@ -40,22 +37,52 @@ internal object CgmBottomNavigation {
             else -> null
         }
 
-    fun footer(activity: Activity, selected: CgmNavTab): View =
+    /** Appends the same three destinations after all content, never over the viewport. */
+    fun appendAtEnd(activity: Activity, page: View, selected: CgmNavTab) {
+        val root =
+            when (page) {
+                is ScrollView -> page.getChildAt(0) as? LinearLayout
+                is LinearLayout -> page
+                else -> null
+            } ?: return
+        if (root.orientation != LinearLayout.VERTICAL) return
+
+        val existing = root.findViewWithTag<View>("sugarwear-nav-pill")
+        if (existing?.parent === root) {
+            if (root.getChildAt(root.childCount - 1) === existing) return
+            root.removeView(existing)
+        }
+        root.addView(
+            pill(activity, selected),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                topMargin = 14.dp(activity)
+                bottomMargin = 28.dp(activity)
+            },
+        )
+    }
+
+    fun pill(activity: Activity, selected: CgmNavTab): View =
         LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            tag = "sugarwear-footer"
-            setBackgroundColor(SURFACE)
-            // Round-display lower corners need a narrower footer than the viewport.
-            setPadding(22.dp(activity), 2.dp(activity), 22.dp(activity), 16.dp(activity))
+            tag = "sugarwear-nav-pill"
+            setPadding(4.dp(activity), 4.dp(activity), 4.dp(activity), 4.dp(activity))
+            background =
+                GradientDrawable().apply {
+                    setColor(SURFACE)
+                    setStroke(1.dp(activity), BORDER)
+                    cornerRadius = 999f
+                }
             CgmNavTab.entries.forEach { tab ->
                 val active = tab == selected
                 val color = if (active) ACCENT else INACTIVE
                 val button =
                     LinearLayout(activity).apply {
-                        orientation = LinearLayout.VERTICAL
+                        orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER
-                        minimumHeight = 52.dp(activity)
+                        minimumHeight = 48.dp(activity)
+                        minimumWidth = 48.dp(activity)
                         tag = "nav-" + tab.name.lowercase()
                         isSelected = active
                         isClickable = true
@@ -64,7 +91,7 @@ internal object CgmBottomNavigation {
                         background =
                             GradientDrawable().apply {
                                 setColor(if (active) SELECTED_SURFACE else SURFACE)
-                                cornerRadius = 16.dp(activity).toFloat()
+                                cornerRadius = 999f
                             }
                         addView(
                             ImageView(activity).apply {
@@ -76,28 +103,15 @@ internal object CgmBottomNavigation {
                                     },
                                 )
                                 imageTintList = ColorStateList.valueOf(color)
+                                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                             },
-                            LinearLayout.LayoutParams(17.dp(activity), 17.dp(activity)),
+                            LinearLayout.LayoutParams(22.dp(activity), 22.dp(activity)),
                         )
-                        addView(
-                            TextView(activity).apply {
-                                text = tab.title
-                                gravity = Gravity.CENTER
-                                includeFontPadding = false
-                                setTextColor(color)
-                                maxLines = 1
-                                TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-                                    this,
-                                    7,
-                                    10,
-                                    1,
-                                    TypedValue.COMPLEX_UNIT_SP,
-                                )
-                                app.sugarlicious.uishared.SystemTypography
-                                    .apply(this, active)
-                            },
-                            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 20.dp(activity)),
-                        )
+                        // Names are only shown when the user deliberately holds an icon.
+                        setOnLongClickListener {
+                            Toast.makeText(activity, tab.title, Toast.LENGTH_SHORT).show()
+                            true
+                        }
                         setOnClickListener {
                             val destination =
                                 when (tab) {
@@ -115,13 +129,7 @@ internal object CgmBottomNavigation {
                             }
                         }
                     }
-                addView(
-                    button,
-                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                        marginStart = 1.dp(activity)
-                        marginEnd = 1.dp(activity)
-                    },
-                )
+                addView(button, LinearLayout.LayoutParams(48.dp(activity), 48.dp(activity)))
             }
         }
 
