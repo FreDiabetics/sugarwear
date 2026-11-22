@@ -33,6 +33,18 @@ class DexcomShareUploadStoreTest {
         preferences.edit().clear().commit()
     }
 
+    @Test fun `account setup and existing receiver assignment are reported independently`() {
+        preferences
+            .edit()
+            .putString("encrypted_account", "sealed")
+            .putString("encrypted_password", "sealed")
+            .commit()
+        assertTrue(store.status().configured)
+        assertFalse(store.status().hasReceiver)
+        preferences.edit().putString("encrypted_receiver", "sealed").commit()
+        assertTrue(store.status().hasReceiver)
+    }
+
     @Test fun `upload cursor is session and account isolated`() {
         assertTrue(store.markAccepted(config, "sensor", "session1", 1_800_000_000_000L, 1_800_000_001_000L))
         assertEquals(1_800_000_000_000L, store.cursor(config, "sensor", "session1"))

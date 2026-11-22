@@ -76,6 +76,7 @@ internal class DexcomShareUploadClient(
     suspend fun upload(config: DexcomShareUploadConfig, rows: List<DexcomShareEgv>) =
         withContext(Dispatchers.IO) {
             require(rows.isNotEmpty() && rows.size <= DexcomShareUploadPolicy.MAX_BATCH)
+            if (!isValidShareReceiver(config.receiverSerial)) throw DexcomShareProtocolException(DexcomShareUploadError.RECEIVER_NOT_ASSIGNED)
             var session = authenticate(config)
             var refreshed = false
             var started = false

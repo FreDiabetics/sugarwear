@@ -95,7 +95,8 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 connecting -> "Konto wird geprüft"
                 ui.setupError -> "Einstellungen fehlgeschlagen"
                 status.error != DexcomShareUploadError.NONE -> "Verbindungsfehler"
-                !status.enabled -> "Nicht verbunden"
+                !status.enabled && status.lastConnectionEpochMs > 0L -> "Konto bestätigt"
+                !status.enabled -> "Übertragung aus"
                 uploadFresh -> "Upload bestätigt"
                 status.lastUploadEpochMs > 0L -> "Upload verzögert"
                 status.lastConnectionEpochMs > 0L -> "Konto bestätigt"
@@ -106,6 +107,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 connecting -> "Anmeldung bei Dexcom Share läuft."
                 ui.setupError -> "Share-Einstellungen konnten nicht gespeichert oder entfernt werden."
                 status.error != DexcomShareUploadError.NONE -> errorDescription(status.error)
+                status.configured && !status.hasReceiver -> "Für den Upload fehlt die Kennung deines Dexcom-Share-Empfängers."
                 !status.enabled -> "Die Übertragung an Dexcom Share ist derzeit deaktiviert."
                 uploadFresh -> "Letzter Upload vom Share-Server bestätigt."
                 status.lastUploadEpochMs > 0L -> "Kein neuer Upload bestätigt. Letzten Upload unten prüfen."
@@ -142,6 +144,9 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         root.addView(action("Konto einrichten", palette) { accountDialog() }, spacing(10))
         root.addView(action(if (connecting) "Bitte prüfen …" else "Verbindung testen", palette) { testConnection() }, spacing(4))
         if (status.configured) {
+            if (!status.enabled) {
+                root.addView(action(if (status.hasReceiver) "Share-Empfänger ändern" else "Share-Empfänger einrichten", palette) { receiverDialog() }, spacing(4))
+            }
             root.addView(action("Konto entfernen", palette) { confirmClear() }, spacing(4))
         }
         root.addView(
@@ -169,6 +174,10 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             accountDialog()
             return
         }
+        if (!settings.state.value.status.hasReceiver) {
+            receiverDialog()
+            return
+        }
         AlertDialog
             .Builder(this)
             .setTitle("Dexcom Share aktivieren?")
@@ -181,7 +190,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
 
     private fun accountDialog() {
         val region = settings.state.value.status.region
-        val items = arrayOf("EU / International", "USA")
+        val items = arrayOf("International (z. B. Deutschland)", "USA")
         val fields =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -196,7 +205,6 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 fields.addView(this, LinearLayout.LayoutParams(-1, dp(52)))
             }
         val account = field("Dexcom-Kontoname")
-        val serial = field("Share-Receiver-Seriennummer")
         // Wear OS must not request passwords using a watch text field. The system
         // credential picker handles user verification and never exposes the secret in a View.
         var selectedPassword: String? = null
@@ -248,21 +256,20 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             }
         }
         fields.addView(credentialPicker)
-        fields.addView(label("Die Share-Seriennummer ist nicht der G7-Kopplungscode.", Color.LTGRAY, false, 12f))
         var selected = if (region == DexcomShareRegion.INTERNATIONAL) 0 else 1
-        fields.addView(label("Serverregion", Color.LTGRAY, true, 13f))
+        fields.addView(label("Land des Dexcom-Kontos", Color.LTGRAY, true, 13f))
         val regionPicker =
             label(items[selected], Color.WHITE, true, 14f).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(48)
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Serverregion wählen"
+                contentDescription = "Land des Dexcom-Kontos wählen"
             }
         regionPicker.setOnClickListener {
             AlertDialog
                 .Builder(this)
-                .setTitle("Serverregion")
+                .setTitle("Land des Dexcom-Kontos")
                 .setItems(items) { _, which ->
                     selected = which
                     regionPicker.text = items[which]
@@ -281,16 +288,44 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val user = account.text.toString().trim()
                 val secret = selectedPassword
-                val receiver = serial.text.toString().trim()
-                if (user.isBlank() || secret.isNullOrBlank() || !receiver.matches(Regex("[A-Za-z0-9_-]{5,40}"))) {
-                    Toast.makeText(this, "Gespeichertes Passwort wählen und gültige Share-Seriennummer eingeben", Toast.LENGTH_LONG).show()
+                if (user.isBlank() || secret.isNullOrBlank()) {
+                    Toast.makeText(this, "Dexcom-Kontoname eingeben und gespeichertes Passwort wählen", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
                 dialog.dismiss()
-                settings.saveAccount(user, secret, receiver, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
+                settings.saveAccount(user, secret, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
             }
         }
         dialog.setOnDismissListener { selectedPassword = null }
+        dialog.show()
+    }
+
+    private fun receiverDialog() {
+        val serial =
+            EditText(this).apply {
+                hint = "Share-Empfängerkennung"
+                isSingleLine = true
+            }
+        val dialog =
+            AlertDialog
+                .Builder(this)
+                .setTitle("Share-Empfänger")
+                .setMessage("Gib die für dein Dexcom-Konto verwendete Share-Upload-Kennung ein. Der vierstellige G7-Kopplungscode gehört zum Sensor.")
+                .setView(serial)
+                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton("Speichern", null)
+                .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val value = serial.text.toString().trim()
+                if (isValidShareReceiver(value)) {
+                    settings.saveReceiver(value)
+                    dialog.dismiss()
+                } else {
+                    serial.error = "Gültige Share-Empfängerkennung eingeben"
+                }
+            }
+        }
         dialog.show()
     }
 

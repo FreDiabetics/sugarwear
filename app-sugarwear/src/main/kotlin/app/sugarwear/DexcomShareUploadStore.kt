@@ -41,6 +41,7 @@ internal enum class DexcomShareUploadError {
 internal data class DexcomShareUploadStatus(
     val enabled: Boolean,
     val configured: Boolean,
+    val hasReceiver: Boolean,
     val region: DexcomShareRegion,
     val lastConnectionEpochMs: Long,
     val lastUploadEpochMs: Long,
@@ -56,7 +57,8 @@ internal class DexcomShareUploadStore(
     fun status(): DexcomShareUploadStatus =
         DexcomShareUploadStatus(
             enabled = enabled(),
-            configured = preferences.contains(KEY_ACCOUNT) && preferences.contains(KEY_PASSWORD) && preferences.contains(KEY_RECEIVER),
+            configured = preferences.contains(KEY_ACCOUNT) && preferences.contains(KEY_PASSWORD),
+            hasReceiver = preferences.contains(KEY_RECEIVER),
             region = region(),
             lastConnectionEpochMs = preferences.getLong(KEY_LAST_CONNECTION, 0L),
             lastUploadEpochMs = preferences.getLong(KEY_LAST_UPLOAD, 0L),
@@ -72,20 +74,21 @@ internal class DexcomShareUploadStore(
             .getOrDefault(DexcomShareRegion.INTERNATIONAL)
 
     /** Saving a different account always revokes upload permission and invalidates in-flight work. */
-    fun saveAccount(account: String, password: String, receiverSerial: String, region: DexcomShareRegion) {
+    fun saveAccount(account: String, password: String, region: DexcomShareRegion) {
         require(account.isNotBlank() && account.length <= 256)
         require(password.isNotBlank() && password.length <= 512)
-        require(receiverSerial.matches(Regex("[A-Za-z0-9_-]{5,40}")))
         val sealedAccount = seal(account.trim())
         val sealedPassword = seal(password)
-        val sealedSerial = seal(receiverSerial.trim())
         synchronized(lock) {
+            val previous = readConfig()
+            val editor = preferences.edit()
+            if (previous == null || previous.account != account.trim() || previous.region != region) {
+                editor.remove(KEY_RECEIVER)
+            }
             check(
-                preferences
-                    .edit()
+                editor
                     .putString(KEY_ACCOUNT, sealedAccount)
                     .putString(KEY_PASSWORD, sealedPassword)
-                    .putString(KEY_RECEIVER, sealedSerial)
                     .putString(KEY_REGION, region.name)
                     .putBoolean(KEY_ENABLED, false)
                     .putLong(KEY_REVISION, revision() + 1L)
@@ -97,9 +100,25 @@ internal class DexcomShareUploadStore(
         }
     }
 
+    fun saveReceiver(serial: String) {
+        require(isValidShareReceiver(serial))
+        synchronized(lock) {
+            check(readConfig() != null && !enabled())
+            check(
+                preferences
+                    .edit()
+                    .putString(KEY_RECEIVER, seal(serial))
+                    .putLong(KEY_REVISION, revision() + 1L)
+                    .remove(KEY_LAST_UPLOAD)
+                    .remove(KEY_ERROR)
+                    .commit(),
+            )
+        }
+    }
+
     fun setEnabled(value: Boolean) {
         synchronized(lock) {
-            if (value) require(readConfig() != null) { "Share account must be configured first" }
+            if (value) require(readConfig()?.receiverSerial?.isNotEmpty() == true) { "Share receiver must be configured first" }
             if (enabled() == value) return
             check(
                 preferences
@@ -118,12 +137,18 @@ internal class DexcomShareUploadStore(
         synchronized(lock) {
             val account = preferences.getString(KEY_ACCOUNT, null)?.let(::unseal)?.decodeToString() ?: return@synchronized null
             val password = preferences.getString(KEY_PASSWORD, null)?.let(::unseal)?.decodeToString() ?: return@synchronized null
-            val serial = preferences.getString(KEY_RECEIVER, null)?.let(::unseal)?.decodeToString() ?: return@synchronized null
-            if (account.isBlank() || password.isBlank() || !serial.matches(Regex("[A-Za-z0-9_-]{5,40}"))) return@synchronized null
+            val serial =
+                preferences
+                    .getString(KEY_RECEIVER, null)
+                    ?.let { encrypted ->
+                        unseal(encrypted)?.decodeToString()?.takeIf(::isValidShareReceiver) ?: return@synchronized null
+                    }.orEmpty()
+            if (account.isBlank() || password.isBlank()) return@synchronized null
             DexcomShareUploadConfig(account, password, serial, region(), revision())
         }
 
-    fun readEnabledConfig(): DexcomShareUploadConfig? = if (enabled()) readConfig() else null
+    fun readEnabledConfig(): DexcomShareUploadConfig? =
+        synchronized(lock) { if (enabled()) readConfig()?.takeIf { it.receiverSerial.isNotEmpty() } else null }
 
     fun cursor(config: DexcomShareUploadConfig, sensorId: String, sessionId: String): Long =
         preferences.getLong(cursorKey(config, sensorId, sessionId), 0L)
@@ -239,3 +264,7 @@ internal class DexcomShareUploadStore(
         const val KEY_ERROR = "error"
     }
 }
+
+private val shareReceiverPattern = Regex("[A-Za-z0-9_-]{5,40}")
+
+internal fun isValidShareReceiver(serial: String): Boolean = shareReceiverPattern.matches(serial)

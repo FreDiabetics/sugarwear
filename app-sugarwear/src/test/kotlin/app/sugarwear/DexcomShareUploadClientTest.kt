@@ -124,6 +124,20 @@ class DexcomShareUploadClientTest {
             assertEquals(false, problem?.recoverable)
         }
 
+    @Test fun `missing receiver blocks upload before sending credentials or measurements`() =
+        runBlocking {
+            val http = FakeHttp { _, _ -> error("No network request expected") }
+            val problem =
+                try {
+                    DexcomShareUploadClient(http).upload(config.copy(receiverSerial = ""), listOf(egv))
+                    null
+                } catch (error: DexcomShareProtocolException) {
+                    error
+                }
+            assertEquals(DexcomShareUploadError.RECEIVER_NOT_ASSIGNED, problem?.issue)
+            assertTrue(http.requests.isEmpty())
+        }
+
     @Test fun `valid login does not falsely claim an uploaded glucose row`() =
         runBlocking {
             val http =
@@ -134,7 +148,7 @@ class DexcomShareUploadClientTest {
                         else -> error("A connection test must not publish readings")
                     }
                 }
-            DexcomShareUploadClient(http).testAccount(config)
+            DexcomShareUploadClient(http).testAccount(config.copy(receiverSerial = ""))
             assertEquals(2, http.requests.size)
             assertTrue(http.requests.none { it.first.contains("PostReceiverEgvRecords") })
         }

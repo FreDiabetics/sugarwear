@@ -34,19 +34,36 @@ internal class DexcomShareSettingsViewModel
             mutableState.value = mutableState.value.copy(status = store.status())
         }
 
-        fun saveAccount(account: String, password: String, serial: String, region: DexcomShareRegion) {
+        fun saveAccount(account: String, password: String, region: DexcomShareRegion) {
             if (mutableState.value.updating) return
             mutableState.value = mutableState.value.copy(updating = true, setupError = false)
             viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
-                        store.saveAccount(account, password, serial, region)
+                        store.saveAccount(account, password, region)
                         DexcomShareUploadScheduler.stop(context)
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
                     Log.w(TAG, "Share account save failed: ${error.javaClass.simpleName}")
+                    mutableState.value = mutableState.value.copy(setupError = true)
+                } finally {
+                    mutableState.value = mutableState.value.copy(updating = false, status = store.status())
+                }
+            }
+        }
+
+        fun saveReceiver(serial: String) {
+            if (mutableState.value.updating) return
+            mutableState.value = mutableState.value.copy(updating = true, setupError = false)
+            viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) { store.saveReceiver(serial) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w(TAG, "Share receiver save failed: ${error.javaClass.simpleName}")
                     mutableState.value = mutableState.value.copy(setupError = true)
                 } finally {
                     mutableState.value = mutableState.value.copy(updating = false, status = store.status())
@@ -82,20 +99,18 @@ internal class DexcomShareSettingsViewModel
                 try {
                     withContext(Dispatchers.IO) {
                         val config = store.readConfig() ?: throw IllegalStateException("Share account not configured")
-                        DexcomShareUploadClient().testAccount(config)
-                        store.markVerified(config, System.currentTimeMillis())
+                        try {
+                            DexcomShareUploadClient().testAccount(config)
+                            store.markVerified(config, System.currentTimeMillis())
+                        } catch (problem: DexcomShareProtocolException) {
+                            store.markError(config, problem.issue)
+                        }
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (problem: DexcomShareProtocolException) {
-                    withContext(Dispatchers.IO) {
-                        store.readConfig()?.let { store.markError(it, problem.issue) }
-                    }
                 } catch (error: Exception) {
                     Log.w(TAG, "Share account test failed: ${error.javaClass.simpleName}")
-                    withContext(Dispatchers.IO) {
-                        store.readConfig()?.let { store.markError(it, DexcomShareUploadError.SERVER) }
-                    }
+                    mutableState.value = mutableState.value.copy(setupError = true)
                 } finally {
                     mutableState.value = mutableState.value.copy(connecting = false, status = store.status())
                 }
