@@ -141,11 +141,11 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         scrollView =
             CgmEdgeFadeScrollView(this)
                 .apply {
-                isFillViewport = true
-                setBackgroundColor(background)
-                addView(root)
-                post { scrollTo(0, oldScrollY.coerceAtLeast(0)) }
-            }.applyCgmEdgeFade()
+                    isFillViewport = true
+                    setBackgroundColor(background)
+                    addView(root)
+                    post { scrollTo(0, oldScrollY.coerceAtLeast(0)) }
+                }.applyCgmEdgeFade()
         showSettingsView(checkNotNull(scrollView))
     }
 

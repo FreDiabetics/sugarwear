@@ -75,20 +75,20 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
                 sections.map { section ->
                     app.sugarlicious.uishared.WearSettingsUi
                         .navigationRow(
-                        this,
-                        section.title,
-                        null,
-                        palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                        palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
-                    ) {
-                        if (section == CgmSettingsSection.ABOUT) {
-                            navigation.toggleAbout()
-                        } else {
-                            openSection(section)
+                            this,
+                            section.title,
+                            null,
+                            palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                            palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                        ) {
+                            if (section == CgmSettingsSection.ABOUT) {
+                                navigation.toggleAbout()
+                            } else {
+                                openSection(section)
+                            }
+                        }.apply {
+                            tag = "settings-category-" + section.name.lowercase()
                         }
-                    }.apply {
-                        tag = "settings-category-" + section.name.lowercase()
-                    }
                 }
             root.addView(
                 app.sugarlicious.uishared.WearSettingsUi.navigationGroup(
@@ -127,20 +127,20 @@ class CgmSettingsActivity : CgmSettingsComposeActivity() {
         scrollView =
             CgmEdgeFadeScrollView(this)
                 .apply {
-                isFillViewport = true
-                setBackgroundColor(background)
-                addView(root)
-                viewTreeObserver.addOnPreDrawListener(
-                    object : ViewTreeObserver.OnPreDrawListener {
-                        override fun onPreDraw(): Boolean {
-                            viewTreeObserver.removeOnPreDrawListener(this)
-                            val maxScroll = (root.measuredHeight - height).coerceAtLeast(0)
-                            scrollTo(0, restoreScrollY.coerceAtMost(maxScroll))
-                            return true
-                        }
-                    },
-                )
-            }.applyCgmEdgeFade()
+                    isFillViewport = true
+                    setBackgroundColor(background)
+                    addView(root)
+                    viewTreeObserver.addOnPreDrawListener(
+                        object : ViewTreeObserver.OnPreDrawListener {
+                            override fun onPreDraw(): Boolean {
+                                viewTreeObserver.removeOnPreDrawListener(this)
+                                val maxScroll = (root.measuredHeight - height).coerceAtLeast(0)
+                                scrollTo(0, restoreScrollY.coerceAtMost(maxScroll))
+                                return true
+                            }
+                        },
+                    )
+                }.applyCgmEdgeFade()
         showSettingsView(checkNotNull(scrollView))
     }
 
