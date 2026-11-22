@@ -22,13 +22,14 @@ class CgmSensorLifetimeTest {
         readingGraceEnd: Long? = null,
     ) =
         CgmPersistedState(
-            sensor = CgmSensor(
-                sensorId = "G7",
-                sessionId = "session-A",
-                sensorStartEpochMs = start,
-                sensorEndEpochMs = end,
-                graceEndEpochMs = graceEnd,
-            ),
+            sensor =
+                CgmSensor(
+                    sensorId = "G7",
+                    sessionId = "session-A",
+                    sensorStartEpochMs = start,
+                    sensorEndEpochMs = end,
+                    graceEndEpochMs = graceEnd,
+                ),
             lastReading =
                 readingEnd?.let {
                     CgmReading(
@@ -136,13 +137,15 @@ class CgmSensorLifetimeTest {
     fun `grace deadline from reading must match active sensor session`() {
         val end = start + 10L * day
         val graceEnd = end + 12L * 60L * 60_000L
-        val fresh = checkNotNull(
-            cgmSensorLifetime(state(readingEnd = end, readingGraceEnd = graceEnd), start),
-        )
+        val fresh =
+            checkNotNull(
+                cgmSensorLifetime(state(readingEnd = end, readingGraceEnd = graceEnd), start),
+            )
         assertTrue(fresh.hasVerifiedGraceEnd)
-        val unrelated = checkNotNull(
-            cgmSensorLifetime(state(readingEnd = end, readingGraceEnd = graceEnd, matching = false), start),
-        )
+        val unrelated =
+            checkNotNull(
+                cgmSensorLifetime(state(readingEnd = end, readingGraceEnd = graceEnd, matching = false), start),
+            )
         assertFalse(unrelated.hasVerifiedGraceEnd)
     }
 
