@@ -28,7 +28,6 @@ internal fun CgmSensorLifetime.toleranceTimeText(): String? =
         else -> "+ 12h Toleranzzeit"
     }
 
-
 internal fun cgmSensorLifetime(
     state: CgmPersistedState,
     nowEpochMs: Long,

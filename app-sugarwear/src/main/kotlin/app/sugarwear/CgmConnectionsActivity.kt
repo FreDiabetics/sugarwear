@@ -75,8 +75,9 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                 segments(
                     remaining = lifetime?.remainingDaySegments ?: 0,
                     known = lifetime?.hasVerifiedEnd == true,
-                    graceAvailable = lifetime?.let { it.hasVerifiedGraceEnd && !it.graceExpired } == true &&
-                        sensor?.state != CgmSensorState.ENDED,
+                    graceAvailable =
+                        lifetime?.let { it.hasVerifiedGraceEnd && !it.graceExpired } == true &&
+                            sensor?.state != CgmSensorState.ENDED,
                 ),
                 cardSpacing(12),
             )
