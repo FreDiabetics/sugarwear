@@ -20,6 +20,9 @@ internal data class CgmSystemAccessSnapshot(
     val dndAccessGranted: Boolean,
     val alarmChannels: List<CgmAlarmChannelAccess>,
     val autoRevokeStatus: CgmBackgroundRestrictionStatus = CgmBackgroundRestrictionStatus.UNKNOWN,
+    // Retain the existing aggregate flag; keep the independent blockers for diagnostics.
+    val notificationPermissionGranted: Boolean = notificationsGranted,
+    val appNotificationsEnabled: Boolean = notificationsGranted,
 )
 
 internal data class CgmAlarmChannelAccess(
@@ -69,7 +72,9 @@ internal fun cgmAlarmNotificationReadiness(
     }
 
 internal fun cgmAlarmNotificationOverview(access: CgmSystemAccessSnapshot): CgmAlarmNotificationReadiness {
-    if (!access.notificationsGranted) return CgmAlarmNotificationReadiness.PERMISSION_MISSING
+    if (!access.notificationPermissionGranted) return CgmAlarmNotificationReadiness.PERMISSION_MISSING
+    if (!access.appNotificationsEnabled) return CgmAlarmNotificationReadiness.APP_NOTIFICATIONS_DISABLED
+    if (access.alarmChannels.isEmpty()) return CgmAlarmNotificationReadiness.CHANNEL_NOT_REGISTERED
     val states =
         access.alarmChannels.map { channel ->
             cgmAlarmNotificationReadiness(true, true, channel.importance)
@@ -97,9 +102,11 @@ internal object CgmSystemAccess {
         val missing = missingRuntimePermissions(context)
         val manager = context.getSystemService(NotificationManager::class.java)
         val settings = CgmAlarmSettingsStore.read(context)
+        val notificationPermissionGranted = Manifest.permission.POST_NOTIFICATIONS !in missing
+        val appNotificationsEnabled = manager.areNotificationsEnabled()
         return CgmSystemAccessSnapshot(
             bluetoothGranted = Manifest.permission.BLUETOOTH_SCAN !in missing && Manifest.permission.BLUETOOTH_CONNECT !in missing,
-            notificationsGranted = Manifest.permission.POST_NOTIFICATIONS !in missing && manager.areNotificationsEnabled(),
+            notificationsGranted = notificationPermissionGranted && appNotificationsEnabled,
             batteryUnrestricted = CgmBackgroundAccess.isBatteryUnrestricted(context),
             exactAlarmsGranted = context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms(),
             dndAccessGranted = manager.isNotificationPolicyAccessGranted,
@@ -110,6 +117,8 @@ internal object CgmSystemAccess {
                     CgmAlarmChannelAccess(id, cgmAlarmTitle(type), channel?.importance, channel?.canBypassDnd() == true)
                 },
             autoRevokeStatus = CgmBackgroundAccess.isAutoRevokeWhitelisted(context),
+            notificationPermissionGranted = notificationPermissionGranted,
+            appNotificationsEnabled = appNotificationsEnabled,
         )
     }
 

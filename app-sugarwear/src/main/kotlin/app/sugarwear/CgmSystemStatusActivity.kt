@@ -311,7 +311,8 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                                 ),
                             )
                             addView(row("Geräte in der Nähe", if (hasNearbyPermission()) "Erlaubt" else "Nicht erlaubt", palette))
-                            addView(row("Benachrichtigungen", if (hasNotificationPermission()) "Erlaubt" else "Nicht erlaubt", palette))
+                            addView(row("Benachrichtigungsrecht", if (snapshot.access.notificationPermissionGranted) "Erlaubt" else "Nicht erlaubt", palette))
+                            addView(row("App-Benachrichtigungen", if (snapshot.access.appNotificationsEnabled) "Aktiv" else "Deaktiviert", palette))
                             val notificationReadiness = cgmAlarmNotificationOverview(snapshot.access)
                             addView(row("Alarmzustellung", notificationReadiness.label, palette))
                             if (notificationReadiness != CgmAlarmNotificationReadiness.READY) {
@@ -621,11 +622,6 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
         status.state.value.snapshot
             ?.access
             ?.bluetoothGranted == true
-
-    private fun hasNotificationPermission(): Boolean =
-        status.state.value.snapshot
-            ?.access
-            ?.notificationsGranted == true
 
     private fun group(
         title: String,
