@@ -56,6 +56,17 @@ class CgmSystemAccessTest {
         assertEquals(CgmAlarmNotificationReadiness.CHANNEL_DISABLED, cgmAlarmNotificationOverview(access(listOf(4, 0))))
         assertEquals(CgmAlarmNotificationReadiness.CHANNEL_NOT_PROMINENT, cgmAlarmNotificationOverview(access(listOf(4, 3))))
         assertEquals(CgmAlarmNotificationReadiness.PERMISSION_MISSING, cgmAlarmNotificationOverview(access(listOf(4), false)))
+        assertEquals(CgmAlarmNotificationReadiness.CHANNEL_NOT_REGISTERED, cgmAlarmNotificationOverview(access(emptyList())))
+        assertEquals(
+            CgmAlarmNotificationReadiness.APP_NOTIFICATIONS_DISABLED,
+            cgmAlarmNotificationOverview(
+                access(listOf(4)).copy(
+                    notificationsGranted = false,
+                    notificationPermissionGranted = true,
+                    appNotificationsEnabled = false,
+                ),
+            ),
+        )
     }
 
     private fun fakeSettingsInfo(system: Boolean = true) =
