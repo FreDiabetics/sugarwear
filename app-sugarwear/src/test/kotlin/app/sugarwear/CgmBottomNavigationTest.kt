@@ -42,7 +42,14 @@ class CgmBottomNavigationTest {
                 assertTrue(item.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
                 if (index != 0) {
                     item.performClick()
-                    assertEquals(destinations[index], Shadows.shadowOf(activity).nextStartedActivity.component?.className)
+                    assertEquals(
+                        destinations[index],
+                        Shadows
+                            .shadowOf(activity)
+                            .nextStartedActivity
+                            .component
+                            ?.className,
+                    )
                 }
             }
             assertFalse(root.isClickable)
