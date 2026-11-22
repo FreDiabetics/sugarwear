@@ -117,6 +117,23 @@ internal object CgmAlarmDelivery {
 internal fun cgmAlarmEpisodeKey(alarm: SugarWearAlarmInstance): String =
     listOf(alarm.type.id, alarm.sensorId.orEmpty(), alarm.sessionId.orEmpty(), alarm.triggeredAtEpochMs.toString(), alarm.conditionFirstMetAtEpochMs.toString()).joinToString("|") { android.net.Uri.encode(it) }
 
+/** Full-screen threshold alarms keep their original semantic color across later CGM readings. */
+internal fun cgmAlarmColorRole(
+    type: SugarWearAlarmType,
+    liveRange: app.sugarlicious.model.CgmRangeClass?,
+): CgmAppearanceRole =
+    when (type) {
+        SugarWearAlarmType.HIGH -> CgmAppearanceRole.GLUCOSE_HIGH
+        SugarWearAlarmType.LOW, SugarWearAlarmType.URGENT_LOW, SugarWearAlarmType.URGENT_LOW_SOON -> CgmAppearanceRole.GLUCOSE_LOW
+        else ->
+            when (liveRange) {
+                app.sugarlicious.model.CgmRangeClass.VERY_LOW, app.sugarlicious.model.CgmRangeClass.LOW -> CgmAppearanceRole.GLUCOSE_LOW
+                app.sugarlicious.model.CgmRangeClass.VERY_HIGH, app.sugarlicious.model.CgmRangeClass.HIGH -> CgmAppearanceRole.GLUCOSE_HIGH
+                app.sugarlicious.model.CgmRangeClass.IN_RANGE -> CgmAppearanceRole.GLUCOSE_IN_RANGE
+                null -> CgmAppearanceRole.GLUCOSE_NO_SOURCE
+            }
+    }
+
 internal data class CgmAlarmScreenState(
     val type: SugarWearAlarmType? = null,
     val visible: Boolean = false,
@@ -172,13 +189,7 @@ class CgmAlarmViewModel
                         val appearance = CgmAppearanceStore(context)
                         val palette = appearance.load()
                         val thresholds = CgmGraphColorStore(context).readThresholds()
-                        val role =
-                            when (currentReading?.let { thresholds.classify(it.glucoseMgDl) }) {
-                                app.sugarlicious.model.CgmRangeClass.VERY_LOW, app.sugarlicious.model.CgmRangeClass.LOW -> CgmAppearanceRole.GLUCOSE_LOW
-                                app.sugarlicious.model.CgmRangeClass.VERY_HIGH, app.sugarlicious.model.CgmRangeClass.HIGH -> CgmAppearanceRole.GLUCOSE_HIGH
-                                app.sugarlicious.model.CgmRangeClass.IN_RANGE -> CgmAppearanceRole.GLUCOSE_IN_RANGE
-                                null -> CgmAppearanceRole.GLUCOSE_NO_SOURCE
-                            }
+                        val role = cgmAlarmColorRole(type, currentReading?.let { thresholds.classify(it.glucoseMgDl) })
                         CgmAlarmScreenState(
                             type = type,
                             episode = pending?.let(::cgmAlarmEpisodeKey),
