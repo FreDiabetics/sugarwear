@@ -1343,7 +1343,7 @@ class CgmWatchActivityLayoutTest {
         collectText(activity.findViewById(android.R.id.content), texts)
 
         assertFalse(texts.any { it.contains("3h Verlauf", ignoreCase = true) })
-        assertTrue(texts.any { it.startsWith("3h") })
+        assertTrue(texts.contains("Glukoseverlauf · 3h"))
         assertFalse(texts.any { it.contains("Watch Direct", ignoreCase = true) })
 
         assertFalse(texts.contains("Systemstatus"))
@@ -1609,13 +1609,13 @@ class CgmWatchActivityLayoutTest {
         val originalGeometry = "scroll=${scroll.width}x${scroll.height}, content=${scroll.getChildAt(0).width}x${scroll.getChildAt(0).height}, root=${rootBefore.width}x${rootBefore.height}"
         assertEquals(80, originalScrollY)
 
-        findTextStartingWith(rootBefore, "3h")!!.performClick()
+        findText(rootBefore, "Glukoseverlauf · 3h")!!.performClick()
         Shadows.shadowOf(Looper.getMainLooper()).idle()
 
         val rootAfter = activity.findViewById<android.view.View>(android.R.id.content).let { (it as ViewGroup).getChildAt(0) }
         assertSame(rootBefore, rootAfter)
         assertSame(graphBefore, findGraph(rootAfter))
-        assertNotNull(findTextStartingWith(rootAfter, "6h"))
+        assertNotNull(findText(rootAfter, "Glukoseverlauf · 6h"))
         assertEquals("Before: $originalGeometry; after: scroll=${scroll.width}x${scroll.height}, content=${scroll.getChildAt(0).width}x${scroll.getChildAt(0).height}, root=${rootAfter.width}x${rootAfter.height}", originalScrollY, scroll.scrollY)
         activity.finish()
     }
