@@ -1042,9 +1042,9 @@ class CgmWatchActivityLayoutTest {
             assertNotNull(pill)
             val menuScroll = findScrollView(root)
             assertNotNull(menuScroll)
-            val page = menuScroll!!.getChildAt(0) as ViewGroup
-            assertSame(page, pill.parent)
-            assertSame(pill, page.getChildAt(page.childCount - 1))
+            val menuContent = menuScroll!!.getChildAt(0) as ViewGroup
+            assertSame(menuContent, pill.parent)
+            assertSame(pill, menuContent.getChildAt(menuContent.childCount - 1))
             for (tab in listOf("overview", "connections", "profile")) {
                 assertNotNull("Missing $tab on ${page.simpleName}", root.findViewWithTag<View>("nav-$tab"))
             }
