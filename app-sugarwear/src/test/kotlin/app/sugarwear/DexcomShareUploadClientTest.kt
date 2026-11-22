@@ -138,6 +138,31 @@ class DexcomShareUploadClientTest {
             assertTrue(http.requests.isEmpty())
         }
 
+    @Test fun `xDrip default is usable only after an explicit same-account assignment`() =
+        runBlocking {
+            for (reply in listOf("AssignedToYou", "NotAssigned", "AssignedToOther", "unexpected", "")) {
+                val http =
+                    FakeHttp { url, _ ->
+                        when {
+                            url.contains("AuthenticatePublisherAccount") -> DexcomShareHttpResponse(200, "\"$accountId\"")
+                            url.contains("LoginPublisherAccountById") -> DexcomShareHttpResponse(200, "\"$session\"")
+                            url.endsWith("Publisher/CheckMonitoredReceiverAssignmentStatus?sessionId=$session&serialNumber=SM00000000") ->
+                                DexcomShareHttpResponse(200, "\"$reply\"")
+                            else -> error("Unexpected request during assignment check")
+                        }
+                    }
+                val client = DexcomShareUploadClient(http)
+                client.testAccount(config)
+                val result = runCatching { client.checkReceiver(config) }
+                if (reply == "AssignedToYou") {
+                    assertEquals("SM00000000", result.getOrThrow())
+                } else {
+                    assertTrue(result.exceptionOrNull() is DexcomShareProtocolException)
+                }
+                assertEquals(3, http.requests.size)
+            }
+        }
+
     @Test fun `valid login does not falsely claim an uploaded glucose row`() =
         runBlocking {
             val http =

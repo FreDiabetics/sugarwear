@@ -92,8 +92,9 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 System.currentTimeMillis() - status.lastUploadEpochMs in 0L..900_000L
         val connectionText =
             when {
-                connecting -> "Konto wird geprüft"
+                connecting -> "Share wird geprüft"
                 ui.setupError -> "Einstellungen fehlgeschlagen"
+                status.lastConnectionEpochMs > 0L && status.error == DexcomShareUploadError.RECEIVER_NOT_ASSIGNED -> "Konto bestätigt · Kennung fehlt"
                 status.error != DexcomShareUploadError.NONE -> "Verbindungsfehler"
                 !status.enabled && status.lastConnectionEpochMs > 0L -> "Konto bestätigt"
                 !status.enabled -> "Übertragung aus"
@@ -205,8 +206,12 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 fields.addView(this, LinearLayout.LayoutParams(-1, dp(52)))
             }
         val account = field("Dexcom-Kontoname")
-        // Wear OS must not request passwords using a watch text field. The system
-        // credential picker handles user verification and never exposes the secret in a View.
+        val password =
+            manualSharePasswordField(this)?.also { editor ->
+                fields.addView(editor, LinearLayout.LayoutParams(-1, dp(52)))
+            }
+        account.isFocusableInTouchMode = password != null
+        account.isFocusable = password != null
         var selectedPassword: String? = null
         val credentialPicker =
             label("Gespeichertes Dexcom-Passwort wählen", Color.WHITE, true, 13f).apply {
@@ -230,7 +235,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     if (passwordCredential == null) {
                         Toast.makeText(this@CgmShareSettingsActivity, "Kein Passwort ausgewählt", Toast.LENGTH_SHORT).show()
                     } else {
-                        selectedPassword = passwordCredential.password
+                        if (password == null) selectedPassword = passwordCredential.password else password.setText(passwordCredential.password)
                         account.setText(passwordCredential.id)
                         credentialPicker.text = "Passwort sicher ausgewählt"
                     }
@@ -241,7 +246,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     Toast
                         .makeText(
                             this@CgmShareSettingsActivity,
-                            "Keine passenden gespeicherten Zugangsdaten. Bitte einen unterstützten Passwortmanager einrichten.",
+                            "Keine passenden gespeicherten Zugangsdaten.",
                             Toast.LENGTH_LONG,
                         ).show()
                 } catch (error: Exception) {
@@ -282,21 +287,25 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 .setTitle("Dexcom Share")
                 .setView(android.widget.ScrollView(this).apply { addView(fields) })
                 .setNegativeButton("Abbrechen", null)
-                .setPositiveButton("Speichern", null)
+                .setPositiveButton("Speichern und prüfen", null)
                 .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val user = account.text.toString().trim()
-                val secret = selectedPassword
+                val secret = password?.text?.toString() ?: selectedPassword
                 if (user.isBlank() || secret.isNullOrBlank()) {
-                    Toast.makeText(this, "Dexcom-Kontoname eingeben und gespeichertes Passwort wählen", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Dexcom-Kontoname und Passwort angeben", Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
                 dialog.dismiss()
                 settings.saveAccount(user, secret, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
             }
         }
-        dialog.setOnDismissListener { selectedPassword = null }
+        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        dialog.setOnDismissListener {
+            password?.text?.clear()
+            selectedPassword = null
+        }
         dialog.show()
     }
 
@@ -310,7 +319,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             AlertDialog
                 .Builder(this)
                 .setTitle("Share-Empfänger")
-                .setMessage("Gib die für dein Dexcom-Konto verwendete Share-Upload-Kennung ein. Der vierstellige G7-Kopplungscode gehört zum Sensor.")
+                .setMessage("Bei einem funktionierenden xDrip+-Upload steht die Kennung unter Cloud-Upload → Dexcom Share Server Upload. Bei einem Share-Empfänger steht die Seriennummer (SN) auf der Rückseite. SugarWear prüft die Zuordnung bei Dexcom.")
                 .setView(serial)
                 .setNegativeButton("Abbrechen", null)
                 .setPositiveButton("Speichern", null)
@@ -354,7 +363,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             DexcomShareUploadError.NETWORK -> "Dexcom Share derzeit nicht erreichbar."
             DexcomShareUploadError.SCHEDULING -> "Hintergrundübertragung konnte nicht gestartet werden."
             DexcomShareUploadError.AUTHENTICATION -> "Konto oder Passwort prüfen."
-            DexcomShareUploadError.RECEIVER_NOT_ASSIGNED -> "Share-Receiver ist dem Konto nicht zugeordnet."
+            DexcomShareUploadError.RECEIVER_NOT_ASSIGNED -> "Dexcom bestätigt die geprüfte Kennung für dieses Konto nicht. Unter „Share-Empfänger einrichten“ findest du Hinweise."
             DexcomShareUploadError.RECEIVER_MISMATCH -> "Share-Receiver-Seriennummer stimmt nicht überein."
             DexcomShareUploadError.MONITORING -> "Remote-Monitoring-Sitzung nicht aktiv."
             DexcomShareUploadError.RATE_LIMIT -> "Server begrenzt die Anfragehäufigkeit."

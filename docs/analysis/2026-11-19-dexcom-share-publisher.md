@@ -24,7 +24,7 @@ The required Share **receiver/upload serial is not the G7 four-digit pairing cod
 - `DexcomShareUploadStore.kt`: separate Android Keystore AES-GCM credentials, region, opt-in, monotonically revisioned, per-account/session hashed upload cursor and nonsecret diagnostic status.
 - `DexcomShareUploadClient.kt`: HTTPS publisher authentication and uploaded EGV batches; monitoring/session recovery once each; duplicate-batch ambiguity triggers per-reading fallback. No read access to BLE or alarm components.
 - `DexcomShareUploadWorker.kt`: unique, constrained WorkManager immediate uploads plus a bounded 15-minute recovery check. Network failures defer under exponential backoff. No time-critical alarm work is scheduled here.
-- `CgmShareSettingsActivity.kt`: One UI Watch black-background Share & Follow, account setup through Wear OS Credential Manager password selection (never a password EditText on the watch), region selection, consent-gated activation, explicit login test, status, disable and account removal.
+- `CgmShareSettingsActivity.kt`: One UI Watch black-background Share & Follow, account setup through Wear OS Credential Manager, with masked keyboard entry available in the private debug build, region selection, consent-gated activation, explicit login test, status, disable and account removal.
 - Existing `CgmReadingDatabase.kt` only signals WorkManager when new state is published, and only if the feature has been expressly enabled.
 
 ## Threats and safeguards
@@ -37,7 +37,8 @@ The required Share **receiver/upload serial is not the G7 four-digit pairing cod
 
 ## Unresolved gates
 
-- Onboarding: Wear OS cannot create password credentials. Credential Manager only returns credentials accessible to this app or a supported associated service; a Dexcom password stored solely for the Dexcom app/site may **not** be available to SugarWear. If the picker has no matching credentials, setup remains unavailable. A separately reviewed, secure phone-onboarding mechanism or officially supported authentication would be needed for general deployment. Never weaken Android WearPasswordInput lint or show a raw password field on the watch.
+- The private debug build accepts a typed password, disables view-state saving and keyboard learning for that field, and protects the account dialog against screen capture. The release build uses Credential Manager in line with Wear OS quality requirement WO-P6. Availability there depends on a matching saved credential.
+- After saving credentials, SugarWear checks the account. If it lacks a saved receiver, it queries the assignment of the default used by [xDrip+ NewDataObserver](https://github.com/NightscoutFoundation/xDrip/blob/cb3a3a8be3a2ad8af9d8723227893bbc7f2a2b55/app/src/main/java/com/eveningoutpost/dexdrip/NewDataObserver.java). Only an explicit `AssignedToYou` reply permits saving that candidate. A user-supplied serial uses the same read-only assignment check. Receiver replacement is never requested.
 - Product/legal: Dexcom German Terms restrict unauthorized third-party automated services and commercial usage; verify written authorization/terms and medical-device duties before distributing this feature. Do not describe an unsupported endpoint as official.
 - Compatibility: With an expressly authorized account and legitimately assigned upload receiver, prove login, Share HTTP receipt, actual value/time in the **official Dexcom Follow app**, sensor changes, repeat/duplicate behavior and delayed watch uploads.
 - Operational: Test on Samsung Galaxy Watch and Pixel Watch over watch Wi-Fi and LTE where available, with phone absent, background/doze/reboot/battery restrictions, lost network and expired sessions. Watch must continue providing local alarms regardless of Share state.

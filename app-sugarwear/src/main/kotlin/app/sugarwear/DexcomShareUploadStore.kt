@@ -100,10 +100,11 @@ internal class DexcomShareUploadStore(
         }
     }
 
-    fun saveReceiver(serial: String) {
+    fun saveReceiver(serial: String, expectedRevision: Long) {
         require(isValidShareReceiver(serial))
         synchronized(lock) {
-            check(readConfig() != null && !enabled())
+            if (revision() != expectedRevision || enabled()) return
+            check(readConfig() != null)
             check(
                 preferences
                     .edit()

@@ -72,6 +72,18 @@ internal class DexcomShareUploadClient(
             Unit
         }
 
+    /** Only a positive assignment for this authenticated account can supply an upload serial. */
+    suspend fun checkReceiver(config: DexcomShareUploadConfig, candidate: String = XDRIP_DEFAULT_RECEIVER): String =
+        withContext(Dispatchers.IO) {
+            require(isValidShareReceiver(candidate))
+            val result = request(config, "Publisher/CheckMonitoredReceiverAssignmentStatus", null, authenticate(config), candidate)
+            when (result.trim()) {
+                "AssignedToYou", "\"AssignedToYou\"" -> candidate
+                "NotAssigned", "\"NotAssigned\"" -> throw DexcomShareProtocolException(DexcomShareUploadError.RECEIVER_NOT_ASSIGNED)
+                else -> throw DexcomShareProtocolException(DexcomShareUploadError.SERVER)
+            }
+        }
+
     /** Returns only on confirmed server acceptance. Reauthentication and monitoring recovery are bounded. */
     suspend fun upload(config: DexcomShareUploadConfig, rows: List<DexcomShareEgv>) =
         withContext(Dispatchers.IO) {
@@ -205,6 +217,9 @@ internal class DexcomShareUploadClient(
     private companion object {
         // Public application identifier used by the independently implemented Share protocol.
         const val APPLICATION_ID = "d89443d2-327c-4a6f-89e5-496bbb0317db"
+
+        // xDrip+ NewDataObserver supplies this default when share_key is absent.
+        const val XDRIP_DEFAULT_RECEIVER = "SM00000000"
         const val ZERO_UUID = "00000000-0000-0000-0000-000000000000"
     }
 }
