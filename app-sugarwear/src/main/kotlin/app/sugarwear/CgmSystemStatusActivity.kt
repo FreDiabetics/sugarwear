@@ -129,7 +129,7 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                     .pagePadding(this)
                 setBackgroundColor(background)
                 addView(
-                    cgmSettingsHeader(selectedSection?.let(::sectionTitle) ?: "Systemstatus", palette) { navigateBack() },
+                    cgmSettingsHeader(selectedSection?.let(::sectionTitle) ?: "Systemstatus", palette),
                     LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
                 )
 
