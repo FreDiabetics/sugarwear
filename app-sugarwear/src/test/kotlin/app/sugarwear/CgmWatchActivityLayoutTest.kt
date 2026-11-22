@@ -476,9 +476,9 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `sensor actions are only available from settings`() {
+    fun `sensor management stays outside the overview`() {
         val overview = Robolectric.buildActivity(CgmWatchActivity::class.java).also { activeControllers += it }.setup()
-        val settings = Robolectric.buildActivity(CgmSettingsActivity::class.java).also { activeControllers += it }.setup()
+        val settings = Robolectric.buildActivity(CgmConnectionsActivity::class.java).also { activeControllers += it }.setup()
         val sensor = Robolectric.buildActivity(CgmSystemStatusActivity::class.java).also { activeControllers += it }.setup()
         try {
             assertNull(
@@ -1036,8 +1036,8 @@ class CgmWatchActivityLayoutTest {
         }
         collect(root)
 
-        assertNotNull(findText(root, "Sensorempfang"))
-        assertEquals(listOf("Anzeige", "Berechtigungen", "Alarme", "Sensor", "Vigil", "Share & Follow", "Über"), CgmSettingsSection.entries.map { it.title })
+        assertNotNull(findText(root, "Profil"))
+        assertEquals(listOf("Alarme", "In-App", "Tiles", "Vigil", "Berechtigungen", "Über"), CgmSettingsSection.entries.map { it.title })
         assertEquals(
             CgmSettingsSection.entries.map { "settings-category-${it.name.lowercase()}" },
             headers.map { it.tag.toString() },
@@ -1050,14 +1050,14 @@ class CgmWatchActivityLayoutTest {
     fun `system status entry opens system status`() {
         val activity =
             Robolectric
-                .buildActivity(CgmSettingsActivity::class.java)
+                .buildActivity(CgmConnectionsActivity::class.java)
                 .also { activeControllers += it }
                 .setup()
                 .get()
                 .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
-        root.findViewWithTag<View>("settings-category-sugarwear").performClick()
+        root.findViewWithTag<View>("connections-systemstatus").performClick()
 
         assertEquals(
             CgmSystemStatusActivity::class.java.name,
@@ -1290,11 +1290,11 @@ class CgmWatchActivityLayoutTest {
         assertFalse(texts.any { it == "Collector starten" || it == "Collector stoppen" })
         assertFalse(texts.contains("←"))
         val root = activity.findViewById<View>(android.R.id.content)
-        val settings = findText(root, "Einstellungen")
-        assertTrue(settings is android.widget.Button)
-        assertNotNull((settings as android.widget.Button).compoundDrawablesRelative[0])
+        assertNotNull(root.findViewWithTag<View>("nav-overview"))
+        assertNotNull(root.findViewWithTag<View>("nav-connections"))
+        assertNotNull(root.findViewWithTag<View>("nav-profile"))
+        assertNull(findText(root, "Einstellungen"))
         assertNull(findImageByDescription(root, "SugarWear"))
-        assertTrue(containsNativeButton(root))
         activity.finish()
     }
 
@@ -1348,7 +1348,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `overview omits system status pill and native settings action opens settings`() {
+    fun `overview opens profile from the permanent footer`() {
         val activity =
             Robolectric
                 .buildActivity(CgmWatchActivity::class.java)
@@ -1364,11 +1364,10 @@ class CgmWatchActivityLayoutTest {
 
         assertNull(findText(root, "Systemstatus"))
 
-        val settings = findText(root, "Einstellungen")
-        assertTrue(settings is android.widget.Button)
-        assertNotNull((settings as android.widget.Button).compoundDrawablesRelative[0])
-        assertTrue(settings.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
-        settings.performClick()
+        val profile = root.findViewWithTag<View>("nav-profile")
+        assertNotNull(profile)
+        assertTrue(profile.minimumHeight >= (48 * activity.resources.displayMetrics.density).toInt())
+        profile.performClick()
         assertEquals(
             CgmSettingsActivity::class.java.name,
             Shadows

@@ -70,6 +70,10 @@
             android:name=".CgmSettingsActivity"
             android:exported="false"
             android:taskAffinity="" />
+        <activity
+            android:name=".CgmConnectionsActivity"
+            android:exported="false"
+            android:taskAffinity="" />
         <activity android:name=".CgmSetupActivity" android:exported="false" android:taskAffinity="" />
         <activity android:name=".CgmShareSettingsActivity" android:exported="false" android:taskAffinity="" />
         <activity

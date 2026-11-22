@@ -33,6 +33,19 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         set(value) = navigation.selectCategory(value)
     private val categoryTitles = linkedSetOf<String>()
 
+    private fun visibleCategory(title: String): Boolean =
+        when (intent.getStringExtra(EXTRA_SCOPE)) {
+            SCOPE_IN_APP -> !title.startsWith("WearOS-Tile")
+            SCOPE_TILES -> title.startsWith("WearOS-Tile")
+            else -> true
+        }
+
+    companion object {
+        internal const val EXTRA_SCOPE = "sugarwear.appearance.scope"
+        internal const val SCOPE_IN_APP = "in_app"
+        internal const val SCOPE_TILES = "tiles"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bindSettingsState(navigation.state, render = ::render)
@@ -46,7 +59,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
                 }
             },
         )
-        selectedCategory = savedInstanceState?.getString("settings-category")
+        selectedCategory = savedInstanceState?.getString("settings-category")?.takeIf(::visibleCategory)
         pageRoot = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         scrollView =
             CgmEdgeFadeScrollView(this)
@@ -417,7 +430,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         content = pageRoot
         addCategoryNavigation(palette)
 
-        if (selectedCategory == null) {
+        if (selectedCategory == null && intent.getStringExtra(EXTRA_SCOPE) == null) {
             content.addView(
                 pill("Alle Darstellungen zurücksetzen", palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), palette.settingsArgb(CgmAppearanceRole.MENU_BACKGROUND)) {
                     store.resetAll()
@@ -443,7 +456,7 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
     private fun addCategoryNavigation(palette: CgmAppearancePalette) {
         if (selectedCategory != null) return
         val rows =
-            categoryTitles.map { title ->
+            categoryTitles.filter(::visibleCategory).map { title ->
                 app.sugarlicious.uishared.WearSettingsUi
                     .navigationRow(
                         this,
@@ -476,7 +489,15 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
         }
     }
 
-    private fun topBar(palette: CgmAppearancePalette) = cgmSettingsHeader(selectedCategory ?: "Anzeige", palette)
+    private fun topBar(palette: CgmAppearancePalette) =
+        cgmSettingsHeader(
+            selectedCategory ?: when (intent.getStringExtra(EXTRA_SCOPE)) {
+                SCOPE_IN_APP -> "In-App"
+                SCOPE_TILES -> "Tiles"
+                else -> "Anzeige"
+            },
+            palette,
+        )
 
     private fun tileHoursRow(palette: CgmAppearancePalette) =
         LinearLayout(this).apply {

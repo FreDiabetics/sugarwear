@@ -8,6 +8,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -136,8 +138,21 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
             stateBindings.forEach { it() }
             val screen = content.collectAsStateWithLifecycle().value
             AndroidView(
-                factory = { FrameLayout(it).also { frame -> host = frame } },
-                update = { frame -> screen?.let { attach(frame, it) } },
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    LinearLayout(context).apply {
+                        orientation = LinearLayout.VERTICAL
+                        val frame = FrameLayout(context).also { host = it }
+                        addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
+                        CgmBottomNavigation.tabFor(this@CgmSettingsComposeActivity)?.let { tab ->
+                            addView(
+                                CgmBottomNavigation.footer(this@CgmSettingsComposeActivity, tab),
+                                LinearLayout.LayoutParams(-1, -2),
+                            )
+                        }
+                    }
+                },
+                update = { _ -> screen?.let { view -> host?.let { attach(it, view) } } },
             )
         }
     }

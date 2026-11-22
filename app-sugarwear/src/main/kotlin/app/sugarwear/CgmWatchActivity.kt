@@ -218,8 +218,18 @@ class CgmWatchActivity : ComponentActivity() {
     }
 
     private fun showScreen(view: View) {
+        (view.parent as? ViewGroup)?.removeView(view)
         screenHost.removeAllViews()
-        screenHost.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        val shell =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
+                addView(
+                    CgmBottomNavigation.footer(this@CgmWatchActivity, CgmNavTab.OVERVIEW),
+                    LinearLayout.LayoutParams(-1, -2),
+                )
+            }
+        screenHost.addView(shell, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun refreshScreen() {
@@ -503,22 +513,6 @@ class CgmWatchActivity : ComponentActivity() {
         graphHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(graphHost, cardParams(top = 18))
         content.addView(header())
-
-        content.addView(
-            android.widget.Button(this).apply {
-                app.sugarlicious.uishared.WearOverviewSettingsButton.apply(
-                    this,
-                    R.drawable.ic_settings,
-                    palette.argb(CgmAppearanceRole.MENU_SURFACE),
-                    palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                )
-                setOnClickListener { startActivity(Intent(this@CgmWatchActivity, CgmSettingsActivity::class.java)) }
-            },
-            cardParams(top = 12).apply {
-                marginStart = 6.dp
-                marginEnd = 6.dp
-            },
-        )
         scrollView =
             CgmEdgeFadeScrollView(this)
                 .apply {
