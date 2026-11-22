@@ -545,7 +545,7 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
         return time / 100 * 60 + time % 100
     }
 
-    private fun topBar(palette: CgmAppearancePalette) = cgmSettingsHeader(selectedAlarm?.let(::cgmAlarmTitle) ?: alarmPage ?: "Alarme", palette) { navigateBack() }
+    private fun topBar(palette: CgmAppearancePalette) = cgmSettingsHeader(selectedAlarm?.let(::cgmAlarmTitle) ?: alarmPage ?: "Alarme", palette)
 
     private fun navigateBack() {
         if (selectedAlarm == null && alarmPage == null) {
