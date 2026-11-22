@@ -1019,6 +1019,58 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
+    @Config(qualifiers = "w192dp-h192dp-round")
+    fun `three tabs remain available in connections profile and nested settings`() {
+        val pages =
+            listOf(
+                CgmConnectionsActivity::class.java,
+                CgmSettingsActivity::class.java,
+                CgmAppearanceActivity::class.java,
+                CgmDirectToWatchSettingsActivity::class.java,
+            )
+        for (page in pages) {
+            val activity =
+                Robolectric
+                    .buildActivity(page)
+                    .also { activeControllers += it }
+                    .setup()
+                    .visible()
+                    .get()
+                    .awaitUi()
+            val root = activity.window.decorView
+            assertNotNull(root.findViewWithTag<View>("sugarwear-footer"))
+            for (tab in listOf("overview", "connections", "profile")) {
+                assertNotNull("Missing $tab on ${page.simpleName}", root.findViewWithTag<View>("nav-$tab"))
+            }
+            val selected = if (activity is CgmConnectionsActivity) "nav-connections" else "nav-profile"
+            assertTrue(root.findViewWithTag<View>(selected).isSelected)
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w192dp-h192dp-round")
+    fun `connections show ten lifetime segments and unavailable health placeholder`() {
+        val activity =
+            Robolectric
+                .buildActivity(CgmConnectionsActivity::class.java)
+                .also { activeControllers += it }
+                .setup()
+                .visible()
+                .get()
+                .awaitUi()
+        awaitCondition(activity) {
+            activity.window.decorView.findViewWithTag<View>("sensor-life-segments") != null
+        }
+        val root = activity.window.decorView
+        val segments = root.findViewWithTag<View>("sensor-life-segments") as ViewGroup
+        assertEquals(10, segments.childCount)
+        val health = root.findViewWithTag<View>("connections-health-placeholder")
+        assertNotNull(health)
+        assertFalse(health.isClickable)
+        assertNotNull(findText(root, "Noch nicht integriert"))
+    }
+
+    @Test
     fun `collector settings contain product sections and retain about`() {
         val activity =
             Robolectric

@@ -10,7 +10,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.viewModels
-import app.sugarlicious.sensor.protocol.CgmSensorState
 
 /** Home for sensor management and outgoing integrations, without a second collector. */
 @dagger.hilt.android.AndroidEntryPoint
@@ -62,16 +61,13 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                 ),
             )
             if (sensor != null) {
-                val stateText =
-                    when {
-                        !state.collectorEnabled -> "Datenempfang pausiert"
-                        sensor.state == CgmSensorState.WARMUP -> "Sensoraufwärmung"
-                        sensor.state == CgmSensorState.GRACE_PERIOD -> "Nachlaufphase"
-                        sensor.state == CgmSensorState.ENDED -> "Sensorlaufzeit beendet"
-                        sensor.state == CgmSensorState.ERROR -> "Sensorfehler"
-                        else -> "Sensor verbunden"
-                    }
-                addView(label(stateText, 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
+                addView(
+                    label(
+                        cgmConnectionsSensorStatus(state, System.currentTimeMillis()),
+                        10f,
+                        palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                    ),
+                )
             }
             val lifetime = cgmSensorLifetime(state, System.currentTimeMillis())
             addView(segments(lifetime?.remainingDaySegments ?: 0, lifetime?.hasVerifiedEnd == true), cardSpacing(12))
