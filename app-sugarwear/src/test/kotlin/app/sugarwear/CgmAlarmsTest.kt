@@ -128,6 +128,9 @@ class CgmAlarmsTest {
 
     @Before
     fun setUp() {
+        // Real alarm delivery requires POST_NOTIFICATIONS on API 33+.
+        // Denied-permission behavior is covered by its own explicit test.
+        shadowOf(context as android.app.Application).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
         CgmSensorStateStore(context).save(
             app.sugarlicious.sensor.protocol
                 .CgmPersistedState(collectorEnabled = true),
@@ -170,6 +173,24 @@ class CgmAlarmsTest {
         assertNotNull(restored)
         assertNull(restored.fullScreenIntent)
         assertNotNull(restored.contentIntent)
+    }
+
+    @Test
+    fun `denied notification permission retains the alarm for restoration`() {
+        val application = context as android.app.Application
+        val shadow = shadowOf(application)
+        shadow.denyPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        try {
+            CgmAlarmCoordinator.onReading(context, reading("sensor-a", "session-a", 65.0), NOW)
+            assertTrue(CgmAlarmCoordinator.isActive(context, SugarWearAlarmType.LOW))
+            assertNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+
+            shadow.grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+            CgmAlarmCoordinator.restore(context, NOW + 1_000L)
+            assertNotNull(shadowOf(notificationManager).getNotification(LOW_NOTIFICATION_ID))
+        } finally {
+            shadow.grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     @Test

@@ -312,6 +312,17 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                             )
                             addView(row("Geräte in der Nähe", if (hasNearbyPermission()) "Erlaubt" else "Nicht erlaubt", palette))
                             addView(row("Benachrichtigungen", if (hasNotificationPermission()) "Erlaubt" else "Nicht erlaubt", palette))
+                            val notificationReadiness = cgmAlarmNotificationOverview(snapshot.access)
+                            addView(row("Alarmzustellung", notificationReadiness.label, palette))
+                            if (notificationReadiness != CgmAlarmNotificationReadiness.READY) {
+                                addView(
+                                    label(
+                                        "Die Uhreinstellungen können Alarme unterdrücken. Prüfe die App-Benachrichtigungen und Alarmkanäle; ein Hintergrunddienst erzwingt keine Einblendung.",
+                                        10f,
+                                        palette.argb(CgmAppearanceRole.GLUCOSE_ERROR),
+                                    ),
+                                )
+                            }
                             addView(row("Retry", state.retryCount.toString(), palette))
                             addPermissionRows(this, palette)
                         },

@@ -222,6 +222,7 @@ internal class CgmReadingDatabase(
         )
         DirectToWatchPreferences.requestUpdates(appContext)
         CgmCollectorTileService.requestUpdate(appContext)
+        DexcomShareUploadScheduler.onReadingsChanged(appContext)
     }
 
     /** Coalesces a history transaction into one provider/broadcast/tile fanout. */

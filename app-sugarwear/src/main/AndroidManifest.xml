@@ -4,6 +4,7 @@
     <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -70,6 +71,7 @@
             android:exported="false"
             android:taskAffinity="" />
         <activity android:name=".CgmSetupActivity" android:exported="false" android:taskAffinity="" />
+        <activity android:name=".CgmShareSettingsActivity" android:exported="false" android:taskAffinity="" />
         <activity
             android:name=".CgmAlarmSettingsActivity"
             android:exported="false"
