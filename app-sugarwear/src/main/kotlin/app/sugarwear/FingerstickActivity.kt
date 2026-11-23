@@ -23,12 +23,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 
 internal class FingerstickModel(
     application: Application,
     private val state: SavedStateHandle,
 ) : AndroidViewModel(application) {
+    private val journal = FingerstickJournal(application)
     private val id = state.get<String>("id") ?: UUID.randomUUID().toString().also { state["id"] = it }
     var measuredAt: Long
         get() = checkNotNull(state["measuredAt"])
@@ -36,6 +36,10 @@ internal class FingerstickModel(
 
     init {
         if (!state.contains("measuredAt")) measuredAt = System.currentTimeMillis()
+    }
+
+    override fun onCleared() {
+        journal.close()
     }
 
     enum class Status { READY, SAVING, SAVED, INVALID, ERROR }
@@ -53,9 +57,12 @@ internal class FingerstickModel(
         status.value = Status.SAVING
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) {
-                val store = getApplication<Application>().getSharedPreferences("fingerstick_events", 0)
-                val entry = JSONObject().put("value", value).put("unit", unit).put("measuredAt", time)
-                store.contains(id) || store.edit().putString(id, entry.toString()).commit()
+                try {
+                    journal.record(id, value, unit, time)
+                    true
+                } catch (_: android.database.SQLException) {
+                    false
+                }
             }
             status.value = if (saved) Status.SAVED else Status.ERROR
         }
@@ -91,7 +98,7 @@ class FingerstickActivity : ComponentActivity() {
         panel.addView(unit)
         val time = Button(this)
         fun updateTime() {
-            time.text = getString(R.string.fingerstick_time, android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(model.measuredAt)))
+            time.text = getString(R.string.fingerstick_time, java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(model.measuredAt)))
         }
         updateTime()
         time.setOnClickListener {
