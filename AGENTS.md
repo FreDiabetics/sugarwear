@@ -54,3 +54,7 @@ Diese Regeln ergänzen bestehende Projektvorgaben. Zuverlässige CGM-Daten, best
 - `main` bleibt der stabile, geprüfte Stand. Änderungen ausschließlich nach bestandenem Qualitäts-Gate gezielt von `dev` nach `main` übernehmen.
 - Keine neuen Feature-, Fix- oder Codex-Branches und keine zusätzlichen Worktrees für reguläre Aufgaben. Ausnahmen nur nach ausdrücklicher Nutzerfreigabe.
 - Keine Änderungen am Repository `FreDiabetics/sugarlicious`; Schnittstellenbedarf nur dokumentieren.
+
+## Zielbranch
+
+Alle Änderungen direkt auf `dev` vornehmen. Keine zusätzlichen Branches, Git-Worktrees oder Pull Requests anlegen.

@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -51,25 +52,45 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         val state = snapshot.sensor
         val sensorCard = card(palette)
         sensorCard.apply {
-            addView(label("SENSOR", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true))
             val sensor = state.sensor
+            val details =
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(label("SENSOR", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true))
+                    addView(
+                        label(
+                            sensor?.deviceName?.takeIf { it.isNotBlank() } ?: if (sensor == null) "Kein aktiver Sensor verbunden" else "Dexcom G7",
+                            14f,
+                            palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                            true,
+                        ),
+                    )
+                    if (sensor != null) {
+                        addView(
+                            label(
+                                cgmConnectionsSensorStatus(state, System.currentTimeMillis()),
+                                10f,
+                                palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                            ),
+                        )
+                    }
+                }
             addView(
-                label(
-                    sensor?.deviceName?.takeIf { it.isNotBlank() } ?: if (sensor == null) "Kein aktiver Sensor verbunden" else "Dexcom G7",
-                    14f,
-                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                    true,
-                ),
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(details, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(
+                        ImageView(context).apply {
+                            setImageResource(R.drawable.ic_sensor_outline)
+                            setColorFilter(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        },
+                        LinearLayout.LayoutParams(32.dp, 32.dp).apply { marginStart = 8.dp },
+                    )
+                },
+                fullWidth(),
             )
-            if (sensor != null) {
-                addView(
-                    label(
-                        cgmConnectionsSensorStatus(state, System.currentTimeMillis()),
-                        10f,
-                        palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
-                    ),
-                )
-            }
             val lifetime = cgmSensorLifetime(state, System.currentTimeMillis())
             addView(
                 segments(
@@ -104,42 +125,32 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                     )
                 }
             }
-            addView(
-                action(
-                    if (sensor == null) "Sensor verbinden" else "Sensor verwalten",
-                    palette,
-                    if (sensor == null) "connections-start-pairing" else "connections-manage-sensor",
-                ) {
-                    if (sensor == null) {
-                        startActivity(
-                            Intent(this@CgmConnectionsActivity, CgmWatchActivity::class.java)
-                                .putExtra(CgmWatchActivity.EXTRA_OPEN_PAIRING, true)
-                                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
-                        )
-                    } else {
-                        startActivity(Intent(this@CgmConnectionsActivity, CgmSystemStatusActivity::class.java))
-                    }
-                },
-                cardSpacing(7),
-            )
-            addView(
-                action("Sensorstatus & Diagnose", palette, "connections-systemstatus") {
+            tag = if (sensor == null) "connections-start-pairing" else "connections-manage-sensor"
+            isFocusable = true
+            setOnClickListener {
+                if (sensor == null) {
+                    startActivity(
+                        Intent(this@CgmConnectionsActivity, CgmWatchActivity::class.java)
+                            .putExtra(CgmWatchActivity.EXTRA_OPEN_PAIRING, true)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    )
+                } else {
                     startActivity(Intent(this@CgmConnectionsActivity, CgmSystemStatusActivity::class.java))
-                },
-                cardSpacing(4),
-            )
+                }
+            }
         }
         root.addView(sensorCard, cardSpacing(10))
 
         root.addView(
             card(palette).apply {
-                addView(label("Dexcom Share", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
-                addView(
-                    action("Share & Follow öffnen", palette, "connections-share") {
-                        startActivity(Intent(this@CgmConnectionsActivity, CgmShareSettingsActivity::class.java))
-                    },
-                    cardSpacing(6),
-                )
+                tag = "connections-share"
+                minimumHeight = 48.dp
+                gravity = Gravity.CENTER_VERTICAL
+                isFocusable = true
+                addView(label("Follower Funktion", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                setOnClickListener {
+                    startActivity(Intent(this@CgmConnectionsActivity, CgmShareSettingsActivity::class.java))
+                }
             },
             cardSpacing(10),
         )
@@ -200,23 +211,6 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                     },
                 )
             }
-        }
-
-    private fun action(title: String, palette: CgmAppearancePalette, viewTag: String, onClick: () -> Unit): View =
-        TextView(this).apply {
-            tag = viewTag
-            text = title
-            textSize =
-                app.sugarlicious.uishared.WearSettingsUi
-                    .textSize(11f)
-            setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
-            app.sugarlicious.uishared.SystemTypography
-                .apply(this, true)
-            gravity = Gravity.CENTER
-            minimumHeight = 48.dp
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { onClick() }
         }
 
     private fun card(palette: CgmAppearancePalette): LinearLayout =

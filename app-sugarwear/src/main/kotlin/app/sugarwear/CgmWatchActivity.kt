@@ -502,7 +502,7 @@ class CgmWatchActivity : ComponentActivity() {
             }
         content.addView(glucoseHost, cardParams(top = 4))
         graphHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(graphHost, cardParams(top = 18))
+        content.addView(graphHost, cardParams(top = 8))
         content.addView(header())
         CgmBottomNavigation.appendAtEnd(this, content, CgmNavTab.OVERVIEW)
         scrollView =
@@ -609,6 +609,14 @@ class CgmWatchActivity : ComponentActivity() {
                         WearGlucoseCardStyle.CARD_RADIUS_DP,
                     )
             }
+
+        fun addFingerstickAction() {
+            tile.addView(
+                pill(getString(R.string.fingerstick_log)) {
+                    startActivity(Intent(this, FingerstickActivity::class.java))
+                },
+            )
+        }
 
         val now = overviewState.now
         val persisted = overviewState.snapshot?.persisted ?: CgmPersistedState()
@@ -798,6 +806,7 @@ class CgmWatchActivity : ComponentActivity() {
                     )
                 }
             }
+            addFingerstickAction()
             return tile
         }
 
@@ -914,6 +923,7 @@ class CgmWatchActivity : ComponentActivity() {
             metadata,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
+        addFingerstickAction()
         return tile
     }
 
