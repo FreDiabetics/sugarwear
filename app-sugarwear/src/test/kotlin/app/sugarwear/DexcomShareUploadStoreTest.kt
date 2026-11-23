@@ -90,6 +90,18 @@ class DexcomShareUploadStoreTest {
         assertEquals(0L, store.status().lastUploadEpochMs)
     }
 
+    @Test fun `successful login clears old account server status but preserves a receiver failure`() {
+        store.markError(config, DexcomShareUploadError.ACCOUNT_SERVER, 503)
+        assertEquals(503, store.status().httpStatus)
+        store.markVerified(config, 1_800_000_000_000L)
+        assertEquals(null, store.status().httpStatus)
+        assertEquals(DexcomShareUploadError.NONE, store.status().error)
+        store.markError(config, DexcomShareUploadError.RECEIVER_SERVER, 404)
+        store.markVerified(config, 1_800_000_000_000L)
+        assertEquals(404, store.status().httpStatus)
+        assertEquals(DexcomShareUploadError.RECEIVER_SERVER, store.status().error)
+    }
+
     @Test fun `failed auth error clears only after later successful login`() {
         store.markError(config, DexcomShareUploadError.AUTHENTICATION)
         assertEquals(DexcomShareUploadError.AUTHENTICATION, store.status().error)

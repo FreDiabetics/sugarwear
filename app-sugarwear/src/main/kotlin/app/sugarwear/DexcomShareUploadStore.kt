@@ -36,6 +36,12 @@ internal enum class DexcomShareUploadError {
     MONITORING,
     RATE_LIMIT,
     SERVER,
+    ACCOUNT_SERVER,
+    ACCOUNT_RESPONSE,
+    LOGIN_LIMIT,
+    RECEIVER_SERVER,
+    RECEIVER_RESPONSE,
+    UPLOAD_SERVER,
 }
 
 internal data class DexcomShareUploadStatus(
@@ -46,6 +52,7 @@ internal data class DexcomShareUploadStatus(
     val lastConnectionEpochMs: Long,
     val lastUploadEpochMs: Long,
     val error: DexcomShareUploadError,
+    val httpStatus: Int?,
 )
 
 /** Share secrets use their own Keystore key; they never enter BLE credentials or logs. */
@@ -62,6 +69,7 @@ internal class DexcomShareUploadStore(
             region = region(),
             lastConnectionEpochMs = preferences.getLong(KEY_LAST_CONNECTION, 0L),
             lastUploadEpochMs = preferences.getLong(KEY_LAST_UPLOAD, 0L),
+            httpStatus = preferences.getInt(KEY_HTTP_STATUS, 0).takeIf { it in 300..599 },
             error =
                 runCatching { DexcomShareUploadError.valueOf(preferences.getString(KEY_ERROR, "NONE") ?: "NONE") }
                     .getOrDefault(DexcomShareUploadError.SERVER),
@@ -95,6 +103,7 @@ internal class DexcomShareUploadStore(
                     .remove(KEY_LAST_UPLOAD)
                     .remove(KEY_LAST_CONNECTION)
                     .remove(KEY_ERROR)
+                    .remove(KEY_HTTP_STATUS)
                     .commit(),
             ) { "Dexcom Share account could not be persisted" }
         }
@@ -104,7 +113,29 @@ internal class DexcomShareUploadStore(
         require(isValidShareReceiver(serial))
         synchronized(lock) {
             if (revision() != expectedRevision || enabled()) return
-            check(readConfig() != null)
+            val config = checkNotNull(readConfig())
+            if (config.receiverSerial == serial) {
+                // Rechecking the same receiver must preserve the last confirmed upload.
+                val error = status().error
+                if (error in
+                    setOf(
+                        DexcomShareUploadError.RECEIVER_SERVER,
+                        DexcomShareUploadError.RECEIVER_RESPONSE,
+                        DexcomShareUploadError.RECEIVER_NOT_ASSIGNED,
+                        DexcomShareUploadError.RECEIVER_MISMATCH,
+                        DexcomShareUploadError.SERVER,
+                    )
+                ) {
+                    check(
+                        preferences
+                            .edit()
+                            .remove(KEY_ERROR)
+                            .remove(KEY_HTTP_STATUS)
+                            .commit(),
+                    )
+                }
+                return
+            }
             check(
                 preferences
                     .edit()
@@ -112,6 +143,7 @@ internal class DexcomShareUploadStore(
                     .putLong(KEY_REVISION, revision() + 1L)
                     .remove(KEY_LAST_UPLOAD)
                     .remove(KEY_ERROR)
+                    .remove(KEY_HTTP_STATUS)
                     .commit(),
             )
         }
@@ -159,7 +191,9 @@ internal class DexcomShareUploadStore(
             if (revision() != config.revision) return@synchronized
             val editor = preferences.edit().putLong(KEY_LAST_CONNECTION, nowEpochMs)
             // A successful login must never erase a previous receiver or upload failure.
-            if (status().error == DexcomShareUploadError.AUTHENTICATION) editor.putString(KEY_ERROR, "NONE")
+            if (status().error in setOf(DexcomShareUploadError.AUTHENTICATION, DexcomShareUploadError.ACCOUNT_SERVER, DexcomShareUploadError.ACCOUNT_RESPONSE, DexcomShareUploadError.LOGIN_LIMIT)) {
+                editor.remove(KEY_ERROR).remove(KEY_HTTP_STATUS)
+            }
             check(editor.commit())
         }
 
@@ -181,15 +215,22 @@ internal class DexcomShareUploadStore(
                     .putLong(KEY_LAST_UPLOAD, nowEpochMs)
                     .putLong(KEY_LAST_CONNECTION, nowEpochMs)
                     .putString(KEY_ERROR, "NONE")
+                    .remove(KEY_HTTP_STATUS)
                     .commit(),
             ) { "Share upload cursor was not persisted" }
             true
         }
 
-    fun markError(config: DexcomShareUploadConfig, error: DexcomShareUploadError) =
+    fun markError(config: DexcomShareUploadConfig, error: DexcomShareUploadError, httpStatus: Int? = null) =
         synchronized(lock) {
             if (revision() != config.revision) return@synchronized
-            check(preferences.edit().putString(KEY_ERROR, error.name).commit())
+            check(
+                preferences
+                    .edit()
+                    .putString(KEY_ERROR, error.name)
+                    .putInt(KEY_HTTP_STATUS, httpStatus ?: 0)
+                    .commit(),
+            )
         }
 
     fun clear() {
@@ -263,6 +304,7 @@ internal class DexcomShareUploadStore(
         const val KEY_LAST_CONNECTION = "last_connection"
         const val KEY_LAST_UPLOAD = "last_upload"
         const val KEY_ERROR = "error"
+        const val KEY_HTTP_STATUS = "http_status"
     }
 }
 

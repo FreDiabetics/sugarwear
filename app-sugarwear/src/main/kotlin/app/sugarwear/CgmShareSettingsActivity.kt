@@ -107,7 +107,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             when {
                 connecting -> "Anmeldung bei Dexcom Share läuft."
                 ui.setupError -> "Share-Einstellungen konnten nicht gespeichert oder entfernt werden."
-                status.error != DexcomShareUploadError.NONE -> errorDescription(status.error)
+                status.error != DexcomShareUploadError.NONE -> errorDescription(status.error) + status.httpStatus?.let { " (HTTP $it)" }.orEmpty()
                 status.configured && !status.hasReceiver -> "Für den Upload fehlt die Kennung deines Dexcom-Share-Empfängers."
                 !status.enabled -> "Die Übertragung an Dexcom Share ist derzeit deaktiviert."
                 uploadFresh -> "Letzter Upload vom Share-Server bestätigt."
@@ -367,7 +367,13 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             DexcomShareUploadError.RECEIVER_MISMATCH -> "Share-Receiver-Seriennummer stimmt nicht überein."
             DexcomShareUploadError.MONITORING -> "Remote-Monitoring-Sitzung nicht aktiv."
             DexcomShareUploadError.RATE_LIMIT -> "Server begrenzt die Anfragehäufigkeit."
-            DexcomShareUploadError.SERVER -> "Dexcom-Server hat den Upload nicht bestätigt."
+            DexcomShareUploadError.SERVER -> "Share-Fehler aus der letzten Prüfung. Tippe auf „Verbindung testen“ für Einzelheiten."
+            DexcomShareUploadError.ACCOUNT_SERVER -> "Dexcom konnte die Anmeldung nicht abschließen."
+            DexcomShareUploadError.ACCOUNT_RESPONSE -> "Die Antwort von Dexcom bei der Anmeldung war unerwartet."
+            DexcomShareUploadError.LOGIN_LIMIT -> "Dexcom hat weitere Anmeldeversuche vorübergehend gesperrt. Bitte später erneut versuchen."
+            DexcomShareUploadError.RECEIVER_SERVER -> "Konto bestätigt. Dexcom konnte die Zuordnung der Empfängerkennung nicht prüfen."
+            DexcomShareUploadError.RECEIVER_RESPONSE -> "Konto bestätigt. Die Antwort von Dexcom zur Empfängerkennung war unerwartet."
+            DexcomShareUploadError.UPLOAD_SERVER -> "Dexcom hat die Übertragung der Messwerte nicht bestätigt."
         }
 
     private fun card(palette: CgmAppearancePalette) =

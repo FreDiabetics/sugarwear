@@ -66,7 +66,7 @@ internal class DexcomShareUploadWorker(
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (problem: DexcomShareProtocolException) {
-                        settings.markError(config, problem.issue)
+                        settings.markError(config, problem.issue, problem.httpStatus)
                         return@withContext if (problem.recoverable) Result.retry() else Result.failure()
                     }
                     if (isStopped ||

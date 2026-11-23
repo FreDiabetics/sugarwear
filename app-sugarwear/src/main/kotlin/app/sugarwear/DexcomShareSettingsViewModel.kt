@@ -103,12 +103,13 @@ internal class DexcomShareSettingsViewModel
             try {
                 client.testAccount(config)
                 store.markVerified(config, System.currentTimeMillis())
-                if (candidate != null || config.receiverSerial.isEmpty()) {
-                    val confirmed = if (candidate == null) client.checkReceiver(config) else client.checkReceiver(config, candidate)
+                if (!store.enabled()) {
+                    val serial = candidate ?: config.receiverSerial.takeIf { it.isNotEmpty() }
+                    val confirmed = if (serial == null) client.checkReceiver(config) else client.checkReceiver(config, serial)
                     store.saveReceiver(confirmed, config.revision)
                 }
             } catch (problem: DexcomShareProtocolException) {
-                store.markError(config, problem.issue)
+                store.markError(config, problem.issue, problem.httpStatus)
             }
         }
 

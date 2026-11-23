@@ -41,9 +41,14 @@ internal class DexcomShareHttpsTransport : DexcomShareHttpTransport {
                 stream
                     ?.bufferedReader(Charsets.UTF_8)
                     ?.use { reader ->
-                        val limit = CharArray(8_193)
-                        val count = reader.read(limit)
-                        if (count < 0) "" else String(limit, 0, count.coerceAtMost(8_192))
+                        val buffer = CharArray(8_192)
+                        var length = 0
+                        while (length < buffer.size) {
+                            val count = reader.read(buffer, length, buffer.size - length)
+                            if (count < 0) break
+                            length += count
+                        }
+                        String(buffer, 0, length)
                     }.orEmpty()
             return DexcomShareHttpResponse(status, content)
         } finally {
@@ -56,6 +61,7 @@ internal class DexcomShareProtocolException(
     val issue: DexcomShareUploadError,
     val serverCode: String? = null,
     val recoverable: Boolean = false,
+    val httpStatus: Int? = null,
     cause: Throwable? = null,
 ) : IOException(issue.name, cause)
 
@@ -76,11 +82,12 @@ internal class DexcomShareUploadClient(
     suspend fun checkReceiver(config: DexcomShareUploadConfig, candidate: String = XDRIP_DEFAULT_RECEIVER): String =
         withContext(Dispatchers.IO) {
             require(isValidShareReceiver(candidate))
-            val result = request(config, "Publisher/CheckMonitoredReceiverAssignmentStatus", null, authenticate(config), candidate)
+            val result = request(config, "Publisher/CheckMonitoredReceiverAssignmentStatus", null, authenticate(config), candidate, DexcomShareUploadError.RECEIVER_SERVER)
             when (result.trim()) {
                 "AssignedToYou", "\"AssignedToYou\"" -> candidate
                 "NotAssigned", "\"NotAssigned\"" -> throw DexcomShareProtocolException(DexcomShareUploadError.RECEIVER_NOT_ASSIGNED)
-                else -> throw DexcomShareProtocolException(DexcomShareUploadError.SERVER)
+                "AssignedToOther", "\"AssignedToOther\"" -> throw DexcomShareProtocolException(DexcomShareUploadError.RECEIVER_MISMATCH)
+                else -> throw DexcomShareProtocolException(DexcomShareUploadError.RECEIVER_RESPONSE)
             }
         }
 
@@ -147,8 +154,9 @@ internal class DexcomShareUploadClient(
                     .put("accountName", config.account)
                     .put("password", config.password)
                     .put("applicationId", APPLICATION_ID),
+                serverError = DexcomShareUploadError.ACCOUNT_SERVER,
             )
-        val accountId = decodeUuid(account)
+        val accountId = decodeUuid(account, accountResponse = true)
         val login =
             request(
                 config,
@@ -157,6 +165,7 @@ internal class DexcomShareUploadClient(
                     .put("accountId", accountId)
                     .put("password", config.password)
                     .put("applicationId", APPLICATION_ID),
+                serverError = DexcomShareUploadError.ACCOUNT_SERVER,
             )
         return decodeUuid(login).also {
             sessionForAccount = it
@@ -164,10 +173,13 @@ internal class DexcomShareUploadClient(
         }
     }
 
-    private fun decodeUuid(value: String): String =
-        (runCatching { JSONTokener(value).nextValue() as? String }.getOrNull())
-            ?.takeIf { runCatching { UUID.fromString(it) }.isSuccess && it != ZERO_UUID }
-            ?: throw DexcomShareProtocolException(DexcomShareUploadError.AUTHENTICATION)
+    private fun decodeUuid(value: String, accountResponse: Boolean = false): String {
+        val decoded = runCatching { JSONTokener(value).nextValue() }.getOrNull()
+        val id = if (accountResponse && decoded is JSONObject) decoded.opt("accountId") as? String else decoded as? String
+        if (id == ZERO_UUID) throw DexcomShareProtocolException(DexcomShareUploadError.AUTHENTICATION)
+        return id?.takeIf { runCatching { UUID.fromString(it).toString().equals(it, ignoreCase = true) }.getOrDefault(false) }
+            ?: throw DexcomShareProtocolException(DexcomShareUploadError.ACCOUNT_RESPONSE)
+    }
 
     private fun request(
         config: DexcomShareUploadConfig,
@@ -175,6 +187,7 @@ internal class DexcomShareUploadClient(
         body: JSONObject? = null,
         sessionId: String? = null,
         receiverSerial: String? = null,
+        serverError: DexcomShareUploadError = DexcomShareUploadError.UPLOAD_SERVER,
     ): String {
         val endpoint =
             buildString {
@@ -196,21 +209,26 @@ internal class DexcomShareUploadClient(
                 throw DexcomShareProtocolException(DexcomShareUploadError.NETWORK, recoverable = true, cause = e)
             }
         if (result.status in 200..299) return result.body
-        val code = runCatching { JSONObject(result.body).optString("Code") }.getOrNull()?.takeIf { it.isNotBlank() }
+        val details = runCatching { JSONObject(result.body) }.getOrNull()
+        val code = details?.optString("Code")?.takeIf { it.isNotBlank() }
+        val message = details?.optString("Message").orEmpty()
         val issue =
             when {
                 code in setOf("MonitoredReceiverSerialNumberDoesNotMatch") -> DexcomShareUploadError.RECEIVER_MISMATCH
                 code in setOf("MonitoredReceiverNotAssigned") -> DexcomShareUploadError.RECEIVER_NOT_ASSIGNED
                 code in setOf("MonitoringSessionNotActive") -> DexcomShareUploadError.MONITORING
-                code in setOf("SSO_AuthenticatePasswordInvalid", "SSO_AuthenticateAccountNotFound") -> DexcomShareUploadError.AUTHENTICATION
+                code in setOf("SSO_AuthenticatePasswordInvalid", "SSO_AuthenticateAccountNotFound", "AccountPasswordInvalid") -> DexcomShareUploadError.AUTHENTICATION
+                code == "SSO_AuthenticateMaxAttemptsExceeded" -> DexcomShareUploadError.LOGIN_LIMIT
                 result.status == 429 -> DexcomShareUploadError.RATE_LIMIT
-                result.status == 401 || result.status == 403 -> DexcomShareUploadError.AUTHENTICATION
-                else -> DexcomShareUploadError.SERVER
+                code == "SSO_InternalError" && ("Cannot Authenticate by AccountName" in message || "Cannot Authenticate by AccountId" in message) -> DexcomShareUploadError.AUTHENTICATION
+                serverError == DexcomShareUploadError.ACCOUNT_SERVER && result.status in setOf(401, 403) -> DexcomShareUploadError.AUTHENTICATION
+                else -> serverError
             }
         throw DexcomShareProtocolException(
             issue = issue,
             serverCode = code,
-            recoverable = issue == DexcomShareUploadError.RATE_LIMIT || (issue == DexcomShareUploadError.SERVER && result.status in 500..599),
+            httpStatus = result.status,
+            recoverable = issue == DexcomShareUploadError.RATE_LIMIT || (issue == serverError && result.status in 500..599),
         )
     }
 

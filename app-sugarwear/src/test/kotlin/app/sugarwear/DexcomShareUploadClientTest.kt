@@ -163,6 +163,41 @@ class DexcomShareUploadClientTest {
             }
         }
 
+    @Test fun `G7 account object permits login and assignment errors are attributed to the receiver`() =
+        runBlocking {
+            val http =
+                FakeHttp { url, _ ->
+                    when {
+                        url.contains("AuthenticatePublisherAccount") -> DexcomShareHttpResponse(200, JSONObject().put("accountId", accountId).toString())
+                        url.contains("LoginPublisherAccountById") -> DexcomShareHttpResponse(200, "\"$session\"")
+                        url.contains("CheckMonitoredReceiverAssignmentStatus") -> DexcomShareHttpResponse(503, "")
+                        else -> error("No upload during setup")
+                    }
+                }
+            val client = DexcomShareUploadClient(http)
+            client.testAccount(config)
+            assertEquals(accountId, http.requests[1].second!!.getString("accountId"))
+            val problem = runCatching { client.checkReceiver(config) }.exceptionOrNull() as DexcomShareProtocolException
+            assertEquals(DexcomShareUploadError.RECEIVER_SERVER, problem.issue)
+            assertEquals(503, problem.httpStatus)
+        }
+
+    @Test fun `login failures distinguish unexpected response server outage and rejected credentials`() =
+        runBlocking {
+            val cases =
+                listOf(
+                    DexcomShareHttpResponse(200, "{}") to DexcomShareUploadError.ACCOUNT_RESPONSE,
+                    DexcomShareHttpResponse(503, "") to DexcomShareUploadError.ACCOUNT_SERVER,
+                    DexcomShareHttpResponse(500, """{"Code":"AccountPasswordInvalid"}""") to DexcomShareUploadError.AUTHENTICATION,
+                    DexcomShareHttpResponse(500, """{"Code":"SSO_AuthenticateMaxAttemptsExceeded"}""") to DexcomShareUploadError.LOGIN_LIMIT,
+                )
+            for ((response, expected) in cases) {
+                val client = DexcomShareUploadClient(FakeHttp { _, _ -> response })
+                val problem = runCatching { client.testAccount(config) }.exceptionOrNull() as DexcomShareProtocolException
+                assertEquals(expected, problem.issue)
+            }
+        }
+
     @Test fun `valid login does not falsely claim an uploaded glucose row`() =
         runBlocking {
             val http =
