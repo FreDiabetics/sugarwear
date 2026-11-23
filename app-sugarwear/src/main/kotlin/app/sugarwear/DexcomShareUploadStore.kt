@@ -42,6 +42,7 @@ internal enum class DexcomShareUploadError {
     RECEIVER_SERVER,
     RECEIVER_RESPONSE,
     UPLOAD_SERVER,
+    INVITATION,
 }
 
 internal data class DexcomShareUploadStatus(
@@ -92,6 +93,9 @@ internal class DexcomShareUploadStore(
             val editor = preferences.edit()
             if (previous == null || previous.account != account.trim() || previous.region != region) {
                 editor.remove(KEY_RECEIVER)
+                preferences.all.keys
+                    .filter { it.startsWith(INVITE_PREFIX) }
+                    .forEach { editor.remove(it) }
             }
             check(
                 editor
@@ -233,6 +237,24 @@ internal class DexcomShareUploadStore(
             )
         }
 
+    // Only the encrypted contact ID is retained, so a partly completed invite can be resumed.
+    fun pendingContact(config: DexcomShareUploadConfig, email: String): String? =
+        synchronized(lock) {
+            check(revision() == config.revision)
+            preferences.getString(invitationKey(config, email), null)?.let { checkNotNull(unseal(it)).decodeToString() }
+        }
+
+    fun rememberContact(config: DexcomShareUploadConfig, email: String, contactId: String?) =
+        synchronized(lock) {
+            check(revision() == config.revision)
+            check(preferences.edit().putString(invitationKey(config, email), contactId?.let(::seal)).commit())
+        }
+
+    private fun invitationKey(config: DexcomShareUploadConfig, email: String): String {
+        val identity = org.json.JSONArray(listOf(config.region.name, config.account, email)).toString()
+        return INVITE_PREFIX + Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(identity.encodeToByteArray()))
+    }
+
     fun clear() {
         synchronized(lock) {
             val revokedRevision = revision() + 1L
@@ -292,6 +314,7 @@ internal class DexcomShareUploadStore(
     private companion object {
         val lock = Any()
         const val PREFERENCES = "sugarwear_dexcom_share"
+        const val INVITE_PREFIX = "pending_invitation_"
         const val KEY_ALIAS = "sugarwear_dexcom_share_v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val IV_BYTES = 12

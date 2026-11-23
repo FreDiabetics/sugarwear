@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 internal data class DexcomShareSettingsUiState(
@@ -16,6 +18,7 @@ internal data class DexcomShareSettingsUiState(
     val connecting: Boolean = false,
     val updating: Boolean = false,
     val setupError: Boolean = false,
+    val invitationMessage: String? = null,
 )
 
 /** Owns the Share setting lifecycle; the Activity only renders state and sends UI actions. */
@@ -36,7 +39,7 @@ internal class DexcomShareSettingsViewModel
 
         fun saveAccount(account: String, password: String, region: DexcomShareRegion) {
             if (mutableState.value.updating || mutableState.value.connecting) return
-            mutableState.value = mutableState.value.copy(updating = true, connecting = true, setupError = false)
+            mutableState.value = mutableState.value.copy(updating = true, connecting = true, setupError = false, invitationMessage = null)
             viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
@@ -113,9 +116,50 @@ internal class DexcomShareSettingsViewModel
             }
         }
 
+        fun inviteFollower(invitation: DexcomShareInvitation) {
+            val current = mutableState.value
+            if (current.updating || current.connecting || !invitation.valid() || !current.status.configured) return
+            mutableState.value = current.copy(updating = true, invitationMessage = "Einladung wird angefordert …")
+            viewModelScope.launch {
+                val message =
+                    try {
+                        val result =
+                            withContext(Dispatchers.IO) {
+                                invitationLock.withLock {
+                                    val config = checkNotNull(store.readConfig())
+                                    val pending = store.pendingContact(config, invitation.email)
+                                    val outcome =
+                                        DexcomShareUploadClient().inviteFollower(config, invitation, pending) { contactId ->
+                                            store.rememberContact(config, invitation.email, contactId)
+                                        }
+                                    if (outcome != DexcomShareInviteResult.CONTACT_EXISTS) store.rememberContact(config, invitation.email, null)
+                                    outcome
+                                }
+                            }
+                        when (result) {
+                            DexcomShareInviteResult.REQUESTED -> "Dexcom hat die Einladung bestätigt. Dein Follower kann sie per E-Mail annehmen."
+                            DexcomShareInviteResult.ALREADY_INVITED -> "Bei Dexcom besteht bereits eine Einladung oder Freigabe für diesen Kontakt."
+                            DexcomShareInviteResult.CONTACT_EXISTS -> "Dieser Kontaktname existiert bei Dexcom bereits. Bitte prüfe die bestehende Freigabe."
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (problem: DexcomShareProtocolException) {
+                        when (problem.issue) {
+                            DexcomShareUploadError.AUTHENTICATION -> "Anmeldung fehlgeschlagen. Bitte prüfe das Dexcom-Konto."
+                            DexcomShareUploadError.LOGIN_LIMIT, DexcomShareUploadError.RATE_LIMIT -> "Dexcom begrenzt die Anfragen. Bitte später erneut versuchen."
+                            else -> "Einladung unbestätigt. Prüfe das Postfach vor einem erneuten Versuch." + problem.httpStatus?.let { " (HTTP $it)" }.orEmpty()
+                        }
+                    } catch (error: Exception) {
+                        Log.w(TAG, "Share invitation unavailable: ${error.javaClass.simpleName}")
+                        "Einladung unbestätigt. Bitte prüfe dein Share-Konto und das Postfach des Followers."
+                    }
+                mutableState.value = mutableState.value.copy(updating = false, invitationMessage = message)
+            }
+        }
+
         fun clearAccount() {
             if (mutableState.value.updating || mutableState.value.connecting) return
-            mutableState.value = mutableState.value.copy(updating = true)
+            mutableState.value = mutableState.value.copy(updating = true, invitationMessage = null)
             viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
@@ -134,6 +178,7 @@ internal class DexcomShareSettingsViewModel
         }
 
         private companion object {
+            val invitationLock = Mutex()
             const val TAG = "SugarWearShare"
         }
     }

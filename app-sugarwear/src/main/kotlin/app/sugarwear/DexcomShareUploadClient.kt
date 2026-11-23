@@ -91,6 +91,58 @@ internal class DexcomShareUploadClient(
             }
         }
 
+    suspend fun inviteFollower(
+        config: DexcomShareUploadConfig,
+        invitation: DexcomShareInvitation,
+        pendingContactId: String?,
+        rememberContact: (String) -> Unit,
+    ): DexcomShareInviteResult =
+        withContext(Dispatchers.IO) {
+            require(invitation.valid())
+            val session = authenticate(config)
+
+            fun publisher(operation: String, parameters: Map<String, String> = emptyMap(), body: JSONObject? = null) =
+                request(config, "Publisher/$operation", body, session, serverError = DexcomShareUploadError.INVITATION, parameters = parameters)
+
+            val contactId =
+                if (pendingContactId == null) {
+                    val name = mapOf("contactName" to invitation.contactName)
+                    when (publisher("DoesContactExistByName", name).trim()) {
+                        "true" -> return@withContext DexcomShareInviteResult.CONTACT_EXISTS
+                        "false" -> Unit
+                        else -> throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION)
+                    }
+                    val response = publisher("CreateContact", name + ("emailAddress" to invitation.email))
+                    invitationId(response).also(rememberContact)
+                } else {
+                    // A previous invitation may have reached Dexcom even if its response was lost.
+                    val response = publisher("ListPublisherAccountSubscriptions")
+                    val subscriptions =
+                        try {
+                            org.json.JSONArray(response)
+                        } catch (error: org.json.JSONException) {
+                            throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION, cause = error)
+                        }
+                    for (i in 0 until subscriptions.length()) {
+                        val entry = subscriptions.optJSONObject(i) ?: throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION)
+                        if (pendingContactId.equals(entry.optString("ContactId"), ignoreCase = true) && validUuid(entry.optString("SubscriptionId"))) {
+                            return@withContext DexcomShareInviteResult.ALREADY_INVITED
+                        }
+                    }
+                    pendingContactId
+                }
+            invitationId(publisher("CreateSubscriptionInvitation", mapOf("contactId" to contactId), invitation.payload()))
+            DexcomShareInviteResult.REQUESTED
+        }
+
+    private fun invitationId(response: String): String {
+        val id = runCatching { JSONTokener(response).nextValue() as? String }.getOrNull()
+        return id?.takeIf(::validUuid) ?: throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION)
+    }
+
+    private fun validUuid(id: String): Boolean =
+        id != ZERO_UUID && runCatching { UUID.fromString(id).toString().equals(id, ignoreCase = true) }.getOrDefault(false)
+
     /** Returns only on confirmed server acceptance. Reauthentication and monitoring recovery are bounded. */
     suspend fun upload(config: DexcomShareUploadConfig, rows: List<DexcomShareEgv>) =
         withContext(Dispatchers.IO) {
@@ -177,7 +229,7 @@ internal class DexcomShareUploadClient(
         val decoded = runCatching { JSONTokener(value).nextValue() }.getOrNull()
         val id = if (accountResponse && decoded is JSONObject) decoded.opt("accountId") as? String else decoded as? String
         if (id == ZERO_UUID) throw DexcomShareProtocolException(DexcomShareUploadError.AUTHENTICATION)
-        return id?.takeIf { runCatching { UUID.fromString(it).toString().equals(it, ignoreCase = true) }.getOrDefault(false) }
+        return id?.takeIf(::validUuid)
             ?: throw DexcomShareProtocolException(DexcomShareUploadError.ACCOUNT_RESPONSE)
     }
 
@@ -188,6 +240,7 @@ internal class DexcomShareUploadClient(
         sessionId: String? = null,
         receiverSerial: String? = null,
         serverError: DexcomShareUploadError = DexcomShareUploadError.UPLOAD_SERVER,
+        parameters: Map<String, String> = emptyMap(),
     ): String {
         val endpoint =
             buildString {
@@ -196,6 +249,9 @@ internal class DexcomShareUploadClient(
                 if (sessionId != null) {
                     append("?sessionId=")
                     append(URLEncoder.encode(sessionId, "UTF-8"))
+                    for ((name, value) in parameters) {
+                        append("&").append(name).append("=").append(URLEncoder.encode(value, "UTF-8"))
+                    }
                     if (receiverSerial != null) {
                         append("&serialNumber=")
                         append(URLEncoder.encode(receiverSerial, "UTF-8"))

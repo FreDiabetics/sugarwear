@@ -1,0 +1,61 @@
+package app.sugarwear
+
+import android.app.AlertDialog
+import android.content.Context
+import android.os.Looper
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.TextView
+import androidx.core.view.descendants
+import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowAlertDialog
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class DexcomShareInvitationDialogTest {
+    @get:org.junit.Rule val mainDispatcher = CgmMainDispatcherRule()
+
+    @Test fun `configured account can open and cancel an invite with uploads off and no receiver`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("sugarwear_dexcom_share", Context.MODE_PRIVATE)
+        prefs
+            .edit()
+            .putString("encrypted_account", "test")
+            .putString("encrypted_password", "test")
+            .commit()
+        val controller = Robolectric.buildActivity(CgmShareSettingsActivity::class.java).setup().visible()
+        try {
+            shadowOf(Looper.getMainLooper()).idle()
+            val root = controller.get().window.decorView as ViewGroup
+            root.descendants
+                .filterIsInstance<TextView>()
+                .single { it.text == "Follower einladen" }
+                .performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            val dialog = checkNotNull(ShadowAlertDialog.getLatestAlertDialog())
+            val fields = (dialog.window!!.decorView as ViewGroup).descendants.filterIsInstance<EditText>().toList()
+            fields.single { it.hint == "Name des Followers" }.setText("Test")
+            val email = fields.single { it.hint == "E-Mail des Followers" }
+            email.setText("invalid")
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            assertTrue(dialog.isShowing)
+            assertNotNull(email.error)
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertFalse(dialog.isShowing)
+            assertFalse(prefs.getBoolean("enabled", false))
+        } finally {
+            controller.pause().stop().destroy()
+            prefs.edit().clear().commit()
+        }
+    }
+}

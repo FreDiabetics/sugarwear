@@ -145,6 +145,13 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         root.addView(action("Konto einrichten", palette) { accountDialog() }, spacing(10))
         root.addView(action(if (connecting) "Bitte prüfen …" else "Verbindung testen", palette) { testConnection() }, spacing(4))
         if (status.configured) {
+            root.addView(
+                action("Follower einladen", palette) { invitationDialog() }.apply { isEnabled = !ui.updating && !connecting },
+                spacing(4),
+            )
+            ui.invitationMessage?.let {
+                root.addView(label(it, white, false, 13f).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }, spacing(4))
+            }
             if (!status.enabled) {
                 root.addView(action(if (status.hasReceiver) "Share-Empfänger ändern" else "Share-Empfänger einrichten", palette) { receiverDialog() }, spacing(4))
             }
@@ -187,6 +194,58 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             .setPositiveButton("Aktivieren") { _, _ ->
                 settings.toggleUpload()
             }.show()
+    }
+
+    private fun invitationDialog() {
+        val fields =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(4), dp(16), dp(8))
+            }
+
+        fun entry(title: String, input: Int): EditText =
+            EditText(this).apply {
+                hint = title
+                isSingleLine = true
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or input
+                fields.addView(this)
+            }
+        val name = entry("Name des Followers", android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME)
+        val email = entry("E-Mail des Followers", android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        val displayName = entry("Dein Anzeigename (sonst SugarWear)", android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME)
+        fields.addView(label("Nach Annahme sieht der Follower deine bei Dexcom verfügbaren Glukosewerte und den Verlauf. Follower-Alarme sind in der Einladung ausgeschaltet.", Color.LTGRAY, false, 13f))
+        val dialog =
+            AlertDialog
+                .Builder(this)
+                .setTitle("Follower einladen")
+                .setView(android.widget.ScrollView(this).apply { addView(fields) })
+                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton("Einladung senden", null)
+                .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val invite =
+                    DexcomShareInvitation(
+                        name.text.toString().trim(),
+                        email.text.toString().trim(),
+                        displayName.text
+                            .toString()
+                            .trim()
+                            .ifEmpty { "SugarWear" },
+                    )
+                when {
+                    invite.contactName.isEmpty() -> name.error = "Namen eingeben"
+                    !android.util.Patterns.EMAIL_ADDRESS
+                        .matcher(invite.email)
+                        .matches() -> email.error = "E-Mail-Adresse prüfen"
+                    else -> {
+                        settings.inviteFollower(invite)
+                        dialog.dismiss()
+                    }
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun accountDialog() {
@@ -373,6 +432,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             DexcomShareUploadError.LOGIN_LIMIT -> "Dexcom hat weitere Anmeldeversuche vorübergehend gesperrt. Bitte später erneut versuchen."
             DexcomShareUploadError.RECEIVER_SERVER -> "Konto bestätigt. Dexcom konnte die Zuordnung der Empfängerkennung nicht prüfen."
             DexcomShareUploadError.RECEIVER_RESPONSE -> "Konto bestätigt. Die Antwort von Dexcom zur Empfängerkennung war unerwartet."
+            DexcomShareUploadError.INVITATION -> "Dexcom hat die Einladung nicht bestätigt."
             DexcomShareUploadError.UPLOAD_SERVER -> "Dexcom hat die Übertragung der Messwerte nicht bestätigt."
         }
 
