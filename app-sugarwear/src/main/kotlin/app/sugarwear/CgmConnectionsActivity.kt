@@ -51,7 +51,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
         val state = snapshot.sensor
         val sensorCard = card(palette)
         sensorCard.apply {
-            addView(label("SENSOR", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true))
+            addView(label("SENSOR", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true))
             val sensor = state.sensor
             addView(
                 label(
@@ -209,7 +209,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
             textSize =
                 app.sugarlicious.uishared.WearSettingsUi
                     .textSize(11f)
-            setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY))
+            setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
             app.sugarlicious.uishared.SystemTypography
                 .apply(this, true)
             gravity = Gravity.CENTER

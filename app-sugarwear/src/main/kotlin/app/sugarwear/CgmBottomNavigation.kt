@@ -23,9 +23,6 @@ internal enum class CgmNavTab(
 }
 
 internal object CgmBottomNavigation {
-    private val ACCENT = 0xFF22EB60.toInt()
-    private val INACTIVE = 0xFFB4B4BB.toInt()
-
     fun tabFor(activity: Activity): CgmNavTab? =
         when (activity) {
             is CgmSetupActivity, is CgmAlarmActivity -> null
@@ -79,7 +76,7 @@ internal object CgmBottomNavigation {
             applyPillPalette(activity, this, palette)
             CgmNavTab.entries.forEach { tab ->
                 val active = tab == selected
-                val color = if (active) ACCENT else INACTIVE
+                val color = palette.settingsArgb(if (active) CgmAppearanceRole.MENU_TEXT_PRIMARY else CgmAppearanceRole.MENU_TEXT_SECONDARY)
                 val button =
                     LinearLayout(activity).apply {
                         orientation = LinearLayout.HORIZONTAL

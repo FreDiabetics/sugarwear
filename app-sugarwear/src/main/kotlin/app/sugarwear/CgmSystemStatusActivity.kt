@@ -513,7 +513,7 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
         expanded: Boolean,
         palette: CgmAppearancePalette,
         action: () -> Unit,
-    ) = label("${if (expanded) "▾" else "▸"}  $title", 10.5f, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), true).apply {
+    ) = label("${if (expanded) "▾" else "▸"}  $title", 10.5f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply {
         gravity = Gravity.START or Gravity.CENTER_VERTICAL
         minHeight = 44.dp
         setOnClickListener { action() }
