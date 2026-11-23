@@ -77,6 +77,29 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             },
         )
 
+        root.addView(
+            card(palette).apply {
+                addView(
+                    app.sugarlicious.uishared.ScrollSafeSwitch(this@CgmShareSettingsActivity).apply {
+                        app.sugarlicious.uishared.WearSettingsUi
+                            .toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), white)
+                        text = "Dexcom Share aktivieren"
+                        setTextColor(white)
+                        textSize = 15f
+                        isChecked = status.enabled
+                        isEnabled = !ui.updating && !connecting
+                        setOnClickListener {
+                            // Keep showing the saved state until consent and the settings update finish.
+                            isChecked = settings.state.value.status.enabled
+                            toggle()
+                        }
+                    },
+                )
+                addView(label("Nur bestätigte G7-Messwerte. Dexcom Follow ist keine garantierte Alarmübertragung.", gray, false, 12f))
+            },
+            spacing(0),
+        )
+
         val heading =
             LinearLayout(this).apply {
                 gravity = Gravity.CENTER_VERTICAL
@@ -134,29 +157,6 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             spacing(10),
         )
 
-        root.addView(
-            card(palette).apply {
-                addView(
-                    app.sugarlicious.uishared.ScrollSafeSwitch(this@CgmShareSettingsActivity).apply {
-                        app.sugarlicious.uishared.WearSettingsUi
-                            .toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), white)
-                        text = "Dexcom Share aktivieren"
-                        setTextColor(white)
-                        textSize = 15f
-                        isChecked = status.enabled
-                        isEnabled = !ui.updating && !connecting
-                        setOnClickListener {
-                            // Keep showing the saved state until consent and the settings update finish.
-                            isChecked = settings.state.value.status.enabled
-                            toggle()
-                        }
-                    },
-                )
-                addView(label("Nur bestätigte G7-Messwerte. Dexcom Follow ist keine garantierte Alarmübertragung.", gray, false, 12f))
-            },
-            spacing(10),
-        )
-
         if (status.configured &&
             !status.enabled &&
             status.lastConnectionEpochMs > 0L &&
@@ -202,13 +202,6 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             }
             root.addView(action("Konto entfernen", palette) { confirmClear() }, spacing(4))
         }
-        root.addView(
-            label("Experimenteller, von Dexcom nicht offiziell unterstützter Share-Uploader. Nur nach eigener Freigabe aktivieren.", gray, false, 12f).apply {
-                gravity = Gravity.CENTER
-                setPadding(dp(6), dp(12), dp(6), dp(12))
-            },
-            spacing(5),
-        )
         val scroll =
             CgmEdgeFadeScrollView(this)
                 .apply {
