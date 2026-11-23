@@ -36,6 +36,11 @@ class DexcomShareInvitationDialogTest {
         try {
             shadowOf(Looper.getMainLooper()).idle()
             val root = controller.get().window.decorView as ViewGroup
+            val toggle = root.descendants.filterIsInstance<app.sugarlicious.uishared.ScrollSafeSwitch>().single { it.text == "Dexcom Share aktivieren" }
+            assertFalse(toggle.isChecked)
+            val testButton = root.descendants.filterIsInstance<android.widget.Button>().single { it.text == "Verbindung testen" }
+            assertTrue(testButton.isEnabled)
+            assertNotNull(testButton.background)
             root.descendants
                 .filterIsInstance<TextView>()
                 .single { it.text == "Follower einladen" }

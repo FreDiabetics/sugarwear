@@ -136,7 +136,22 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
 
         root.addView(
             card(palette).apply {
-                addView(detailRow("Übertragung", if (status.enabled) "Ein" else "Aus", white, gray) { toggle() })
+                addView(
+                    app.sugarlicious.uishared.ScrollSafeSwitch(this@CgmShareSettingsActivity).apply {
+                        app.sugarlicious.uishared.WearSettingsUi
+                            .toggle(this, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY), white)
+                        text = "Dexcom Share aktivieren"
+                        setTextColor(white)
+                        textSize = 15f
+                        isChecked = status.enabled
+                        isEnabled = !ui.updating && !connecting
+                        setOnClickListener {
+                            // Keep showing the saved state until consent and the settings update finish.
+                            isChecked = settings.state.value.status.enabled
+                            toggle()
+                        }
+                    },
+                )
                 addView(label("Nur bestätigte G7-Messwerte. Dexcom Follow ist keine garantierte Alarmübertragung.", gray, false, 12f))
             },
             spacing(10),
@@ -162,7 +177,18 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         }
 
         root.addView(action("Konto einrichten", palette) { accountDialog() }, spacing(10))
-        root.addView(action(if (connecting) "Bitte prüfen …" else "Verbindung testen", palette) { testConnection() }, spacing(4))
+        root.addView(
+            android.widget.Button(this).apply {
+                text = if (connecting) "Wird geprüft …" else "Verbindung testen"
+                isAllCaps = false
+                app.sugarlicious.uishared.WearSettingsUi
+                    .actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), white)
+                setTextColor(white)
+                isEnabled = !ui.updating && !connecting
+                setOnClickListener { testConnection() }
+            },
+            spacing(4),
+        )
         if (status.configured) {
             root.addView(
                 action("Follower einladen", palette) { invitationDialog() }.apply { isEnabled = !ui.updating && !connecting },
@@ -193,25 +219,27 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
     }
 
     private fun toggle() {
-        if (settings.state.value.status.enabled) {
+        val status = settings.state.value.status
+        if (status.enabled) {
             settings.toggleUpload()
             return
         }
-        if (!settings.state.value.status.configured) {
+        if (!status.configured) {
             accountDialog()
             return
         }
-        if (!settings.state.value.status.hasReceiver) {
+        val setupRequired = status.error == DexcomShareUploadError.RECEIVER_NOT_ASSIGNED && status.httpStatus == null && status.lastConnectionEpochMs > 0L
+        if (!status.hasReceiver && !setupRequired) {
             testConnection()
             return
         }
         AlertDialog
             .Builder(this)
             .setTitle("Dexcom Share aktivieren?")
-            .setMessage("Eigene Glukosewerte werden über das Internet an Dexcom übertragen. Die inoffizielle Anbindung kann ausfallen und ersetzt keine medizinischen Alarme.")
+            .setMessage(if (setupRequired) "Diese Uhr bei Dexcom zuordnen und Glukosewerte übertragen? Das kann den bisherigen Share-Uploader ablösen." else "Eigene Glukosewerte werden über das Internet an Dexcom übertragen. Die inoffizielle Anbindung kann ausfallen und ersetzt keine medizinischen Alarme.")
             .setNegativeButton("Abbrechen", null)
             .setPositiveButton("Aktivieren") { _, _ ->
-                settings.toggleUpload()
+                if (setupRequired) settings.setupWatch(status.revision) else settings.toggleUpload()
             }.show()
     }
 
