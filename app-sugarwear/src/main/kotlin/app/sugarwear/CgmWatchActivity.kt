@@ -501,7 +501,7 @@ class CgmWatchActivity : ComponentActivity() {
             }
         content.addView(glucoseHost, cardParams(top = 4))
         graphHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(graphHost, cardParams(top = 18))
+        content.addView(graphHost, cardParams(top = 8))
         content.addView(header())
 
         content.addView(
