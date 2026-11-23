@@ -91,6 +91,29 @@ internal class DexcomShareUploadClient(
             }
         }
 
+    /** Called only by the explicit watch setup action. A failed HTTP request never authorizes replacement. */
+    suspend fun setupWatchReceiver(config: DexcomShareUploadConfig): String =
+        withContext(Dispatchers.IO) {
+            val candidate = XDRIP_DEFAULT_RECEIVER
+            if (config.receiverSerial.isNotEmpty() && config.receiverSerial != candidate) {
+                try {
+                    return@withContext checkReceiver(config, config.receiverSerial)
+                } catch (problem: DexcomShareProtocolException) {
+                    if (!problem.unassignedResponse()) throw problem
+                }
+            }
+            try {
+                return@withContext checkReceiver(config, candidate)
+            } catch (problem: DexcomShareProtocolException) {
+                if (!problem.unassignedResponse()) throw problem
+            }
+            request(config, "Publisher/ReplacePublisherAccountMonitoredReceiver", null, authenticate(config), candidate, DexcomShareUploadError.RECEIVER_SERVER)
+            checkReceiver(config, candidate)
+        }
+
+    private fun DexcomShareProtocolException.unassignedResponse(): Boolean =
+        issue == DexcomShareUploadError.RECEIVER_NOT_ASSIGNED && httpStatus == null
+
     suspend fun inviteFollower(
         config: DexcomShareUploadConfig,
         invitation: DexcomShareInvitation,

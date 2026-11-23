@@ -142,6 +142,25 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             spacing(10),
         )
 
+        if (status.configured &&
+            !status.enabled &&
+            status.lastConnectionEpochMs > 0L &&
+            (
+                status.error == DexcomShareUploadError.RECEIVER_NOT_ASSIGNED &&
+                    status.httpStatus == null ||
+                    status.hasReceiver &&
+                    status.error == DexcomShareUploadError.NONE
+            )
+        ) {
+            root.addView(
+                card(palette).apply {
+                    addView(label("Mit diesem Tippen erlaubst du die Zuordnung bei Dexcom und den Upload deiner Glukosewerte. Ein bisheriger Share-Uploader kann dadurch abgelöst werden.", gray, false, 12f))
+                    addView(action("Diese Uhr für Share einrichten", palette) { settings.setupWatch(status.revision) }.apply { isEnabled = !ui.updating && !connecting })
+                },
+                spacing(10),
+            )
+        }
+
         root.addView(action("Konto einrichten", palette) { accountDialog() }, spacing(10))
         root.addView(action(if (connecting) "Bitte prüfen …" else "Verbindung testen", palette) { testConnection() }, spacing(4))
         if (status.configured) {
@@ -153,7 +172,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 root.addView(label(it, white, false, 13f).apply { accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE }, spacing(4))
             }
             if (!status.enabled) {
-                root.addView(action(if (status.hasReceiver) "Share-Empfänger ändern" else "Share-Empfänger einrichten", palette) { receiverDialog() }, spacing(4))
+                root.addView(action(if (status.hasReceiver) "Share-Empfänger ändern" else "Kennung manuell eingeben", palette) { receiverDialog() }, spacing(4))
             }
             root.addView(action("Konto entfernen", palette) { confirmClear() }, spacing(4))
         }
@@ -183,7 +202,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             return
         }
         if (!settings.state.value.status.hasReceiver) {
-            receiverDialog()
+            testConnection()
             return
         }
         AlertDialog
@@ -422,7 +441,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             DexcomShareUploadError.NETWORK -> "Dexcom Share derzeit nicht erreichbar."
             DexcomShareUploadError.SCHEDULING -> "Hintergrundübertragung konnte nicht gestartet werden."
             DexcomShareUploadError.AUTHENTICATION -> "Konto oder Passwort prüfen."
-            DexcomShareUploadError.RECEIVER_NOT_ASSIGNED -> "Dexcom bestätigt die geprüfte Kennung für dieses Konto nicht. Unter „Share-Empfänger einrichten“ findest du Hinweise."
+            DexcomShareUploadError.RECEIVER_NOT_ASSIGNED -> "Dexcom bestätigt die geprüfte Kennung für dieses Konto nicht. Prüfe die Einrichtung unten."
             DexcomShareUploadError.RECEIVER_MISMATCH -> "Share-Receiver-Seriennummer stimmt nicht überein."
             DexcomShareUploadError.MONITORING -> "Remote-Monitoring-Sitzung nicht aktiv."
             DexcomShareUploadError.RATE_LIMIT -> "Server begrenzt die Anfragehäufigkeit."

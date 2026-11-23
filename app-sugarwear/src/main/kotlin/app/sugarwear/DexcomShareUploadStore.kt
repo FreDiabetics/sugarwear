@@ -48,6 +48,7 @@ internal enum class DexcomShareUploadError {
 internal data class DexcomShareUploadStatus(
     val enabled: Boolean,
     val configured: Boolean,
+    val revision: Long,
     val hasReceiver: Boolean,
     val region: DexcomShareRegion,
     val lastConnectionEpochMs: Long,
@@ -65,6 +66,7 @@ internal class DexcomShareUploadStore(
     fun status(): DexcomShareUploadStatus =
         DexcomShareUploadStatus(
             enabled = enabled(),
+            revision = revision(),
             configured = preferences.contains(KEY_ACCOUNT) && preferences.contains(KEY_PASSWORD),
             hasReceiver = preferences.contains(KEY_RECEIVER),
             region = region(),
@@ -152,6 +154,23 @@ internal class DexcomShareUploadStore(
             )
         }
     }
+
+    fun enableConfirmedReceiver(config: DexcomShareUploadConfig, serial: String) =
+        synchronized(lock) {
+            check(revision() == config.revision && !enabled())
+            require(isValidShareReceiver(serial))
+            val editor = preferences.edit()
+            if (config.receiverSerial != serial) editor.remove(KEY_LAST_UPLOAD)
+            check(
+                editor
+                    .putString(KEY_RECEIVER, seal(serial))
+                    .putBoolean(KEY_ENABLED, true)
+                    .putLong(KEY_REVISION, config.revision + 1L)
+                    .remove(KEY_ERROR)
+                    .remove(KEY_HTTP_STATUS)
+                    .commit(),
+            )
+        }
 
     fun setEnabled(value: Boolean) {
         synchronized(lock) {

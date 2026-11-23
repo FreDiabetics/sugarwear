@@ -198,6 +198,42 @@ class DexcomShareUploadClientTest {
             }
         }
 
+    @Test fun `explicit setup replaces only an unassigned default and verifies it before success`() =
+        runBlocking {
+            val unassigned = DexcomShareHttpResponse(200, "\"NotAssigned\"")
+            val owned = DexcomShareHttpResponse(200, "\"AssignedToYou\"")
+            val serverError = DexcomShareHttpResponse(500, """{"Code":"MonitoredReceiverNotAssigned"}""")
+            for ((first, second, replacements) in listOf(
+                Triple(unassigned, owned, 1),
+                Triple(owned, owned, 0),
+                Triple(unassigned, unassigned, 1),
+                Triple(serverError, owned, 0),
+                Triple(DexcomShareHttpResponse(200, "AssignedToOther"), owned, 0),
+                Triple(DexcomShareHttpResponse(200, "unexpected"), owned, 0),
+            )) {
+                var checks = 0
+                var writes = 0
+                val http =
+                    FakeHttp { url, _ ->
+                        when {
+                            url.contains("AuthenticatePublisherAccount") -> DexcomShareHttpResponse(200, JSONObject.quote(accountId))
+                            url.contains("LoginPublisherAccountById") -> DexcomShareHttpResponse(200, JSONObject.quote(session))
+                            url.endsWith("CheckMonitoredReceiverAssignmentStatus?sessionId=$session&serialNumber=SM00000000") -> if (checks++ == 0) first else second
+                            url.endsWith("ReplacePublisherAccountMonitoredReceiver?sessionId=$session&serialNumber=SM00000000") -> {
+                                writes++
+                                DexcomShareHttpResponse(200, "")
+                            }
+                            else -> error("Unexpected request")
+                        }
+                    }
+                val result = runCatching { DexcomShareUploadClient(http).setupWatchReceiver(config.copy(receiverSerial = "")) }
+                assertEquals(replacements, writes)
+                assertEquals(1 + replacements, checks)
+                assertEquals(first == owned || first == unassigned && second == owned, result.isSuccess)
+                if (result.isSuccess) assertEquals("SM00000000", result.getOrThrow())
+            }
+        }
+
     @Test fun `valid login does not falsely claim an uploaded glucose row`() =
         runBlocking {
             val http =

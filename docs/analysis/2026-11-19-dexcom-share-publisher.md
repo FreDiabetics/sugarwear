@@ -16,7 +16,7 @@
 
 The independently written Kotlin client uses the publisher login and upload sequence demonstrated there. In contrast to older xDrip+ code, default Android TLS and hostname verification are **never bypassed**, raw HTTP bodies and credentials are not logged, retry loops are bounded, and upload acceptance is persisted only after the server confirms the batch.
 
-The required Share **receiver/upload serial is not the G7 four-digit pairing code nor the sensor's serial**. The app cannot generate, register, replace or spoof a Dexcom receiver. In particular, a valid account login does not prove an upload serial is assigned to that account.
+The required Share **receiver/upload serial is not the G7 four-digit pairing code nor the sensor's serial**. The explicit watch setup action can request assignment of the xDrip+ default after Dexcom reports it as unassigned. In particular, a valid account login does not prove an upload serial is assigned to that account.
 
 ## Components
 
@@ -38,7 +38,7 @@ The required Share **receiver/upload serial is not the G7 four-digit pairing cod
 ## Unresolved gates
 
 - The private debug build accepts a typed password, disables view-state saving and keyboard learning for that field, and protects the account dialog against screen capture. The release build uses Credential Manager in line with Wear OS quality requirement WO-P6. Availability there depends on a matching saved credential.
-- After saving credentials, SugarWear checks the account. If it lacks a saved receiver, it queries the assignment of the default used by [xDrip+ NewDataObserver](https://github.com/NightscoutFoundation/xDrip/blob/cb3a3a8be3a2ad8af9d8723227893bbc7f2a2b55/app/src/main/java/com/eveningoutpost/dexdrip/NewDataObserver.java). Only an explicit `AssignedToYou` reply permits saving that candidate. A user-supplied serial uses the same read-only assignment check. Receiver replacement is never requested.
+- After saving credentials, SugarWear checks the account. If it lacks a saved receiver, it queries the assignment of the default used by [xDrip+ NewDataObserver](https://github.com/NightscoutFoundation/xDrip/blob/cb3a3a8be3a2ad8af9d8723227893bbc7f2a2b55/app/src/main/java/com/eveningoutpost/dexdrip/NewDataObserver.java). Only an explicit `AssignedToYou` reply permits saving that candidate. A user-supplied serial uses the same read-only assignment check. Tapping the watch setup action rechecks the candidate, requests replacement only for an explicit unassigned default, and rechecks ownership before enabling uploads.
 - Product/legal: Dexcom German Terms restrict unauthorized third-party automated services and commercial usage; verify written authorization/terms and medical-device duties before distributing this feature. Do not describe an unsupported endpoint as official.
 - Compatibility: With an expressly authorized account and legitimately assigned upload receiver, prove login, Share HTTP receipt, actual value/time in the **official Dexcom Follow app**, sensor changes, repeat/duplicate behavior and delayed watch uploads.
 - Operational: Test on Samsung Galaxy Watch and Pixel Watch over watch Wi-Fi and LTE where available, with phone absent, background/doze/reboot/battery restrictions, lost network and expired sessions. Watch must continue providing local alarms regardless of Share state.

@@ -62,6 +62,34 @@ internal class DexcomShareSettingsViewModel
             testConnection(serial)
         }
 
+        fun setupWatch(revision: Long) {
+            val current = mutableState.value
+            if (current.connecting || current.updating || current.status.enabled || current.status.revision != revision) return
+            mutableState.value = current.copy(updating = true, connecting = true, setupError = false)
+            viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val config = checkNotNull(store.readConfig())
+                        check(config.revision == revision && !store.enabled())
+                        try {
+                            val confirmed = DexcomShareUploadClient().setupWatchReceiver(config)
+                            store.enableConfirmedReceiver(config, confirmed)
+                            DexcomShareUploadScheduler.start(context)
+                        } catch (problem: DexcomShareProtocolException) {
+                            store.markError(config, problem.issue, problem.httpStatus)
+                        }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w(TAG, "Share setup failed: ${error.javaClass.simpleName}")
+                    mutableState.value = mutableState.value.copy(setupError = true)
+                } finally {
+                    mutableState.value = mutableState.value.copy(updating = false, connecting = false, status = store.status())
+                }
+            }
+        }
+
         fun toggleUpload() {
             if (mutableState.value.updating || mutableState.value.connecting) return
             mutableState.value = mutableState.value.copy(updating = true, setupError = false)
