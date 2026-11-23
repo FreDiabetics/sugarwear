@@ -133,13 +133,14 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
 
         root.addView(
             card(palette).apply {
-                addView(label("Dexcom Share", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
-                addView(
-                    action("Share & Follow öffnen", palette, "connections-share") {
-                        startActivity(Intent(this@CgmConnectionsActivity, CgmShareSettingsActivity::class.java))
-                    },
-                    cardSpacing(6),
-                )
+                tag = "connections-share"
+                minimumHeight = 48.dp
+                gravity = Gravity.CENTER_VERTICAL
+                isFocusable = true
+                addView(label("Follower Funktion", 14f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true))
+                setOnClickListener {
+                    startActivity(Intent(this@CgmConnectionsActivity, CgmShareSettingsActivity::class.java))
+                }
             },
             cardSpacing(10),
         )
