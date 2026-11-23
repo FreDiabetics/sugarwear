@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -19,6 +20,9 @@ internal data class DexcomShareSettingsUiState(
     val updating: Boolean = false,
     val setupError: Boolean = false,
     val invitationMessage: String? = null,
+    val followers: List<DexcomShareFollower> = emptyList(),
+    val followersLoading: Boolean = false,
+    val followersMessage: String? = null,
 )
 
 /** Owns the Share setting lifecycle; the Activity only renders state and sends UI actions. */
@@ -32,6 +36,7 @@ internal class DexcomShareSettingsViewModel
         private val store = DexcomShareUploadStore(context)
         private val mutableState = MutableStateFlow(DexcomShareSettingsUiState(store.status()))
         val state = mutableState.asStateFlow()
+        private var followersJob: Job? = null
 
         fun refresh() {
             mutableState.value = mutableState.value.copy(status = store.status())
@@ -39,7 +44,7 @@ internal class DexcomShareSettingsViewModel
 
         fun saveAccount(account: String, password: String, region: DexcomShareRegion) {
             if (mutableState.value.updating || mutableState.value.connecting) return
-            mutableState.value = mutableState.value.copy(updating = true, connecting = true, setupError = false, invitationMessage = null)
+            mutableState.value = mutableState.value.copy(updating = true, connecting = true, setupError = false, invitationMessage = null, followers = emptyList(), followersMessage = null)
             viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
@@ -55,11 +60,9 @@ internal class DexcomShareSettingsViewModel
                 } finally {
                     mutableState.value = mutableState.value.copy(updating = false, connecting = false, status = store.status())
                 }
+                followersJob?.join()
+                loadFollowers()
             }
-        }
-
-        fun saveReceiver(serial: String) {
-            testConnection(serial)
         }
 
         fun setupWatch(revision: Long) {
@@ -90,15 +93,14 @@ internal class DexcomShareSettingsViewModel
             }
         }
 
-        fun toggleUpload() {
+        fun stopUpload() {
             if (mutableState.value.updating || mutableState.value.connecting) return
             mutableState.value = mutableState.value.copy(updating = true, setupError = false)
             viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) {
-                        val enable = !store.enabled()
-                        store.setEnabled(enable)
-                        if (enable) DexcomShareUploadScheduler.start(context) else DexcomShareUploadScheduler.stop(context)
+                        store.setEnabled(false)
+                        DexcomShareUploadScheduler.stop(context)
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
@@ -111,12 +113,12 @@ internal class DexcomShareSettingsViewModel
             }
         }
 
-        fun testConnection(candidate: String? = null) {
+        fun testConnection() {
             if (mutableState.value.connecting || mutableState.value.updating) return
             mutableState.value = mutableState.value.copy(connecting = true, setupError = false)
             viewModelScope.launch {
                 try {
-                    withContext(Dispatchers.IO) { verifyAccountAndReceiver(candidate) }
+                    withContext(Dispatchers.IO) { verifyAccountAndReceiver() }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -128,17 +130,15 @@ internal class DexcomShareSettingsViewModel
             }
         }
 
-        private suspend fun verifyAccountAndReceiver(candidate: String? = null) {
+        private suspend fun verifyAccountAndReceiver() {
             val config = checkNotNull(store.readConfig())
             val client = DexcomShareUploadClient()
             try {
                 client.testAccount(config)
                 store.markVerified(config, System.currentTimeMillis())
-                if (!store.enabled()) {
-                    val serial = candidate ?: config.receiverSerial.takeIf { it.isNotEmpty() }
-                    val confirmed = if (serial == null) client.checkReceiver(config) else client.checkReceiver(config, serial)
-                    store.saveReceiver(confirmed, config.revision)
-                }
+                val confirmed = client.resolveReceiver(config)
+                store.saveReceiver(confirmed, config.revision)
+                if (store.enabled()) DexcomShareUploadScheduler.onReadingsChanged(context)
             } catch (problem: DexcomShareProtocolException) {
                 store.markError(config, problem.issue, problem.httpStatus)
             }
@@ -182,12 +182,73 @@ internal class DexcomShareSettingsViewModel
                         "Einladung unbestätigt. Bitte prüfe dein Share-Konto und das Postfach des Followers."
                     }
                 mutableState.value = mutableState.value.copy(updating = false, invitationMessage = message)
+                followersJob?.join()
+                loadFollowers()
             }
+        }
+
+        fun loadFollowers() = updateFollowers()
+
+        fun removeFollower(follower: DexcomShareFollower) {
+            if (follower !in mutableState.value.followers) return
+            updateFollowers(follower.contactId)
+        }
+
+        private fun updateFollowers(removeContactId: String? = null) {
+            val current = mutableState.value
+            if (!current.status.configured || current.followersLoading || current.updating || current.connecting) return
+            mutableState.value =
+                current.copy(
+                    updating = removeContactId != null,
+                    followersLoading = true,
+                    followersMessage = null,
+                )
+            followersJob =
+                viewModelScope.launch {
+                    var message: String? = null
+                    var confirmedRemoval = false
+                    try {
+                        val followers =
+                            withContext(Dispatchers.IO) {
+                                val config = checkNotNull(store.readConfig())
+                                check(config.revision == current.status.revision)
+                                val client = DexcomShareUploadClient()
+                                if (removeContactId != null) {
+                                    client.removeFollower(config, removeContactId)
+                                    confirmedRemoval = true
+                                }
+                                client.listFollowers(config)
+                            }
+                        if (store.status().revision == current.status.revision) {
+                            mutableState.value = mutableState.value.copy(followers = followers)
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        Log.w(TAG, "Share followers unavailable: ${error.javaClass.simpleName}")
+                        message =
+                            when {
+                                confirmedRemoval -> "Follower entfernt. Die Liste konnte nicht neu geladen werden."
+                                removeContactId != null -> "Dexcom hat das Entfernen nicht bestätigt. Lade die Liste erneut."
+                                else -> "Follower konnten nicht geladen werden."
+                            }
+                    } finally {
+                        val currentState = mutableState.value
+                        mutableState.value =
+                            currentState.copy(
+                                status = store.status(),
+                                updating = currentState.updating && removeContactId == null,
+                                followersLoading = false,
+                                followers = if (confirmedRemoval) currentState.followers.filterNot { it.contactId == removeContactId } else currentState.followers,
+                                followersMessage = message,
+                            )
+                    }
+                }
         }
 
         fun clearAccount() {
             if (mutableState.value.updating || mutableState.value.connecting) return
-            mutableState.value = mutableState.value.copy(updating = true, invitationMessage = null)
+            mutableState.value = mutableState.value.copy(updating = true, invitationMessage = null, followers = emptyList(), followersMessage = null)
             viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) {

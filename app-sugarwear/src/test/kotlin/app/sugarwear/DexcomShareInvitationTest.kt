@@ -66,6 +66,48 @@ class DexcomShareInvitationTest {
             assertEquals(listOf("DoesContactExistByName", "CreateContact", "CreateSubscriptionInvitation"), operations)
         }
 
+    @Test fun `invitation sends the selected data scope and notification settings`() {
+        val payload =
+            invitation
+                .copy(
+                    sharing = DexcomShareDataSharing.CURRENT_VALUE,
+                    alerts = setOf(DexcomShareFollowerAlert.URGENT_LOW, DexcomShareFollowerAlert.NO_DATA),
+                ).payload()
+
+        assertEquals(0, payload.getInt("Permissions"))
+        val alerts = payload.getJSONObject("AlertSettings")
+        assertTrue(alerts.getJSONObject("FixedLowAlert").getBoolean("IsEnabled"))
+        assertTrue(alerts.getJSONObject("NoDataAlert").getBoolean("IsEnabled"))
+        assertFalse(alerts.getJSONObject("LowAlert").getBoolean("IsEnabled"))
+        assertFalse(alerts.getJSONObject("HighAlert").getBoolean("IsEnabled"))
+    }
+
+    @Test fun `existing followers show the permission returned by Dexcom and removal targets the contact`() =
+        runBlocking {
+            val client =
+                client { operation, uri, _ ->
+                    when (operation) {
+                        "ListPublisherAccountSubscriptions" ->
+                            DexcomShareHttpResponse(
+                                200,
+                                """[{"ContactId":"$contact","ContactName":"Kontakt","SubscriberId":"$subscription","IsEnabled":true,"Permissions":0}]""",
+                            )
+                        "DeleteContact" -> {
+                            assertTrue(uri.rawQuery.endsWith("contactId=$contact"))
+                            DexcomShareHttpResponse(200, "")
+                        }
+                        else -> error("Unexpected operation $operation")
+                    }
+                }
+            val follower = client.listFollowers(config).single()
+            assertEquals("Kontakt", follower.name)
+            assertEquals(true, follower.enabled)
+            assertEquals(true, follower.accepted)
+            assertEquals(DexcomShareDataSharing.CURRENT_VALUE, follower.sharing)
+            assertTrue(follower.alerts.isEmpty())
+            client.removeFollower(config, follower.contactId)
+        }
+
     @Test fun `an existing name never authorizes sending to an unknown address`() =
         runBlocking {
             val client =

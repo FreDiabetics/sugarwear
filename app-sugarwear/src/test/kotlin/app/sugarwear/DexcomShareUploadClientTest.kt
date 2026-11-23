@@ -124,6 +124,26 @@ class DexcomShareUploadClientTest {
             assertEquals(false, problem?.recoverable)
         }
 
+    @Test fun `background receiver recovery only adopts an already assigned receiver`() =
+        runBlocking {
+            for (assignment in listOf("AssignedToYou", "NotAssigned", "AssignedToOther")) {
+                val http =
+                    FakeHttp { url, _ ->
+                        when {
+                            url.contains("AuthenticatePublisherAccount") -> DexcomShareHttpResponse(200, JSONObject.quote(accountId))
+                            url.contains("LoginPublisherAccountById") -> DexcomShareHttpResponse(200, JSONObject.quote(session))
+                            url.endsWith("Publisher/CheckMonitoredReceiverAssignmentStatus?sessionId=$session&serialNumber=SM00000000") ->
+                                DexcomShareHttpResponse(200, JSONObject.quote(assignment))
+                            else -> error("Recovery must only read receiver assignments")
+                        }
+                    }
+                val error = DexcomShareProtocolException(DexcomShareUploadError.RECEIVER_MISMATCH)
+                val recovered = runCatching { DexcomShareUploadClient(http).recoverReceiver(config, error) }
+                assertEquals(assignment == "AssignedToYou", recovered.isSuccess)
+                if (recovered.isSuccess) assertEquals("SM00000000", recovered.getOrThrow())
+            }
+        }
+
     @Test fun `missing receiver blocks upload before sending credentials or measurements`() =
         runBlocking {
             val http = FakeHttp { _, _ -> error("No network request expected") }

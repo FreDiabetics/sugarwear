@@ -118,7 +118,7 @@ internal class DexcomShareUploadStore(
     fun saveReceiver(serial: String, expectedRevision: Long) {
         require(isValidShareReceiver(serial))
         synchronized(lock) {
-            if (revision() != expectedRevision || enabled()) return
+            if (revision() != expectedRevision) return
             val config = checkNotNull(readConfig())
             if (config.receiverSerial == serial) {
                 // Rechecking the same receiver must preserve the last confirmed upload.

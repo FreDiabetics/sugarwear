@@ -25,7 +25,7 @@ internal class DexcomShareUploadWorker(
     override suspend fun doWork(): Result =
         withContext(Dispatchers.IO) {
             val settings = DexcomShareUploadStore(applicationContext)
-            val config = settings.readEnabledConfig() ?: return@withContext Result.success()
+            var config = settings.readEnabledConfig() ?: return@withContext Result.success()
             val collector = CgmSensorStateStore(applicationContext).read()
             val sensor = collector.sensor ?: return@withContext Result.success()
             if (!collector.collectorEnabled) return@withContext Result.success()
@@ -66,8 +66,21 @@ internal class DexcomShareUploadWorker(
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (problem: DexcomShareProtocolException) {
-                        settings.markError(config, problem.issue, problem.httpStatus)
-                        return@withContext if (problem.recoverable) Result.retry() else Result.failure()
+                        val confirmed =
+                            try {
+                                client.recoverReceiver(config, problem)
+                            } catch (failure: DexcomShareProtocolException) {
+                                settings.markError(config, failure.issue, failure.httpStatus)
+                                return@withContext if (failure.recoverable) Result.retry() else Result.failure()
+                            }
+                        if (isStopped) return@withContext Result.success()
+                        settings.saveReceiver(confirmed, config.revision)
+                        val repaired = settings.readEnabledConfig() ?: return@withContext Result.success()
+                        if (repaired != config.copy(receiverSerial = confirmed, revision = config.revision + 1)) {
+                            return@withContext Result.success()
+                        }
+                        config = repaired
+                        continue
                     }
                     if (isStopped ||
                         !settings.markAccepted(

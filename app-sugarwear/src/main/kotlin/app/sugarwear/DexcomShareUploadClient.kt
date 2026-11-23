@@ -2,6 +2,8 @@ package app.sugarwear
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.IOException
@@ -91,28 +93,88 @@ internal class DexcomShareUploadClient(
             }
         }
 
+    /** Reads server-confirmed assignments without replacing any existing publisher. */
+    suspend fun resolveReceiver(config: DexcomShareUploadConfig): String {
+        val saved = config.receiverSerial
+        return if (saved.isEmpty() || saved == XDRIP_DEFAULT_RECEIVER) {
+            checkReceiver(config)
+        } else {
+            try {
+                checkReceiver(config, saved)
+            } catch (problem: DexcomShareProtocolException) {
+                if (!problem.receiverRejected()) throw problem
+                checkReceiver(config)
+            }
+        }
+    }
+
     /** Called only by the explicit watch setup action. A failed HTTP request never authorizes replacement. */
     suspend fun setupWatchReceiver(config: DexcomShareUploadConfig): String =
         withContext(Dispatchers.IO) {
-            val candidate = XDRIP_DEFAULT_RECEIVER
-            if (config.receiverSerial.isNotEmpty() && config.receiverSerial != candidate) {
-                try {
-                    return@withContext checkReceiver(config, config.receiverSerial)
-                } catch (problem: DexcomShareProtocolException) {
-                    if (!problem.unassignedResponse()) throw problem
-                }
-            }
             try {
-                return@withContext checkReceiver(config, candidate)
+                return@withContext resolveReceiver(config)
             } catch (problem: DexcomShareProtocolException) {
-                if (!problem.unassignedResponse()) throw problem
+                if (problem.issue != DexcomShareUploadError.RECEIVER_NOT_ASSIGNED || problem.httpStatus != null) throw problem
             }
-            request(config, "Publisher/ReplacePublisherAccountMonitoredReceiver", null, authenticate(config), candidate, DexcomShareUploadError.RECEIVER_SERVER)
-            checkReceiver(config, candidate)
+            request(config, "Publisher/ReplacePublisherAccountMonitoredReceiver", null, authenticate(config), XDRIP_DEFAULT_RECEIVER, DexcomShareUploadError.RECEIVER_SERVER)
+            checkReceiver(config)
         }
 
-    private fun DexcomShareProtocolException.unassignedResponse(): Boolean =
-        issue == DexcomShareUploadError.RECEIVER_NOT_ASSIGNED && httpStatus == null
+    suspend fun recoverReceiver(config: DexcomShareUploadConfig, problem: DexcomShareProtocolException): String {
+        if (!problem.receiverRejected() || config.receiverSerial == XDRIP_DEFAULT_RECEIVER) throw problem
+        return checkReceiver(config)
+    }
+
+    suspend fun listFollowers(config: DexcomShareUploadConfig): List<DexcomShareFollower> =
+        withContext(Dispatchers.IO) {
+            val subscriptions = subscriptions(config, authenticate(config))
+            List(subscriptions.length()) { i ->
+                val entry = subscriptions.optJSONObject(i) ?: throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION)
+                val id =
+                    entry.optString("ContactId").takeIf(::validUuid)
+                        ?: throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION)
+                val alerts = entry.optJSONObject("AlertSettings")
+                val subscriber = entry.opt("SubscriberId") as? String
+                DexcomShareFollower(
+                    contactId = id,
+                    name = entry.optString("ContactName").ifBlank { "Follower" },
+                    email = (entry.opt("EmailAddress") as? String)?.takeIf(String::isNotBlank),
+                    accepted = subscriber?.let(::validUuid),
+                    enabled = entry.opt("IsEnabled") as? Boolean,
+                    sharing = DexcomShareDataSharing.entries.find { it.permission == entry.optInt("Permissions", -1) },
+                    alerts =
+                        DexcomShareFollowerAlert.entries
+                            .mapNotNull { type ->
+                                (alerts?.optJSONObject(type.field)?.opt("IsEnabled") as? Boolean)?.let { type to it }
+                            }.toMap(),
+                )
+            }
+        }
+
+    suspend fun removeFollower(config: DexcomShareUploadConfig, contactId: String) =
+        withContext(Dispatchers.IO) {
+            require(validUuid(contactId))
+            request(
+                config,
+                "Publisher/DeleteContact",
+                sessionId = authenticate(config),
+                serverError = DexcomShareUploadError.INVITATION,
+                parameters = mapOf("contactId" to contactId),
+            )
+            Unit
+        }
+
+    private fun subscriptions(config: DexcomShareUploadConfig, session: String): JSONArray {
+        val response = request(config, "Publisher/ListPublisherAccountSubscriptions", sessionId = session, serverError = DexcomShareUploadError.INVITATION)
+        return try {
+            JSONArray(response)
+        } catch (error: JSONException) {
+            throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION, cause = error)
+        }
+    }
+
+    private fun DexcomShareProtocolException.receiverRejected(): Boolean =
+        issue == DexcomShareUploadError.RECEIVER_MISMATCH || issue == DexcomShareUploadError.RECEIVER_NOT_ASSIGNED
 
     suspend fun inviteFollower(
         config: DexcomShareUploadConfig,
@@ -139,13 +201,7 @@ internal class DexcomShareUploadClient(
                     invitationId(response).also(rememberContact)
                 } else {
                     // A previous invitation may have reached Dexcom even if its response was lost.
-                    val response = publisher("ListPublisherAccountSubscriptions")
-                    val subscriptions =
-                        try {
-                            org.json.JSONArray(response)
-                        } catch (error: org.json.JSONException) {
-                            throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION, cause = error)
-                        }
+                    val subscriptions = subscriptions(config, session)
                     for (i in 0 until subscriptions.length()) {
                         val entry = subscriptions.optJSONObject(i) ?: throw DexcomShareProtocolException(DexcomShareUploadError.INVITATION)
                         if (pendingContactId.equals(entry.optString("ContactId"), ignoreCase = true) && validUuid(entry.optString("SubscriptionId"))) {
