@@ -50,8 +50,14 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
         return handled
     }
 
+    private val loadingSurface by lazy { View(this).apply { setBackgroundColor(android.graphics.Color.BLACK) } }
+
     internal fun <T> settingsReady(state: CgmSettingsIoState<T>, retry: () -> Unit): Boolean {
         if (state.snapshot != null && state.error == null) return true
+        if (state.error == null) {
+            if (content.value !== loadingSurface) showSettingsView(loadingSurface)
+            return false
+        }
         val root =
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -61,7 +67,7 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
                 setBackgroundColor(android.graphics.Color.BLACK)
                 addView(
                     TextView(this@CgmSettingsComposeActivity).apply {
-                        text = if (state.error == null) "Einstellungen werden geladen ..." else "Einstellungen konnten nicht geladen werden."
+                        text = "Einstellungen konnten nicht geladen werden."
                         textSize =
                             app.sugarlicious.uishared.WearSettingsUi
                                 .textSize(12f)
@@ -71,27 +77,25 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
                         gravity = android.view.Gravity.CENTER
                     },
                 )
-                if (state.error != null) {
-                    addView(
-                        TextView(this@CgmSettingsComposeActivity).apply {
-                            setText(R.string.settings_retry)
-                            textSize =
-                                app.sugarlicious.uishared.WearSettingsUi
-                                    .textSize(14f)
-                            gravity = android.view.Gravity.CENTER
-                            minimumHeight = (48 * resources.displayMetrics.density).toInt()
-                            app.sugarlicious.uishared.SystemTypography
-                                .apply(this, true)
-                            setTextColor(android.graphics.Color.WHITE)
-                            background =
-                                android.graphics.drawable.GradientDrawable().apply {
-                                    setColor(0xFF363636.toInt())
-                                    cornerRadius = 26 * resources.displayMetrics.density
-                                }
-                            setOnClickListener { retry() }
-                        },
-                    )
-                }
+                addView(
+                    TextView(this@CgmSettingsComposeActivity).apply {
+                        setText(R.string.settings_retry)
+                        textSize =
+                            app.sugarlicious.uishared.WearSettingsUi
+                                .textSize(14f)
+                        gravity = android.view.Gravity.CENTER
+                        minimumHeight = (48 * resources.displayMetrics.density).toInt()
+                        app.sugarlicious.uishared.SystemTypography
+                            .apply(this, true)
+                        setTextColor(android.graphics.Color.WHITE)
+                        background =
+                            android.graphics.drawable.GradientDrawable().apply {
+                                setColor(0xFF363636.toInt())
+                                cornerRadius = 26 * resources.displayMetrics.density
+                            }
+                        setOnClickListener { retry() }
+                    },
+                )
             }
         showSettingsView(root)
         return false
@@ -130,8 +134,10 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
     }
 
     protected fun showSettingsView(view: View) {
-        CgmBottomNavigation.tabFor(this)?.let { tab ->
-            CgmBottomNavigation.appendAtEnd(this, view, tab)
+        if (view !== loadingSurface) {
+            CgmBottomNavigation.tabFor(this)?.let { tab ->
+                CgmBottomNavigation.appendAtEnd(this, view, tab)
+            }
         }
         content.value = view
         host?.let { attach(it, view) }

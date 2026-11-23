@@ -71,7 +71,7 @@ class CgmWatchActivity : ComponentActivity() {
         }
     private val overviewModel by viewModels<CollectorViewModel>()
     private val sensorStatusModel by viewModels<CgmSystemStatusViewModel>()
-    private val screenHost by lazy { FrameLayout(this) }
+    private val screenHost by lazy { FrameLayout(this).apply { setBackgroundColor(Color.BLACK) } }
     private var overviewState = CgmOverviewState()
     private val systemBackCallback = android.window.OnBackInvokedCallback { handleSystemBack() }
     private val appearanceStore by lazy { CgmAppearanceStore(this) }
@@ -224,19 +224,24 @@ class CgmWatchActivity : ComponentActivity() {
     }
 
     private fun refreshScreen() {
-        val palette = appearanceStore.load()
         val state =
             overviewState.snapshot?.persisted ?: if (pairingStep != null) {
                 CgmPersistedState()
             } else {
                 screenBuilt = false
-                showScreen(
-                    label(if (overviewState.failed) "Anzeigedaten konnten nicht geladen werden. Zum Wiederholen tippen." else "Daten werden geladen", 13f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY)).apply {
-                        if (overviewState.failed) setOnClickListener { overviewModel.retry() }
-                    },
-                )
+                if (overviewState.failed) {
+                    val palette = appearanceStore.load()
+                    showScreen(
+                        label("Anzeigedaten konnten nicht geladen werden. Zum Wiederholen tippen.", 13f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY)).apply {
+                            setOnClickListener { overviewModel.retry() }
+                        },
+                    )
+                } else if (screenHost.childCount > 0) {
+                    screenHost.removeAllViews()
+                }
                 return
             }
+        val palette = appearanceStore.load()
         pairingModel.sensorChanged(state)
         if (!screenBuilt || palette != activePalette) buildScreen(palette) else refreshLiveContent()
     }
