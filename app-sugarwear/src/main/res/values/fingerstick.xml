@@ -1,0 +1,10 @@
+<resources>
+    <item type="id" name="fingerstick_input" />
+    <string name="fingerstick_log">Blutzucker protokollieren</string>
+    <string name="fingerstick_value">Gemessener Blutzucker</string>
+    <string name="fingerstick_save">Eintrag speichern</string>
+    <string name="fingerstick_saved">Blutzucker gespeichert</string>
+    <string name="fingerstick_invalid">Bitte einen positiven Messwert eingeben.</string>
+    <string name="fingerstick_error">Speichern fehlgeschlagen. Bitte erneut versuchen.</string>
+    <string name="fingerstick_time">Messzeit %1$s</string>
+</resources>

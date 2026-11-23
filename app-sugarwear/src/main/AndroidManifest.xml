@@ -47,6 +47,7 @@
         <service android:name=".CgmAlarmAudioService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <activity android:name=".CgmAlarmActivity" android:exported="false" android:excludeFromRecents="true" android:noHistory="true" android:launchMode="singleTop" android:showWhenLocked="true" android:turnScreenOn="true" android:taskAffinity="" />
         <meta-data android:name="com.google.android.wearable.standalone" android:value="true" />
+        <activity android:name=".FingerstickActivity" android:exported="false" />
         <activity
             android:name=".CgmWatchActivity"
             android:exported="true"

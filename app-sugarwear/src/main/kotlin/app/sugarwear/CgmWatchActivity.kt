@@ -624,6 +624,14 @@ class CgmWatchActivity : ComponentActivity() {
                     )
             }
 
+        fun addFingerstickAction() {
+            tile.addView(
+                pill(getString(R.string.fingerstick_log)) {
+                    startActivity(Intent(this, FingerstickActivity::class.java))
+                },
+            )
+        }
+
         val now = overviewState.now
         val persisted = overviewState.snapshot?.persisted ?: CgmPersistedState()
         val bluetoothPermission = overviewState.snapshot?.bluetoothPermission == true
@@ -812,6 +820,7 @@ class CgmWatchActivity : ComponentActivity() {
                     )
                 }
             }
+            addFingerstickAction()
             return tile
         }
 
@@ -928,6 +937,7 @@ class CgmWatchActivity : ComponentActivity() {
             metadata,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
+        addFingerstickAction()
         return tile
     }
 
