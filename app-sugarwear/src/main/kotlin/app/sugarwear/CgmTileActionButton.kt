@@ -55,5 +55,4 @@ internal class CgmTileActionButton(
         if (textWidth > width * 0.94f) setTextSize(TypedValue.COMPLEX_UNIT_PX, desiredText * width * 0.94f / textWidth)
         super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
     }
-
-
+}
