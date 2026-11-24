@@ -638,11 +638,13 @@ class CgmWatchActivityLayoutTest {
             assertEquals(if (step == CgmPairingScreenStep.CONNECTED) 0 else 2, actions.size)
             actions.forEach { button ->
                 val contentWidth = card.width - card.paddingLeft - card.paddingRight
-                val expectedWidth =
+                val alarmWidth =
                     (contentWidth * CgmAlarmDesignTokens.ACTION_WIDTH / CgmAlarmDesignTokens.SIZE).toInt()
-                val scale = expectedWidth / CgmAlarmDesignTokens.ACTION_WIDTH
+                val expectedWidth = (contentWidth * CgmPairingActionTokens.WIDTH_FRACTION).toInt()
+                val scale = alarmWidth / CgmAlarmDesignTokens.ACTION_WIDTH
                 val referenceHeight =
-                    (expectedWidth * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
+                    (alarmWidth * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
+                assertTrue(expectedWidth > alarmWidth)
                 assertEquals(expectedWidth, button.width)
                 assertEquals(referenceHeight, button.height)
                 assertTrue(button.bottom <= card.height - card.paddingBottom)
@@ -652,11 +654,20 @@ class CgmWatchActivityLayoutTest {
                 assertEquals(0, button.paddingLeft)
                 assertEquals(0, button.paddingRight)
                 val referenceTextSize =
-                    CgmAlarmDesignTokens.ACTION_TEXT_SIZE * scale * activity.resources.configuration.fontScale
-                val referencePaint = android.graphics.Paint(button.paint).apply { textSize = referenceTextSize }
-                val referenceTextWidth = referencePaint.measureText(button.text.toString())
-                val available = (button.width - 2).coerceAtLeast(1)
-                val expectedTextSize = if (referenceTextWidth > available) referenceTextSize * available / referenceTextWidth else referenceTextSize
+                    CgmPairingActionTokens.TEXT_SIZE * scale * activity.resources.configuration.fontScale
+                val referencePaint =
+                    android.graphics.Paint(button.paint).apply {
+                        textSize = referenceTextSize
+                    }
+                val referenceTextWidth =
+                    referencePaint.measureText(CgmPairingActionTokens.REFERENCE_TEXT)
+                val available = button.width * CgmPairingActionTokens.TEXT_WIDTH_FRACTION
+                val expectedTextSize =
+                    if (referenceTextWidth > available) {
+                        referenceTextSize * available / referenceTextWidth
+                    } else {
+                        referenceTextSize
+                    }
                 assertEquals(expectedTextSize, button.textSize, 0.01f)
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
@@ -664,8 +675,15 @@ class CgmWatchActivityLayoutTest {
                 assertEquals("0123", code.text.toString())
                 val progress = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmSensorConnectionProgressView>().single()
                 assertTrue(code.top > progress.bottom)
-                assertTrue(findText(card, "Sensorcode korrigieren") is CgmTileActionButton)
+                assertNull(findText(card, "Sensorcode korrigieren"))
+                assertTrue(findText(card, "Code ändern") is CgmTileActionButton)
                 assertTrue(findText(card, "Zurück") is CgmTileActionButton)
+                val pairingActions =
+                    (0 until card.childCount)
+                        .map { card.getChildAt(it) }
+                        .filterIsInstance<CgmTileActionButton>()
+                assertEquals(1, pairingActions.map { it.textSize }.distinct().size)
+                assertEquals(1, pairingActions.map { it.width }.distinct().size)
             }
             if (step == CgmPairingScreenStep.CONNECTED) {
                 val check = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<ImageView>().single()

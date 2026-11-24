@@ -45,18 +45,43 @@ class CgmOverviewPresentationPolicyTest {
         assertEquals(CgmOverviewMode.PAUSED, display(paused, pause, start + CGM_PAUSED_VALUE_DURATION_MS).mode)
     }
 
-    @Test fun `no sensor and pause take precedence over radio and historical errors`() {
+    @Test fun `no sensor and explicit pause take precedence over radio and historical errors`() {
+        val pause = resume.copy(action = CgmUiSensorAction.PAUSE)
         assertEquals(CgmOverviewMode.NO_SENSOR, display(state.copy(sensor = null)).mode)
-        assertEquals(CgmOverviewMode.PAUSED, cgmOverviewPresentation(state.copy(collectorEnabled = false), true, resume, start + 100, false, false).mode)
+        assertEquals(
+            CgmOverviewMode.PAUSED,
+            cgmOverviewPresentation(
+                state.copy(collectorEnabled = false),
+                true,
+                pause,
+                start + 100,
+                false,
+                false,
+            ).mode,
+        )
         assertEquals(CgmOverviewMode.BLUETOOTH_OFF, cgmOverviewPresentation(state, true, resume, start + 100, false).mode)
         assertEquals(CgmOverviewMode.PERMISSION_REQUIRED, cgmOverviewPresentation(state, true, resume, start + 100, true, false).mode)
+    }
+
+    @Test fun `disabled collector without explicit pause never renders paused during pairing`() {
+        val waiting =
+            state.copy(
+                collectorEnabled = false,
+                lastReading = reading.copy(timestampEpochMs = start - 1),
+            )
+        val result = display(waiting, resume, start + 100)
+        assertEquals(CgmOverviewMode.CONNECTING, result.mode)
+        assertNotEquals(CgmOverviewMode.PAUSED, result.mode)
     }
 
     @Test fun `terminal failure stops resume and completed resume never reappears`() {
         val error = CgmCollectorError("G7-AUTH-204", false, start + 2, "Authentifizierung fehlgeschlagen")
         assertEquals(CgmOverviewMode.ERROR, display(state.copy(lastReading = null, lastError = error)).mode)
         assertEquals(CgmOverviewMode.SIGNAL_LOSS, display(state.copy(lastReading = null), resume.copy(completed = true)).mode)
-        assertEquals(CgmOverviewMode.PAUSED, display(state.copy(collectorEnabled = false)).mode)
+        assertEquals(
+            CgmOverviewMode.SIGNAL_LOSS,
+            display(state.copy(collectorEnabled = false), resume.copy(completed = true)).mode,
+        )
     }
 
     @Test fun `a replacement sensor cannot inherit previous resume`() {

@@ -369,7 +369,7 @@ class CgmWatchActivity : ComponentActivity() {
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 content.addView(
-                    pairingPill("Sensorcode korrigieren") {
+                    pairingPill("Code ändern") {
                         companionBondAccess.cancel()
                         pairingModel.correctCode()
                         refreshScreen()
@@ -1255,6 +1255,7 @@ class CgmWatchActivity : ComponentActivity() {
     private fun pairingPill(textValue: String, action: () -> Unit) =
         CgmTileActionButton(this).apply {
             text = textValue
+            usePairingStyle()
             layoutParams = CgmPairingTileLayout.actionLayoutParams(this@CgmWatchActivity)
             setOnClickListener { action() }
         }

@@ -60,10 +60,25 @@ internal fun cgmOverviewPresentation(
     val status = deriveCgmStatusPillState(state, credentialsPresent, now)
     if (status == CgmStatusPillState.NO_ACTIVE_SENSOR) return CgmOverviewPresentation(CgmOverviewMode.NO_SENSOR)
     val reading = state.lastReading?.takeIf { cgmReadingBelongsToSession(state, it) && it.status == CgmReadingStatus.VALID && !it.displayOnly && it.glucoseMgDl.isFinite() && it.timestampEpochMs <= now }
-    if (!state.collectorEnabled) {
-        val pause = transition?.takeIf { it.action == CgmUiSensorAction.PAUSE && cgmResumeMatchesSession(state, it) }
-        val previous = reading ?: lastValidReading?.takeIf { cgmReadingBelongsToSession(state, it) && it.status == CgmReadingStatus.VALID && !it.displayOnly && it.timestampEpochMs <= now }
-        val historical = previous?.takeIf { pause != null && now >= pause.startedAt && now - pause.startedAt < CGM_PAUSED_VALUE_DURATION_MS }
+    val pause =
+        transition?.takeIf {
+            it.action == CgmUiSensorAction.PAUSE &&
+                cgmResumeMatchesSession(state, it)
+        }
+    if (!state.collectorEnabled && pause != null) {
+        val previous =
+            reading
+                ?: lastValidReading?.takeIf {
+                    cgmReadingBelongsToSession(state, it) &&
+                        it.status == CgmReadingStatus.VALID &&
+                        !it.displayOnly &&
+                        it.timestampEpochMs <= now
+                }
+        val historical =
+            previous?.takeIf {
+                now >= pause.startedAt &&
+                    now - pause.startedAt < CGM_PAUSED_VALUE_DURATION_MS
+            }
         return CgmOverviewPresentation(CgmOverviewMode.PAUSED, historical)
     }
     if (!bluetoothPermission) return CgmOverviewPresentation(CgmOverviewMode.PERMISSION_REQUIRED, phase = "Bluetooth-Berechtigung erforderlich")
@@ -76,6 +91,7 @@ internal fun cgmOverviewPresentation(
         val connected = (resume.connectedAt ?: state.lastSuccessfulConnectionEpochMs ?: 0L) >= resume.startedAt
         return CgmOverviewPresentation(CgmOverviewMode.CONNECTING, phase = if (connected) "Verbunden – warte auf Glukosewert" else progress.message, animate = !connected && progress.animate, connectionConfirmed = connected)
     }
+    if (!state.collectorEnabled) return CgmOverviewPresentation(CgmOverviewMode.SIGNAL_LOSS)
     if (status == CgmStatusPillState.SIGNAL_LOSS) return CgmOverviewPresentation(CgmOverviewMode.SIGNAL_LOSS)
     return if (reading != null) CgmOverviewPresentation(CgmOverviewMode.LIVE, reading) else CgmOverviewPresentation(CgmOverviewMode.ERROR, phase = "Keine aktuellen Daten")
 }
