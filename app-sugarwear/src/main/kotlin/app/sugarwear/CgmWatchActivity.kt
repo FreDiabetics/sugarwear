@@ -40,6 +40,7 @@ import app.sugarlicious.model.wearGlucoseCardPresentation
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
+import app.sugarlicious.sensor.protocol.CgmSensorState
 import app.sugarlicious.uishared.TrendDrawableResources
 import app.sugarlicious.uishared.centerOnGlucoseMetadata
 import kotlin.math.roundToInt
@@ -787,15 +788,21 @@ class CgmWatchActivity : ComponentActivity() {
                     },
                 )
             } else if (noActiveSensor) {
+                val credentialsPresent = overviewState.snapshot?.credentialsPresent == true
+                val canRetrySetup =
+                    persisted.sensor != null &&
+                        persisted.sensor?.state != CgmSensorState.ENDED &&
+                        credentialsPresent
+                val requiresExplicitUnlink = !canRetrySetup && (persisted.sensor != null || credentialsPresent)
                 tile.addView(
-                    pill("Sensor verbinden") {
-                        if (persisted.sensor != null && overviewState.snapshot?.credentialsPresent == true) {
-                            pairingModel.open(CgmPairingScreenStep.CONNECTING, System.currentTimeMillis())
-                            sensorStatusModel.resumeCollector()
-                        } else if (persisted.sensor != null || overviewState.snapshot?.credentialsPresent == true) {
-                            pairingModel.correctCode()
-                        } else {
-                            pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
+                    pill(if (requiresExplicitUnlink) "Sensor trennen" else "Sensor verbinden") {
+                        when {
+                            requiresExplicitUnlink -> performSensorUnlink()
+                            canRetrySetup -> {
+                                pairingModel.open(CgmPairingScreenStep.CONNECTING, System.currentTimeMillis())
+                                sensorStatusModel.resumeCollector()
+                            }
+                            else -> pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
                         }
                         refreshScreen()
                     },
