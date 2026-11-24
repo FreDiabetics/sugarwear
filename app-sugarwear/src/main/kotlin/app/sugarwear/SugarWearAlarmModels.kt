@@ -16,17 +16,29 @@ enum class SugarWearAlarmType(
     SIGNAL_LOSS("signal_loss", "Signalverlust"),
     TEMPORARY_SENSOR_PROBLEM("temporary_sensor_problem", "Kurzes Sensorproblem"),
     TECHNICAL_WARNING("technical_warning", "Technisches Problem"),
+    SENSOR_END_24H("sensor_end_24h", "Sensor läuft in 24 Stunden ab"),
+    SENSOR_GRACE_START("sensor_grace_start", "Toleranzzeit"),
     ;
+
+    val lifetimeDescription: String?
+        get() = when (this) {
+            SENSOR_END_24H -> "Dann erhalten Sie eine Toleranzzeit von 12 Stunden, um den Sensor zu wechseln."
+            SENSOR_GRACE_START -> "Sensor befindet sich nun in der Toleranzzeit und läuft in 12h endgültig ab."
+            else -> null
+        }
+
+    val isSensorLifetime: Boolean
+        get() = this == SENSOR_END_24H || this == SENSOR_GRACE_START
 
     val usesGlucoseReading: Boolean
         get() =
             when (this) {
-                SIGNAL_LOSS, TEMPORARY_SENSOR_PROBLEM, TECHNICAL_WARNING -> false
+                SIGNAL_LOSS, TEMPORARY_SENSOR_PROBLEM, TECHNICAL_WARNING, SENSOR_END_24H, SENSOR_GRACE_START -> false
                 else -> true
             }
 
     val isMandatory: Boolean
-        get() = this == URGENT_LOW || this == TECHNICAL_WARNING
+        get() = this == URGENT_LOW || this == TECHNICAL_WARNING || isSensorLifetime
 
     companion object {
         fun fromId(id: String): SugarWearAlarmType? = entries.firstOrNull { it.id == id }

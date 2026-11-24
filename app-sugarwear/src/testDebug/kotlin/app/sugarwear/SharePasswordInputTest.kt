@@ -16,7 +16,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowAlertDialog
+import org.robolectric.shadows.ShadowDialog
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -32,7 +32,7 @@ class SharePasswordInputTest {
                 .filterIsInstance<TextView>()
                 .first { it.text == "Konto einrichten" }
                 .performClick()
-            val dialog = checkNotNull(ShadowAlertDialog.getLatestAlertDialog())
+            val dialog = checkNotNull(ShadowDialog.getLatestDialog())
             val content = dialog.window!!.decorView as ViewGroup
             val field = content.descendants.filterIsInstance<EditText>().single { it.hint == "Dexcom-Passwort" }
             field.append(" aB!5 ")

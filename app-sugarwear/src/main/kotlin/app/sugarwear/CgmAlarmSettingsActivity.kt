@@ -211,7 +211,6 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 )
             }
         }
-        CgmBottomNavigation.appendAtEnd(this, root, CgmNavTab.PROFILE)
         restoreScrollPosition(restoreScrollY)
     }
 
@@ -308,6 +307,8 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
 
             // Specific type rules & controls
             when (type) {
+                SugarWearAlarmType.SENSOR_END_24H, SugarWearAlarmType.SENSOR_GRACE_START ->
+                    addView(label(requireNotNull(type.lifetimeDescription), 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
                 SugarWearAlarmType.URGENT_LOW -> {
                     addView(label("Feste Warnstufe: 55 mg/dL", 11f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
                     addView(label("Schlummerzeit: 30 Min. (nicht änderbar)", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))

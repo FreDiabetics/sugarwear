@@ -503,7 +503,6 @@ class CgmWatchActivity : ComponentActivity() {
         graphHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(graphHost, cardParams(top = 8))
         content.addView(header())
-        CgmBottomNavigation.appendAtEnd(this, content, CgmNavTab.OVERVIEW)
         scrollView =
             CgmEdgeFadeScrollView(this)
                 .apply {
@@ -527,6 +526,37 @@ class CgmWatchActivity : ComponentActivity() {
                     gravity = Gravity.CENTER_HORIZONTAL
                 }
             addView(statusHost)
+        }
+
+    private fun lifetimeAlarmCard(alarm: SugarWearAlarmInstance, palette: CgmAppearancePalette): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            tag = "glucose-tile-alarm"
+            minimumHeight = WearGlucoseCardStyle.CARD_HEIGHT_DP.dp
+            setPadding(16.dp, 14.dp, 16.dp, 12.dp)
+            background = rounded(
+                palette.argb(CgmAppearanceRole.MENU_SURFACE),
+                palette.argb(CgmAppearanceRole.MENU_BORDER),
+                WearGlucoseCardStyle.CARD_RADIUS_DP,
+            )
+            if (alarm.type == SugarWearAlarmType.SENSOR_END_24H) {
+                addView(ImageView(this@CgmWatchActivity).apply {
+                    setImageResource(R.drawable.ic_sensorend)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(32.dp, 32.dp))
+            }
+            addView(label(alarm.type.titleGerman, 18f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply {
+                gravity = Gravity.CENTER
+            })
+            addView(label(requireNotNull(alarm.type.lifetimeDescription), 12f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)).apply {
+                gravity = Gravity.CENTER
+                setPadding(0, 4.dp, 0, 6.dp)
+            })
+            addView(pill("OK") {
+                CgmAlarmCoordinator.acknowledgeEpisode(this@CgmWatchActivity, alarm)
+                overviewModel.retry()
+            })
         }
 
     private fun buildAlarmCard(alarm: SugarWearAlarmInstance, palette: CgmAppearancePalette): View {
@@ -608,14 +638,6 @@ class CgmWatchActivity : ComponentActivity() {
                         WearGlucoseCardStyle.CARD_RADIUS_DP,
                     )
             }
-
-        fun addFingerstickAction() {
-            tile.addView(
-                pill(getString(R.string.fingerstick_log)) {
-                    startActivity(Intent(this, FingerstickActivity::class.java))
-                },
-            )
-        }
 
         val now = overviewState.now
         val persisted = overviewState.snapshot?.persisted ?: CgmPersistedState()
@@ -805,7 +827,6 @@ class CgmWatchActivity : ComponentActivity() {
                     )
                 }
             }
-            addFingerstickAction()
             return tile
         }
 
@@ -922,7 +943,6 @@ class CgmWatchActivity : ComponentActivity() {
             metadata,
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
         )
-        addFingerstickAction()
         return tile
     }
 
@@ -1049,7 +1069,9 @@ class CgmWatchActivity : ComponentActivity() {
                     nowEpochMs = overviewState.now,
                 )
 
-            val mode = cgmGlucoseTileMode(snapshot.pendingAlarms.isNotEmpty(), pairingStep, stopRequested || pairingModel.state.value.offerStop, unlinkFailed)
+            CgmBottomNavigation.appendAtEnd(this, scrollView, palette, detailOpen = pairingStep != null)
+            val tileAlarm = snapshot.pendingAlarms.firstOrNull { !it.type.isSensorLifetime } ?: snapshot.pendingAlarms.firstOrNull()
+            val mode = cgmGlucoseTileMode(tileAlarm != null, pairingStep, stopRequested || pairingModel.state.value.offerStop, unlinkFailed)
             val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
             val pairingUnchanged =
                 mode == CgmGlucoseTileMode.PAIRING &&
@@ -1067,7 +1089,12 @@ class CgmWatchActivity : ComponentActivity() {
                     },
                 )
                 when (mode) {
-                    CgmGlucoseTileMode.ALARM -> glucoseHost.addView(buildAlarmCard(snapshot.pendingAlarms.first(), palette))
+                    CgmGlucoseTileMode.ALARM -> {
+                        val alarm = checkNotNull(tileAlarm)
+                        glucoseHost.addView(
+                            if (alarm.type.isSensorLifetime) lifetimeAlarmCard(alarm, palette) else buildAlarmCard(alarm, palette),
+                        )
+                    }
                     CgmGlucoseTileMode.UNLINK_ERROR ->
                         glucoseHost.addView(
                             LinearLayout(this).apply {
@@ -1115,9 +1142,10 @@ class CgmWatchActivity : ComponentActivity() {
                 renderedTileMode = mode
             }
 
-            graphHost.removeAllViews()
-            graphHost.addView(graphHeader(palette))
-            graphHost.addView(graphTile(snapshot.graphReadings, palette))
+            if (graphHost.childCount == 0) {
+                graphHost.addView(graphHeader(palette))
+                graphHost.addView(graphTile(snapshot.graphReadings, palette))
+            }
             updateGraphOnly(preserveScroll = false)
         }
     }

@@ -109,19 +109,13 @@ internal object CgmSignalLossMonitor {
             cancel(context)
             return
         }
-        val lastReading =
-            state.lastReading?.timestampEpochMs ?: run {
-                cancel(context)
-                return
-            }
-        val now = nowEpochMs
-        val healthCheck = nextCgmSignalLossMonitorAt(lastReading + CGM_SIGNAL_LOSS_AFTER_MS, now)
-        val alarmCheck = CgmAlarmCoordinator.nextTimedEvaluationAt(context, state, now)
-        schedule(
-            context,
-            minOf(healthCheck, alarmCheck ?: Long.MAX_VALUE),
-            now,
-        )
+        val lifetimeCheck = CgmAlarmCoordinator.reconcileSensorLifetime(context, nowEpochMs)
+        val healthCheck = state.lastReading?.timestampEpochMs?.let {
+            nextCgmSignalLossMonitorAt(it + CGM_SIGNAL_LOSS_AFTER_MS, nowEpochMs)
+        }
+        val alarmCheck = CgmAlarmCoordinator.nextTimedEvaluationAt(context, state, nowEpochMs)
+        val next = listOfNotNull(healthCheck, alarmCheck, lifetimeCheck).minOrNull()
+        if (next == null) cancel(context) else schedule(context, next, nowEpochMs)
     }
 
     fun cancel(context: Context) {

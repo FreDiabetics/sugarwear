@@ -440,7 +440,6 @@ class CgmAppearanceActivity : CgmSettingsComposeActivity() {
             )
         }
 
-        CgmBottomNavigation.appendAtEnd(this, pageRoot, CgmNavTab.PROFILE)
         scrollView.setBackgroundColor(palette.settingsArgb(CgmAppearanceRole.MENU_BACKGROUND))
         scrollView.viewTreeObserver.addOnPreDrawListener(
             object : ViewTreeObserver.OnPreDrawListener {

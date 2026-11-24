@@ -47,6 +47,41 @@ class CgmTimedAlarmDeliveryTest {
         drainServices()
     }
 
+    @Test
+    fun `verified lifetime deadlines persist across restore until acknowledged or sensor replaced`() {
+        val day = 86_400_000L
+        val end = start + 2 * day
+        val sensor = CgmSensor(
+            sensorId = "sensor",
+            sessionId = "first",
+            sensorStartEpochMs = start,
+            sensorEndEpochMs = end,
+            graceEndEpochMs = end + day / 2,
+        )
+        val store = CgmSensorStateStore(app)
+        val state = CgmPersistedState(sensor = sensor, collectorEnabled = true)
+        store.save(state)
+        fun notices() = CgmAlarmCoordinator.pendingNotices(app).filter { it.type.isSensorLifetime }
+
+        assertEquals(end - day, CgmAlarmCoordinator.reconcileSensorLifetime(app, end - day - 1))
+        assertTrue(notices().isEmpty())
+        assertEquals(end, CgmAlarmCoordinator.reconcileSensorLifetime(app, end - day))
+        val warning = notices().single()
+        assertEquals(SugarWearAlarmType.SENSOR_END_24H, warning.type)
+        assertEquals(end - day, warning.triggeredAtEpochMs)
+        CgmAlarmCoordinator.restore(app, end - day + 1)
+        assertEquals(warning, notices().single())
+        assertTrue(CgmAlarmCoordinator.acknowledgeEpisode(app, warning))
+
+        assertNull(CgmAlarmCoordinator.reconcileSensorLifetime(app, end + 1))
+        val grace = notices().single()
+        assertEquals(SugarWearAlarmType.SENSOR_GRACE_START, grace.type)
+        assertEquals(end, grace.triggeredAtEpochMs)
+        store.save(state.copy(sensor = sensor.copy(sessionId = "replacement", sensorEndEpochMs = end + 2 * day, graceEndEpochMs = end + 5 * day / 2)))
+        assertEquals(end + day, CgmAlarmCoordinator.reconcileSensorLifetime(app, end + 1))
+        assertTrue(notices().isEmpty())
+    }
+
     @Test fun `repeated fresh sensor errors trigger sound and notification at the original deadline`() {
         for (minute in listOf(0, 5, 10, 15, 20)) {
             val error = sample(minute, CgmReadingStatus.SENSOR_ERROR)

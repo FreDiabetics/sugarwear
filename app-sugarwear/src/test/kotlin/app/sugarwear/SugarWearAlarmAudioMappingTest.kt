@@ -30,7 +30,7 @@ class SugarWearAlarmAudioMappingTest {
                 SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM to "alarms/alerts_sounds_medium_bsi.mp4",
                 SugarWearAlarmType.TECHNICAL_WARNING to "alarms/alerts_sounds_medium_technical_alerts.mp4",
             )
-        assertEquals(expected, SugarWearAlarmType.entries.associateWith(SugarWearAlarmDefaults::preferredAudioAssetPath))
+        assertEquals(expected, SugarWearAlarmType.entries.filterNot { it.isSensorLifetime }.associateWith(SugarWearAlarmDefaults::preferredAudioAssetPath))
         assertEquals(expected.size, expected.values.distinct().size)
         assertEquals("alarms/alerts_sounds_medium_system_alert.mp4", SugarWearAlarmDefaults.SYSTEM_ALERT_AUDIO_ASSET)
     }

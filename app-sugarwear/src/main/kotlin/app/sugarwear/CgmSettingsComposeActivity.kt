@@ -135,9 +135,7 @@ abstract class CgmSettingsComposeActivity : ComponentActivity() {
 
     protected fun showSettingsView(view: View) {
         if (view !== loadingSurface) {
-            CgmBottomNavigation.tabFor(this)?.let { tab ->
-                CgmBottomNavigation.appendAtEnd(this, view, tab)
-            }
+            CgmBottomNavigation.appendAtEnd(this, view)
         }
         content.value = view
         host?.let { attach(it, view) }

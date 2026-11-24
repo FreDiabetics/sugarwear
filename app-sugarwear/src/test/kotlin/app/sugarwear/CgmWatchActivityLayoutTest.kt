@@ -1079,7 +1079,7 @@ class CgmWatchActivityLayoutTest {
 
     @Test
     @Config(qualifiers = "w192dp-h192dp-round")
-    fun `three tabs remain available in connections profile and nested settings`() {
+    fun `three tabs appear on connections and profile only`() {
         val pages =
             listOf(
                 CgmConnectionsActivity::class.java,
@@ -1098,6 +1098,11 @@ class CgmWatchActivityLayoutTest {
                     .awaitUi()
             val root = activity.window.decorView
             val pill = root.findViewWithTag<View>("sugarwear-nav-pill")
+            assertNull(root.findViewWithTag<View>("nav-fingerstick"))
+            if (page != CgmConnectionsActivity::class.java && page != CgmSettingsActivity::class.java) {
+                assertNull(pill)
+                continue
+            }
             assertNotNull(pill)
             val menuScroll = findScrollView(root)
             assertNotNull(menuScroll)

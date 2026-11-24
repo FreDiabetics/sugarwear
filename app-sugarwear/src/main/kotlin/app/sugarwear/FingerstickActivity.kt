@@ -1,15 +1,14 @@
 package app.sugarwear
 
 import android.app.Application
-import android.app.TimePickerDialog
+import android.widget.TimePicker
+import app.sugarlicious.uishared.WearSettingsUi
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
@@ -74,17 +73,23 @@ class FingerstickActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val palette = CgmAppearanceStore(this).load()
+        val surface = palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)
+        val foreground = palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY)
+        val accent = palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            val inset = (resources.displayMetrics.widthPixels * 0.14f).toInt()
-            setPadding(inset, inset, inset, inset)
+            gravity = Gravity.CENTER_HORIZONTAL
+            WearSettingsUi.pagePadding(this)
             setBackgroundColor(android.graphics.Color.BLACK)
+            addView(WearSettingsUi.pageHeader(context, getString(R.string.fingerstick_log), foreground))
         }
-        setContentView(ScrollView(this).apply { addView(panel) })
-        panel.addView(TextView(this).apply { setText(R.string.fingerstick_log) })
+        setContentView(CgmEdgeFadeScrollView(this).apply { isFillViewport = true; addView(panel) }.applyCgmEdgeFade())
         val input = EditText(this).apply {
             id = R.id.fingerstick_input
+            setTextColor(foreground)
+            setHintTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY))
+            backgroundTintList = android.content.res.ColorStateList.valueOf(accent)
             setHint(R.string.fingerstick_value)
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
             setSingleLine()
@@ -93,30 +98,38 @@ class FingerstickActivity : ComponentActivity() {
         val unit = Button(this).apply {
             text = savedInstanceState?.getString("unit") ?: "mg/dl"
             setOnClickListener { text = if (text == "mg/dl") "mmol/l" else "mg/dl" }
+            WearSettingsUi.actionButton(this, surface, foreground)
             tag = "fingerstick-unit"
         }
         panel.addView(unit)
-        val time = Button(this)
+        val time = Button(this).apply { WearSettingsUi.actionButton(this, surface, foreground) }
         fun updateTime() {
             time.text = getString(R.string.fingerstick_time, java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(java.util.Date(model.measuredAt)))
         }
         updateTime()
         time.setOnClickListener {
             val clock = Calendar.getInstance().apply { timeInMillis = model.measuredAt }
-            TimePickerDialog(this, { _, hour, minute ->
-                clock.set(Calendar.HOUR_OF_DAY, hour)
-                clock.set(Calendar.MINUTE, minute)
+            val picker = TimePicker(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material)).apply {
+                setIs24HourView(true)
+                hour = clock.get(Calendar.HOUR_OF_DAY)
+                minute = clock.get(Calendar.MINUTE)
+            }
+            showCgmSettingsDialog(getString(R.string.fingerstick_measurement_time), picker, confirm = getString(android.R.string.ok)) { dialog ->
+                picker.clearFocus()
+                clock.set(Calendar.HOUR_OF_DAY, picker.hour)
+                clock.set(Calendar.MINUTE, picker.minute)
                 clock.set(Calendar.SECOND, 0)
                 clock.set(Calendar.MILLISECOND, 0)
                 if (clock.timeInMillis > System.currentTimeMillis()) clock.add(Calendar.DATE, -1)
                 model.measuredAt = clock.timeInMillis
                 updateTime()
-            }, clock.get(Calendar.HOUR_OF_DAY), clock.get(Calendar.MINUTE), true).show()
+                dialog.dismiss()
+            }
         }
         panel.addView(time)
         val save = Button(this).apply {
             setText(R.string.fingerstick_save)
-            setTextColor(0xFF22EB60.toInt())
+            WearSettingsUi.actionButton(this, surface, accent)
             setOnClickListener { model.save(input.text.toString(), unit.text.toString()) }
         }
         panel.addView(save)

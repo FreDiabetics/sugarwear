@@ -28,7 +28,7 @@ internal object CgmAlarmPauseStore {
         nowEpochMs: Long = System.currentTimeMillis(),
     ): Boolean {
         // URGENT_LOW and TECHNICAL_WARNING must NEVER be paused!
-        if (type == SugarWearAlarmType.URGENT_LOW || type == SugarWearAlarmType.TECHNICAL_WARNING) return false
+        if (type.isMandatory) return false
         return pausedUntil(context, nowEpochMs) != null
     }
 

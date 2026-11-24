@@ -164,7 +164,7 @@ internal object CgmAlarmCoordinator {
 
     private fun saveNotices(context: Context, notices: List<SugarWearAlarmInstance>) {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit {
-            putString(KEY_NOTICES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(SugarWearAlarmInstance.serializer()), notices))
+            putString(KEY_NOTICES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(SugarWearAlarmInstance.serializer()), notices.filterNot { it.type.isSensorLifetime }))
         }
     }
 
@@ -237,7 +237,7 @@ internal object CgmAlarmCoordinator {
         synchronized(CgmSensorStateStore.lifecycleLock) {
             val notices = pendingNotices(context)
             val snapshot = read(context)
-            save(context, snapshot.copy(sensorId = null, sessionId = null, alarms = emptyList(), sensorErrorSinceEpochMs = null))
+            save(context, snapshot.copy(sensorId = null, sessionId = null, alarms = snapshot.alarms.filter { it.type.isSensorLifetime }, sensorErrorSinceEpochMs = null))
             saveNotices(context, notices)
             CgmAlarmNotifier.cancelAll(context)
             CgmAlarmRepeatScheduler.cancelAll(context)
@@ -299,7 +299,7 @@ internal object CgmAlarmCoordinator {
                 previous.alarms.isEmpty() ||
                 (previous.sensorId == currentReading.sensorId && previous.sessionId == currentReading.sessionId)
         if (!sameSession) {
-            CgmAlarmNotifier.cancelAll(context)
+            SugarWearAlarmType.entries.filterNot { it.isSensorLifetime }.forEach { CgmAlarmNotifier.cancel(context, it) }
             CgmAlarmRepeatScheduler.cancelAll(context)
         }
 
@@ -350,6 +350,7 @@ internal object CgmAlarmCoordinator {
         val notices = pendingNotices(context).associateBy { it.type }.toMutableMap()
 
         SugarWearAlarmType.entries.forEach { type ->
+            if (type.isSensorLifetime) return@forEach
             val old = previousMap[type]
             val current = result.updatedInstances[type]
             val isPaused = CgmAlarmPauseStore.isPaused(context, type, nowEpochMs)
@@ -396,7 +397,7 @@ internal object CgmAlarmCoordinator {
             SugarWearAlarmSnapshot(
                 sensorId = currentReading?.sensorId ?: previous.sensorId,
                 sessionId = currentReading?.sessionId ?: previous.sessionId,
-                alarms = withNotifications.values.sortedBy { SugarWearAlarmDefaults.priority(it.type) },
+                alarms = (withNotifications.values + previous.alarms.filter { it.type.isSensorLifetime }).sortedBy { SugarWearAlarmDefaults.priority(it.type) },
                 sensorErrorSinceEpochMs = sensorErrorSince,
                 activeProfile = previous.activeProfile,
                 glucoseProfileStartedAtEpochMs = previous.glucoseProfileStartedAtEpochMs,
@@ -404,6 +405,48 @@ internal object CgmAlarmCoordinator {
         )
         saveNotices(context, notices.values.toList())
     }
+
+    /** Reconciles persisted episodes and returns the next verified sensor deadline. */
+    fun reconcileSensorLifetime(context: Context, now: Long): Long? =
+        synchronized(CgmSensorStateStore.lifecycleLock) {
+            val state = CgmSensorStateStore(context).read()
+            val sensor = state.sensor
+            val session = sensor?.sessionId
+            val snapshot = read(context)
+            val previous = snapshot.alarms.filter { it.type.isSensorLifetime }
+            val current = previous.filter { sensor != null && session != null && it.sensorId == sensor.sensorId && it.sessionId == session }
+            val lifetime = cgmSensorLifetime(state, now)
+            val end = lifetime?.regularEndEpochMs
+            val graceEnd = lifetime?.verifiedGraceEndEpochMs
+            val deadlines = if (end != null && graceEnd != null && state.collectorEnabled && session != null) {
+                listOf(SugarWearAlarmType.SENSOR_END_24H to end - 86_400_000L, SugarWearAlarmType.SENSOR_GRACE_START to end)
+            } else {
+                emptyList()
+            }
+            val enabled = CgmAlertPolicyStore.alarmsEnabled(context, now)
+            val additions = deadlines.mapNotNull { (type, deadline) ->
+                if (!enabled || now < deadline || current.any { it.type == type }) return@mapNotNull null
+                SugarWearAlarmInstance(
+                    type = type,
+                    state = SugarWearAlarmState.ACTIVE,
+                    sensorId = sensor?.sensorId,
+                    sessionId = session,
+                    conditionFirstMetAtEpochMs = deadline,
+                    triggeredAtEpochMs = deadline,
+                    lastNotifiedAtEpochMs = now,
+                )
+            }
+            if (current != previous || additions.isNotEmpty()) {
+                save(context, snapshot.copy(alarms = snapshot.alarms.filterNot { it.type.isSensorLifetime } + current + additions))
+                previous.filterNot { it in current }.forEach { CgmAlarmNotifier.cancel(context, it.type) }
+                if (additions.isNotEmpty()) {
+                    val settings = CgmAlarmSettingsStore.readActive(context, now)
+                    additions.forEach { CgmAlarmNotifier.show(context, it, settings, onlyAlertOnce = false) }
+                }
+            }
+            deadlines.filter { (type, deadline) -> deadline > now && current.none { it.type == type } }
+                .minOfOrNull { it.second }
+        }
 
     /** Additional deadlines for the existing monitor, independent of the overview's 16-minute label. */
     fun nextTimedEvaluationAt(context: Context, state: app.sugarlicious.sensor.protocol.CgmPersistedState, now: Long): Long? =
@@ -476,6 +519,8 @@ internal object CgmAlarmNotifier {
             SugarWearAlarmType.RAPID_FALL -> 7106
             SugarWearAlarmType.SIGNAL_LOSS -> 7107
             SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> 7108
+            SugarWearAlarmType.SENSOR_END_24H -> 7110
+            SugarWearAlarmType.SENSOR_GRACE_START -> 7111
             SugarWearAlarmType.TECHNICAL_WARNING -> 7109
         }
 
@@ -496,12 +541,16 @@ internal object CgmAlarmNotifier {
                 android.util.Log.e("CgmAlarmNotifier", "Cannot prepare alarm channels", error)
                 false
             }
+        val destination = if (alarm.type.isSensorLifetime) {
+            Intent(context, CgmWatchActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        } else {
+            CgmAlarmActivity.intent(context, alarm.type)
+        }
         val open =
             PendingIntent.getActivity(
                 context,
                 notificationId(alarm.type),
-                CgmAlarmActivity
-                    .intent(context, alarm.type)
+                destination
                     .putExtra("episode", episode)
                     .setData("sugarwear:alarm/${android.net.Uri.encode(episode)}".toUri()),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -535,6 +584,7 @@ internal object CgmAlarmNotifier {
         val icon = IconCompat.createWithResource(context, app.sugarlicious.uishared.R.drawable.ic_alert)
         val body =
             when {
+                alarm.type.isSensorLifetime -> requireNotNull(alarm.type.lifetimeDescription)
                 alarm.type == SugarWearAlarmType.TECHNICAL_WARNING -> "Bitte den Systemstatus prüfen."
                 alarm.triggerGlucoseMgDl != null -> "${kotlin.math.round(alarm.triggerGlucoseMgDl).toInt()} mg/dL"
                 else -> cgmAlarmValue(presentationReading)
@@ -544,10 +594,10 @@ internal object CgmAlarmNotifier {
         val builder =
             NotificationCompat
                 .Builder(context, channelId)
-                .setSmallIcon(R.drawable.ic_cgm_notification)
+                .setSmallIcon(if (alarm.type == SugarWearAlarmType.SENSOR_END_24H) R.drawable.ic_sensorend else R.drawable.ic_cgm_notification)
                 .setColor(color(context, alarm.type))
                 .setContentTitle(cgmAlarmHeadline(alarm.type))
-                .setContentText(audioAwareBody(context, body, settings))
+                .setContentText(if (alarm.type.isSensorLifetime) body else audioAwareBody(context, body, settings))
                 .setContentIntent(open)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -555,9 +605,14 @@ internal object CgmAlarmNotifier {
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setOnlyAlertOnce(onlyAlertOnce)
-                .addAction(NotificationCompat.Action.Builder(icon, "Schlummerzeit · ${CgmAlarmDelivery.snoozeMinutes(context, alarm.type)} Min.", open).build())
+        if (alarm.type.isSensorLifetime) {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .addAction(NotificationCompat.Action.Builder(icon, "OK", CgmAlarmDelivery.pending(context, alarm.type, "ack", episode)).build())
+        } else {
+            builder.addAction(NotificationCompat.Action.Builder(icon, "Schlummerzeit · ${CgmAlarmDelivery.snoozeMinutes(context, alarm.type)} Min.", open).build())
                 .addAction(NotificationCompat.Action.Builder(icon, "Stumm", CgmAlarmDelivery.pending(context, alarm.type, "mute", episode)).build())
                 .addAction(NotificationCompat.Action.Builder(icon, "Vibrieren", CgmAlarmDelivery.pending(context, alarm.type, "vibrate", episode)).build())
+        }
         // The system-owned ongoing chip is reachable on the watch face/launcher.
         // Its lifecycle is tied to this episode's notification (ACK/snooze/cancel).
         // OngoingActivity is optional UI. Its failure cannot suppress the
@@ -722,6 +777,7 @@ internal fun cgmAlarmSoundName(type: SugarWearAlarmType): String =
         SugarWearAlarmType.RAPID_FALL -> "Fall Rate"
         SugarWearAlarmType.SIGNAL_LOSS -> "Signal Loss"
         SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> "Sensorfehler-Beep"
+        SugarWearAlarmType.SENSOR_END_24H, SugarWearAlarmType.SENSOR_GRACE_START -> "Systemhinweis"
         SugarWearAlarmType.TECHNICAL_WARNING -> "Beep"
     }
 

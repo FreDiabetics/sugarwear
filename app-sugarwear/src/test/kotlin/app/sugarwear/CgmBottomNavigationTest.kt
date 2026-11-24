@@ -22,14 +22,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], qualifiers = "w192dp-h192dp-round")
 class CgmBottomNavigationTest {
     @Test
-    fun `shared pill contains only three icon destinations and shows labels on long press`() {
+    fun `shared pill contains three destinations and the fingerstick action and shows labels on long press`() {
         val controller = Robolectric.buildActivity(Activity::class.java).setup()
         try {
             val activity = controller.get()
             val pill = CgmBottomNavigation.pill(activity, CgmNavTab.OVERVIEW)
             assertEquals("sugarwear-nav-pill", pill.tag)
             val root = pill as ViewGroup
-            assertEquals(3, root.childCount)
+            assertEquals(4, root.childCount)
+            val plus = root.findViewWithTag<View>("nav-fingerstick")
+            plus.performClick()
+            assertEquals(FingerstickActivity::class.java.name, Shadows.shadowOf(activity).nextStartedActivity.component?.className)
             assertFalse(descendants(pill).any { it is TextView })
             val labels = listOf("Übersicht", "Verbindungen", "Profil")
             val destinations =
@@ -65,7 +68,7 @@ class CgmBottomNavigationTest {
 
     @Test
     fun `pill is the final scrollable menu item and is not duplicated on rebuild`() {
-        val controller = Robolectric.buildActivity(Activity::class.java).setup()
+        val controller = Robolectric.buildActivity(CgmSettingsActivity::class.java).setup()
         try {
             val activity = controller.get()
             val page =
@@ -74,13 +77,13 @@ class CgmBottomNavigationTest {
                     addView(TextView(activity).apply { text = "Letzter Menüpunkt" })
                 }
             val scroll = ScrollView(activity).apply { addView(page) }
-            CgmBottomNavigation.appendAtEnd(activity, scroll, CgmNavTab.PROFILE)
+            CgmBottomNavigation.appendAtEnd(activity, scroll)
             val pill = page.getChildAt(page.childCount - 1)
             assertEquals("sugarwear-nav-pill", pill.tag)
             assertEquals(2, page.childCount)
             assertSame(page, pill.parent)
             assertTrue(pill is LinearLayout)
-            CgmBottomNavigation.appendAtEnd(activity, scroll, CgmNavTab.PROFILE)
+            CgmBottomNavigation.appendAtEnd(activity, scroll)
             assertSame(pill, page.getChildAt(page.childCount - 1))
             assertEquals(2, page.childCount)
         } finally {
@@ -90,7 +93,7 @@ class CgmBottomNavigationTest {
 
     @Test
     fun `pill follows the tile surface color and uses only configured tile contour`() {
-        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val activity = Robolectric.buildActivity(CgmConnectionsActivity::class.java).get()
         val page =
             LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
@@ -104,7 +107,7 @@ class CgmBottomNavigationTest {
                     CgmAppearanceRole.MENU_BORDER to 0,
                 ),
             )
-        CgmBottomNavigation.appendAtEnd(activity, scroll, CgmNavTab.CONNECTIONS, withoutBorder)
+        CgmBottomNavigation.appendAtEnd(activity, scroll, withoutBorder)
         val pill = page.getChildAt(page.childCount - 1)
         val initialBackground = pill.background as GradientDrawable
         assertEquals(0xFF123456.toInt(), initialBackground.color?.defaultColor)
@@ -117,7 +120,7 @@ class CgmBottomNavigationTest {
                     CgmAppearanceRole.MENU_BORDER to configuredBorder,
                 ),
             )
-        CgmBottomNavigation.appendAtEnd(activity, scroll, CgmNavTab.CONNECTIONS, withBorder)
+        CgmBottomNavigation.appendAtEnd(activity, scroll, withBorder)
         assertSame(pill, page.getChildAt(page.childCount - 1))
         assertEquals(0xFF654321.toInt(), (pill.background as GradientDrawable).color?.defaultColor)
         assertEquals(configuredBorder, navigationPillBorderArgb(withBorder))

@@ -6,6 +6,8 @@ import app.sugarlicious.sensor.protocol.CgmPersistedState
 /** Never infer a sensor's end time from installation time or device defaults. */
 internal data class CgmSensorLifetime(
     val hasVerifiedEnd: Boolean,
+    val regularEndEpochMs: Long? = null,
+    val verifiedGraceEndEpochMs: Long? = null,
     val days: Long = 0L,
     val hours: Long = 0L,
     val minutes: Long = 0L,
@@ -60,6 +62,8 @@ internal fun cgmSensorLifetime(
     val graceRemainingMinutes = graceRemainingMs / 60_000L + if (graceRemainingMs % 60_000L == 0L) 0L else 1L
     return CgmSensorLifetime(
         hasVerifiedEnd = true,
+        regularEndEpochMs = end,
+        verifiedGraceEndEpochMs = graceEnd.takeIf { graceVerified },
         days = remainingDays,
         hours = remainingHours,
         minutes = minutes,

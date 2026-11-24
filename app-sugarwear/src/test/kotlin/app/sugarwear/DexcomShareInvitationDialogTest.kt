@@ -1,6 +1,5 @@
 package app.sugarwear
 
-import android.app.AlertDialog
 import android.content.Context
 import android.os.Looper
 import android.view.ViewGroup
@@ -17,7 +16,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowAlertDialog
+import org.robolectric.shadows.ShadowDialog
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -46,15 +45,16 @@ class DexcomShareInvitationDialogTest {
                 .single { it.text == "Follower einladen" }
                 .performClick()
             shadowOf(Looper.getMainLooper()).idle()
-            val dialog = checkNotNull(ShadowAlertDialog.getLatestAlertDialog())
-            val fields = (dialog.window!!.decorView as ViewGroup).descendants.filterIsInstance<EditText>().toList()
+            val dialog = checkNotNull(ShadowDialog.getLatestDialog())
+            val dialogRoot = dialog.window!!.decorView as ViewGroup
+            val fields = dialogRoot.descendants.filterIsInstance<EditText>().toList()
             fields.single { it.hint == "Name des Followers" }.setText("Test")
             val email = fields.single { it.hint == "E-Mail des Followers" }
             email.setText("invalid")
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            dialogRoot.descendants.filterIsInstance<android.widget.Button>().single { it.text == "Einladung senden" }.performClick()
             assertTrue(dialog.isShowing)
             assertNotNull(email.error)
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            dialogRoot.descendants.filterIsInstance<android.widget.Button>().single { it.text == controller.get().getString(android.R.string.cancel) }.performClick()
             shadowOf(Looper.getMainLooper()).idle()
             assertFalse(dialog.isShowing)
             assertFalse(prefs.getBoolean("enabled", false))

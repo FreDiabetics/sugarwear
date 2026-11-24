@@ -1,8 +1,7 @@
 package app.sugarwear
 
-import android.app.AlertDialog
+import app.sugarlicious.uishared.WearSettingsUi
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -59,26 +58,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     .pagePadding(this)
                 setBackgroundColor(Color.BLACK)
             }
-        val title =
-            TextView(this).apply {
-                text = "Share & Follow"
-                textSize = 18f
-                setTextColor(white)
-                gravity = Gravity.CENTER
-                minimumHeight = dp(56)
-                includeFontPadding = false
-                app.sugarlicious.uishared.SystemTypography
-                    .apply(this, true)
-                if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
-            }
-        root.addView(title, LinearLayout.LayoutParams(-1, -2))
-        root.addView(
-            View(this).apply { setBackgroundColor(0x225F6368) },
-            LinearLayout.LayoutParams(-1, dp(1)).apply {
-                topMargin = dp(3)
-                bottomMargin = dp(12)
-            },
-        )
+        root.addView(WearSettingsUi.pageHeader(this, "Share & Follow", white))
 
         root.addView(
             card(palette).apply {
@@ -202,13 +182,14 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             accountDialog()
             return
         }
-        AlertDialog
-            .Builder(this)
-            .setTitle("Dexcom Share aktivieren?")
-            .setMessage("Die Uhr prüft die Zuordnung bei Dexcom und überträgt Glukosewerte. Eine neue Zuordnung kann einen bisherigen Share-Uploader ablösen.")
-            .setNegativeButton("Abbrechen", null)
-            .setPositiveButton("Aktivieren") { _, _ -> settings.setupWatch(status.revision) }
-            .show()
+        showCgmSettingsDialog(
+            "Dexcom Share aktivieren?",
+            message = "Die Uhr pr�ft die Zuordnung bei Dexcom und �bertr�gt Glukosewerte. Eine neue Zuordnung kann einen bisherigen Share-Uploader abl�sen.",
+            confirm = "Aktivieren",
+        ) { dialog ->
+            settings.setupWatch(status.revision)
+            dialog.dismiss()
+        }
     }
 
     private fun followersCard(ui: DexcomShareSettingsUiState, palette: CgmAppearancePalette, white: Int, gray: Int) =
@@ -254,9 +235,9 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 setPadding(dp(16), dp(4), dp(16), dp(8))
             }
 
-        fun heading(text: String) = fields.addView(label(text, Color.WHITE, true, 14f))
+        fun heading(text: String) = fields.addView(label(text, menuText, true, 14f))
 
-        fun info(text: String) = fields.addView(label(text, Color.LTGRAY, false, 13f))
+        fun info(text: String) = fields.addView(label(text, menuSecondary, false, 13f))
         follower.email?.let { info(it) }
         info(followerStatus(follower))
         heading("Geteilte Daten")
@@ -269,23 +250,20 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     false -> "Aus"
                     null -> "Unbekannt"
                 }
-            fields.addView(detailRow(alert.label, value, Color.WHITE, Color.LTGRAY))
+            fields.addView(detailRow(alert.label, value, menuText, menuSecondary))
         }
         info("Bestehende Grafikfreigaben und Pausen verwaltest du in der Dexcom-App. Benachrichtigungen stellen Follower in Dexcom Follow ein.")
-        AlertDialog
-            .Builder(this)
-            .setTitle(follower.name)
-            .setView(android.widget.ScrollView(this).apply { addView(fields) })
-            .setNegativeButton("Schließen", null)
-            .setPositiveButton("Entfernen") { _, _ ->
-                AlertDialog
-                    .Builder(this)
-                    .setTitle("Follower entfernen?")
-                    .setMessage("${follower.name} verliert den Zugriff auf deine geteilten Glukosewerte.")
-                    .setNegativeButton("Abbrechen", null)
-                    .setPositiveButton("Entfernen") { _, _ -> settings.removeFollower(follower) }
-                    .show()
-            }.show()
+        showCgmSettingsDialog(follower.name, fields, cancel = "Schlie�en", confirm = "Entfernen") { detail ->
+            detail.dismiss()
+            showCgmSettingsDialog(
+                "Follower entfernen?",
+                message = "${follower.name} verliert den Zugriff auf deine geteilten Glukosewerte.",
+                confirm = "Entfernen",
+            ) { dialog ->
+                settings.removeFollower(follower)
+                dialog.dismiss()
+            }
+        }
     }
 
     private fun invitationDialog() {
@@ -307,21 +285,12 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         val displayName = entry("Dein Anzeigename (sonst SugarWear)", android.text.InputType.TYPE_TEXT_VARIATION_PERSON_NAME)
         val graph = invitationToggle("Trenddiagramm teilen", checked = true)
         fields.addView(graph)
-        fields.addView(label("Benachrichtigungen für diesen Follower", Color.WHITE, true, 14f))
+        fields.addView(label("Benachrichtigungen für diesen Follower", menuText, true, 14f))
         val alerts =
             DexcomShareFollowerAlert.entries.associateWith { alert ->
                 invitationToggle(alert.label, checked = false).also { fields.addView(it) }
             }
-        val dialog =
-            AlertDialog
-                .Builder(this)
-                .setTitle("Follower einladen")
-                .setView(android.widget.ScrollView(this).apply { addView(fields) })
-                .setNegativeButton("Abbrechen", null)
-                .setPositiveButton("Einladung senden", null)
-                .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        showCgmSettingsDialog("Follower einladen", fields, confirm = "Einladung senden") { dialog ->
                 val invite =
                     DexcomShareInvitation(
                         name.text.toString().trim(),
@@ -343,15 +312,13 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                         dialog.dismiss()
                     }
                 }
-            }
         }
-        dialog.show()
     }
 
     private fun invitationToggle(title: String, checked: Boolean) =
         app.sugarlicious.uishared.ScrollSafeSwitch(this).apply {
             text = title
-            setTextColor(Color.WHITE)
+            WearSettingsUi.toggle(this, menuAccent, menuText)
             minimumHeight = dp(48)
             isChecked = checked
         }
@@ -381,7 +348,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         account.isFocusable = password != null
         var selectedPassword: String? = null
         val credentialPicker =
-            label("Gespeichertes Dexcom-Passwort wählen", Color.WHITE, true, 13f).apply {
+            label("Gespeichertes Dexcom-Passwort wählen", menuText, true, 13f).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(48)
                 isClickable = true
@@ -429,9 +396,9 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         }
         fields.addView(credentialPicker)
         var selected = if (region == DexcomShareRegion.INTERNATIONAL) 0 else 1
-        fields.addView(label("Land des Dexcom-Kontos", Color.LTGRAY, true, 13f))
+        fields.addView(label("Land des Dexcom-Kontos", menuSecondary, true, 13f))
         val regionPicker =
-            label(items[selected], Color.WHITE, true, 14f).apply {
+            label(items[selected], menuText, true, 14f).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 minimumHeight = dp(48)
                 isClickable = true
@@ -439,41 +406,31 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 contentDescription = "Land des Dexcom-Kontos wählen"
             }
         regionPicker.setOnClickListener {
-            AlertDialog
-                .Builder(this)
-                .setTitle("Land des Dexcom-Kontos")
-                .setItems(items) { _, which ->
-                    selected = which
-                    regionPicker.text = items[which]
-                }.show()
+            val choices = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val chooser = showCgmSettingsDialog("Land des Dexcom-Kontos", choices)
+            items.forEachIndexed { index, item ->
+                choices.addView(WearSettingsUi.choice(this, item, selected == index, menuAccent, menuSurface) {
+                    selected = index
+                    regionPicker.text = item
+                    chooser.dismiss()
+                })
+            }
         }
         fields.addView(regionPicker)
-        val dialog =
-            AlertDialog
-                .Builder(this)
-                .setTitle("Dexcom Share")
-                .setView(android.widget.ScrollView(this).apply { addView(fields) })
-                .setNegativeButton("Abbrechen", null)
-                .setPositiveButton("Speichern und prüfen", null)
-                .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+        val dialog = showCgmSettingsDialog("Dexcom Share", fields, confirm = "Speichern und pr�fen", secure = true) { dialog ->
                 val user = account.text.toString().trim()
                 val secret = password?.text?.toString() ?: selectedPassword
                 if (user.isBlank() || secret.isNullOrBlank()) {
                     Toast.makeText(this, "Dexcom-Kontoname und Passwort angeben", Toast.LENGTH_LONG).show()
-                    return@setOnClickListener
+                    return@showCgmSettingsDialog
                 }
                 dialog.dismiss()
                 settings.saveAccount(user, secret, if (selected == 0) DexcomShareRegion.INTERNATIONAL else DexcomShareRegion.US)
-            }
         }
-        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
         dialog.setOnDismissListener {
             password?.text?.clear()
             selectedPassword = null
         }
-        dialog.show()
     }
 
     private fun testConnection() {
@@ -485,14 +442,14 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
     }
 
     private fun confirmClear() {
-        AlertDialog
-            .Builder(this)
-            .setTitle("Share-Konto entfernen?")
-            .setMessage("Die Zugangsdaten werden von der Watch entfernt und Uploads gestoppt. Sensordaten bleiben erhalten.")
-            .setNegativeButton("Abbrechen", null)
-            .setPositiveButton("Entfernen") { _, _ ->
-                settings.clearAccount()
-            }.show()
+        showCgmSettingsDialog(
+            "Share-Konto entfernen?",
+            message = "Die Zugangsdaten werden von der Watch entfernt und Uploads gestoppt. Sensordaten bleiben erhalten.",
+            confirm = "Entfernen",
+        ) { dialog ->
+            settings.clearAccount()
+            dialog.dismiss()
+        }
     }
 
     private fun errorDescription(issue: DexcomShareUploadError): String =
@@ -519,11 +476,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(13), dp(13), dp(13), dp(13))
-            background =
-                GradientDrawable().apply {
-                    setColor(palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE))
-                    cornerRadius = dp(26).toFloat()
-                }
+            background = WearSettingsUi.background(context, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE))
         }
 
     private fun detailRow(name: String, value: String, white: Int, gray: Int, click: (() -> Unit)? = null) =
@@ -553,19 +506,9 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         }
 
     private fun action(textValue: String, palette: CgmAppearancePalette, click: () -> Unit) =
-        TextView(this).apply {
+        android.widget.Button(this).apply {
             text = textValue
-            textSize = 14f
-            gravity = Gravity.CENTER
-            minimumHeight = dp(48)
-            setTextColor(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
-            app.sugarlicious.uishared.SystemTypography
-                .apply(this, true)
-            background =
-                GradientDrawable().apply {
-                    setColor(palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE))
-                    cornerRadius = dp(26).toFloat()
-                }
+            WearSettingsUi.actionButton(this, palette.settingsArgb(CgmAppearanceRole.MENU_SURFACE), menuText)
             setOnClickListener { click() }
         }
 
@@ -576,6 +519,12 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
 
     private fun formatTime(epochMs: Long): String =
         if (epochMs <= 0L) "—" else DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(epochMs))
+
+    private val menuPalette by lazy { CgmAppearanceStore(this).load() }
+    private val menuAccent get() = menuPalette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY)
+    private val menuSurface get() = menuPalette.settingsArgb(CgmAppearanceRole.MENU_SURFACE)
+    private val menuText get() = menuPalette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY)
+    private val menuSecondary get() = menuPalette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 }

@@ -7,4 +7,5 @@
     <string name="fingerstick_invalid">Bitte einen positiven Messwert eingeben.</string>
     <string name="fingerstick_error">Speichern fehlgeschlagen. Bitte erneut versuchen.</string>
     <string name="fingerstick_time">Messzeit %1$s</string>
+    <string name="fingerstick_measurement_time">Messzeit</string>
 </resources>

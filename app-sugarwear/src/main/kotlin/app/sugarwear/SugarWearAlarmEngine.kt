@@ -28,6 +28,7 @@ internal object SugarWearAlarmEngine {
         val freshReading = reading?.takeIf { it.isFreshAlarmReading(nowEpochMs) }
 
         SugarWearAlarmType.entries.forEach { type ->
+            if (type.isSensorLifetime) return@forEach
             val prev = previousState[type]
             val rule = settings.ruleFor(type)
             val samePendingHighReading =
@@ -143,6 +144,7 @@ internal object SugarWearAlarmEngine {
                 if (!rule.enabled) return false
                 sensorErrorReading && sensorErrorDurationMinutes >= rule.durationMinutes
             }
+            SugarWearAlarmType.SENSOR_END_24H, SugarWearAlarmType.SENSOR_GRACE_START -> false
             SugarWearAlarmType.TECHNICAL_WARNING -> {
                 // Fixed non-disableable for critical technical events
                 technicalError != null && !technicalError.recoverable

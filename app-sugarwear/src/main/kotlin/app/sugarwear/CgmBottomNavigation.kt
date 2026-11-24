@@ -13,7 +13,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Toast
 
-/** Shared SugarWear navigation: one pill at the end of each scrollable menu. */
+/** Shared SugarWear navigation: one pill at the end of each top-level page. */
 internal enum class CgmNavTab(
     val title: String,
 ) {
@@ -25,20 +25,20 @@ internal enum class CgmNavTab(
 internal object CgmBottomNavigation {
     fun tabFor(activity: Activity): CgmNavTab? =
         when (activity) {
-            is CgmSetupActivity, is CgmAlarmActivity -> null
             is CgmWatchActivity -> CgmNavTab.OVERVIEW
-            is CgmConnectionsActivity, is CgmSystemStatusActivity, is CgmShareSettingsActivity -> CgmNavTab.CONNECTIONS
-            is CgmSettingsComposeActivity -> CgmNavTab.PROFILE
+            is CgmConnectionsActivity -> CgmNavTab.CONNECTIONS
+            is CgmSettingsActivity -> CgmNavTab.PROFILE
             else -> null
         }
 
-    /** Appends the same three destinations after all content, never over the viewport. */
+    /** Detail pages have no footer, including its margins and touch targets. */
     fun appendAtEnd(
         activity: Activity,
         page: View,
-        selected: CgmNavTab,
         palette: CgmAppearancePalette = CgmAppearanceStore(activity).load(),
+        detailOpen: Boolean = false,
     ) {
+        val selected = tabFor(activity) ?: return
         val root =
             when (page) {
                 is ScrollView -> page.getChildAt(0) as? LinearLayout
@@ -48,6 +48,10 @@ internal object CgmBottomNavigation {
         if (root.orientation != LinearLayout.VERTICAL) return
 
         val existing = root.findViewWithTag<View>("sugarwear-nav-pill")
+        if (detailOpen) {
+            if (existing?.parent === root) root.removeView(existing)
+            return
+        }
         if (existing?.parent === root) {
             applyPillPalette(activity, existing, palette)
             if (root.getChildAt(root.childCount - 1) === existing) return
@@ -126,6 +130,18 @@ internal object CgmBottomNavigation {
                         }
                     }
                 addView(button, LinearLayout.LayoutParams(48.dp(activity), 48.dp(activity)))
+            }
+            if (selected == CgmNavTab.OVERVIEW) {
+                addView(ImageView(activity).apply {
+                    tag = "nav-fingerstick"
+                    contentDescription = activity.getString(R.string.fingerstick_log)
+                    setImageResource(R.drawable.ic_add)
+                    val inset = 13.dp(activity)
+                    setPadding(inset, inset, inset, inset)
+                    imageTintList = ColorStateList.valueOf(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY))
+                    isFocusable = true
+                    setOnClickListener { activity.startActivity(Intent(activity, FingerstickActivity::class.java)) }
+                }, LinearLayout.LayoutParams(48.dp(activity), 48.dp(activity)))
             }
         }
 

@@ -57,6 +57,8 @@ class CgmAlarmsTest {
                 SugarWearAlarmType.SIGNAL_LOSS to "alarms/alerts_sounds_signal_loss_alert.mp4",
                 SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM to "alarms/alerts_sounds_beep.mp4",
                 SugarWearAlarmType.TECHNICAL_WARNING to "alarms/alerts_sounds_beep.mp4",
+                SugarWearAlarmType.SENSOR_END_24H to "alarms/alerts_sounds_beep.mp4",
+                SugarWearAlarmType.SENSOR_GRACE_START to "alarms/alerts_sounds_beep.mp4",
             )
         assertEquals(expected, SugarWearAlarmType.entries.associateWith(::cgmAlarmSoundAsset))
         expected.values.forEach { asset ->
@@ -90,7 +92,7 @@ class CgmAlarmsTest {
     }
 
     @Test
-    fun `all nine alarm channels are silent because the alarm service owns sound`() {
+    fun `all alarm channels are silent because the alarm service owns sound`() {
         val settings = CgmAlarmSettingsStore.read(context)
         CgmAlarmNotifier.ensureAllChannels(context, settings)
 
@@ -102,7 +104,7 @@ class CgmAlarmsTest {
             assertNull(channel.sound)
             assertEquals(AudioAttributes.USAGE_ALARM, channel.audioAttributes.usage)
         }
-        assertEquals(9, notificationManager.notificationChannels.count { it.id.startsWith("sugarwear_alarm_v9_") })
+        assertEquals(SugarWearAlarmType.entries.size, notificationManager.notificationChannels.count { it.id.startsWith("sugarwear_alarm_v9_") })
     }
 
     @Test

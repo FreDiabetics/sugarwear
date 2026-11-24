@@ -83,6 +83,8 @@ internal object SugarWearAlarmDefaults {
                     durationMinutes = TEMPORARY_SENSOR_PROBLEM_DEFAULT_MINUTES,
                     snoozeMinutes = 60,
                 )
+            SugarWearAlarmType.SENSOR_END_24H, SugarWearAlarmType.SENSOR_GRACE_START ->
+                SugarWearAlarmRule(type = type, enabled = true, snoozeEnabled = false)
             SugarWearAlarmType.TECHNICAL_WARNING ->
                 SugarWearAlarmRule(
                     type = type,
@@ -109,6 +111,7 @@ internal object SugarWearAlarmDefaults {
             SugarWearAlarmType.SIGNAL_LOSS -> "alarms/alerts_sounds_signal_loss_alert.mp4"
             SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> "alarms/alerts_sounds_beep.mp4"
             SugarWearAlarmType.TECHNICAL_WARNING -> "alarms/alerts_sounds_beep.mp4"
+            SugarWearAlarmType.SENSOR_END_24H, SugarWearAlarmType.SENSOR_GRACE_START -> "alarms/alerts_sounds_beep.mp4"
         }
 
     /**
@@ -127,6 +130,7 @@ internal object SugarWearAlarmDefaults {
             SugarWearAlarmType.SIGNAL_LOSS -> "alarms/alerts_sounds_medium_signal_loss.mp4"
             SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> "alarms/alerts_sounds_medium_bsi.mp4"
             SugarWearAlarmType.TECHNICAL_WARNING -> "alarms/alerts_sounds_medium_technical_alerts.mp4"
+            SugarWearAlarmType.SENSOR_END_24H, SugarWearAlarmType.SENSOR_GRACE_START -> SYSTEM_ALERT_AUDIO_ASSET
         }
 
     const val SYSTEM_ALERT_AUDIO_ASSET = "alarms/alerts_sounds_medium_system_alert.mp4"
@@ -135,6 +139,8 @@ internal object SugarWearAlarmDefaults {
         when (type) {
             SugarWearAlarmType.URGENT_LOW -> 100
             SugarWearAlarmType.TECHNICAL_WARNING -> 90
+            SugarWearAlarmType.SENSOR_END_24H -> 10
+            SugarWearAlarmType.SENSOR_GRACE_START -> 11
             SugarWearAlarmType.URGENT_LOW_SOON -> 80
             SugarWearAlarmType.LOW -> 70
             SugarWearAlarmType.RAPID_FALL -> 60
