@@ -194,7 +194,7 @@ class CgmWatchActivity : ComponentActivity() {
     private fun consumePairingIntent() {
         if (intent?.getBooleanExtra(EXTRA_SENSOR_UNLINKED, false) == true) {
             intent.removeExtra(EXTRA_SENSOR_UNLINKED)
-            if (!hasCgmSensorAssociation(CgmSensorStateStore(this).read())) stopRequested = true
+            stopRequested = false
         }
         if (intent?.getBooleanExtra(EXTRA_OPEN_PAIRING, false) == true) {
             intent.removeExtra(EXTRA_OPEN_PAIRING)

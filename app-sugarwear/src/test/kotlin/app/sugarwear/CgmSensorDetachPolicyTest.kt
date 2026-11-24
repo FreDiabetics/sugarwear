@@ -200,7 +200,7 @@ class CgmSensorDetachPolicyTest {
         }
     }
 
-    @Test fun `explicit disconnect only succeeds after confirmed OS bond removal`() {
+    @Test fun `explicit disconnect clears the association even when the OS bond remains`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val stateStore = CgmSensorStateStore(context)
         val address = "AA:BB:CC:DD:EE:FF"
@@ -215,14 +215,14 @@ class CgmSensorDetachPolicyTest {
         val result = unlinkCgmSensor(context, CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED })
 
         assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertFalse(result.detached)
-        assertEquals("sensor-retry", stateStore.read().sensor?.sensorId)
-        assertEquals("existing-key", credentials.getString("shared_key", null))
+        assertTrue(result.detached)
+        assertNull(stateStore.read().sensor)
+        assertNull(credentials.getString("shared_key", null))
         assertFalse(stateStore.read().collectorEnabled)
         assertFalse(CgmRetiredSensors(context).contains(address))
     }
 
-    @Test fun `denied Bluetooth removal cannot silently clear sensor or credentials`() {
+    @Test fun `denied Bluetooth removal leaves no active sensor or credentials`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val address = "AA:BB:CC:DD:EE:88"
         CgmSensorStateStore(context).save(CgmPersistedState(sensor = CgmSensor("permission-old", "permission-session", deviceAddress = address), collectorEnabled = true))
@@ -239,11 +239,11 @@ class CgmSensorDetachPolicyTest {
                 CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED },
             )
 
-        assertFalse(result.detached)
+        assertTrue(result.detached)
         assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertEquals("permission-old", CgmSensorStateStore(context).read().sensor?.sensorId)
+        assertNull(CgmSensorStateStore(context).read().sensor)
         assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
-        assertEquals("existing-key", credentials.getString("shared_key", null))
+        assertNull(credentials.getString("shared_key", null))
     }
 
     @Test fun `new sensor setup never tries to remove unrelated OS bonded G7 peers`() {

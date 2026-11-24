@@ -54,6 +54,7 @@ internal data class CgmPairingUiState(
     val startedAt: Long = Long.MAX_VALUE,
     val failureMessage: String? = null,
     val unlinkInFlight: Boolean = false,
+    val unlinkCompleted: Boolean = false,
     val offerStop: Boolean = false,
     val unlinkFailed: Boolean = false,
     val unlinkFailureReason: String? = null,
@@ -128,8 +129,17 @@ internal class SensorConnectionViewModel(
         if (state.value.unlinkInFlight) return
         closeAfterUnlink = closePairing
         pendingCode = null
-        mutableState.update { it.copy(unlinkInFlight = true, unlinkFailureReason = null, commandError = null) }
-        prepare(CgmPairingOperation.UNLINK)
+        mutableState.update { it.copy(unlinkInFlight = true, unlinkCompleted = false, effect = null, accessPending = false, unlinkFailureReason = null, commandError = null) }
+        val token = ++generation
+        workScope.launch {
+            try {
+                val detached = commands.unlink()
+                if (token == generation) finishUnlink(detached)
+            } catch (error: Exception) {
+                reportExpected(error)
+                if (token == generation) failAccess(CgmPairingOperation.UNLINK, "Lokale Sensorzuordnung konnte nicht entfernt werden.")
+            }
+        }
     }
 
     private fun prepare(operation: CgmPairingOperation) {
@@ -206,7 +216,7 @@ internal class SensorConnectionViewModel(
     }
 
     private fun finishUnlink(detached: Boolean) {
-        mutableState.update { it.copy(offerStop = detached, unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
+        mutableState.update { it.copy(unlinkCompleted = detached, offerStop = false, unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
         if (editAfterUnlink && detached) {
             editAfterUnlink = false
             latestSensor = CgmPersistedState()

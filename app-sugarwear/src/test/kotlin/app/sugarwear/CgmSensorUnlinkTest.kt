@@ -19,7 +19,7 @@ import org.robolectric.annotation.Config
 class CgmSensorUnlinkTest {
     @Test
     @Config(sdk = [35, 36])
-    fun `disabled Bluetooth cannot confirm removal or erase the retry session`() {
+    fun `disabled Bluetooth permits local detach and immediate replacement setup`() {
         val context = ApplicationProvider.getApplicationContext<android.app.Application>()
         setup(context)
         org.robolectric.Shadows
@@ -32,10 +32,11 @@ class CgmSensorUnlinkTest {
 
         val result = unlinkCgmSensor(context)
 
-        assertFalse(result.detached)
+        assertTrue(result.detached)
         assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertEquals(target, CgmSensorStateStore(context).read().sensor?.deviceAddress)
-        assertTrue(CgmCredentialStore(context).hasSetupMaterial())
+        assertNull(CgmSensorStateStore(context).read().sensor)
+        assertFalse(CgmCredentialStore(context).hasSetupMaterial())
+        assertNull(moveCgmSensorToThisWatch(context, "4321", saveSetup = {}).deviceAddress)
     }
 
     private val target = "AA:BB:CC:DD:EE:11"
@@ -117,7 +118,7 @@ class CgmSensorUnlinkTest {
         }
     }
 
-    @Test fun `unconfirmed bond keeps retry identity and never claims success`() {
+    @Test fun `unconfirmed OS bond does not retain an active local identity`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         setup(context)
         val result =
@@ -128,11 +129,11 @@ class CgmSensorUnlinkTest {
                     CgmBondRemovalStatus.FAILED
                 },
             )
-        assertFalse(result.detached)
+        assertTrue(result.detached)
         assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
-        assertEquals(target, CgmSensorStateStore(context).read().sensor?.deviceAddress)
+        assertNull(CgmSensorStateStore(context).read().sensor)
         assertFalse(CgmSensorStateStore(context).read().collectorEnabled)
-        assertTrue(CgmCredentialStore(context).hasSetupMaterial())
+        assertFalse(CgmCredentialStore(context).hasSetupMaterial())
     }
 
     @Test fun `mismatched recorded addresses fail closed without touching another sensor`() {
@@ -149,10 +150,10 @@ class CgmSensorUnlinkTest {
                     CgmBondRemovalStatus.REMOVED
                 },
             )
-        assertFalse(result.detached)
+        assertTrue(result.detached)
         assertEquals(0, removals)
-        assertTrue(result.failureReason?.contains("Widersprüchliche") == true)
-        assertEquals(target, CgmSensorStateStore(context).read().sensor?.deviceAddress)
+        assertEquals(CgmBondRemovalStatus.FAILED, result.bondRemovalStatus)
+        assertNull(CgmSensorStateStore(context).read().sensor)
     }
 
     @Test fun `new sensor setup must not silently erase previous session`() {

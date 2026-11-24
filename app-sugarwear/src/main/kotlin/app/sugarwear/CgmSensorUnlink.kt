@@ -43,8 +43,6 @@ internal data class CgmDetachSemantics(
 
 internal fun cgmDetachSemantics() = CgmDetachSemantics()
 
-internal fun shouldClearCgmAssociation(status: CgmBondRemovalStatus): Boolean = status != CgmBondRemovalStatus.FAILED
-
 /** Stops this watch as BLE owner without deleting sensor identity, credentials or history. */
 internal fun releaseCgmCollectorOwnership(context: Context) {
     val app = context.applicationContext
@@ -112,21 +110,10 @@ internal fun unlinkCgmSensor(
     // Stop the live BLE owner before touching a bond. Failed removal never resumes it.
     releaseCgmCollectorOwnership(app)
     CgmCollectorDiagnosticStore(app).discardScheduledCycle()
-    if (addresses.size > 1) {
-        return CgmUnlinkResult(
-            CgmBondRemovalStatus.FAILED,
-            failureReason = "Widersprüchliche Sensoradressen: keine fremden Bluetooth-Bonds entfernt.",
-        )
-    }
-    val bondRemovalStatus = bondRemover.remove(app, addresses.singleOrNull())
-    // Preserve credentials only if the platform refuses to confirm removal,
-    // so explicit unlink can be retried without accidentally reconnecting.
-    if (!shouldClearCgmAssociation(bondRemovalStatus)) {
-        return CgmUnlinkResult(
-            bondRemovalStatus,
-            failureReason = "Android hat die G7-Bluetooth-Entkopplung nicht bestätigt. Collector pausiert; Entkopplung erneut versuchen.",
-        )
-    }
+    // OS bond removal is best effort. A disabled radio or ambiguous address
+    // must never prevent deletion of this watch's active association.
+    val bondRemovalStatus =
+        if (addresses.size > 1) CgmBondRemovalStatus.FAILED else bondRemover.remove(app, addresses.singleOrNull())
 
     // Never touch g7_readings.db: history is retained across sensor changes.
     CgmCredentialStore(app).clearAll()

@@ -57,6 +57,23 @@ class CgmCollectorPauseTest {
         assertTrue(store.saveFromCollector(resumed, store.collectorGeneration()))
     }
 
+    @Test fun `unlink from pause or scheduled reconnect rejects old callbacks after replacement`() {
+        for (before in listOf(active, CgmSessionManager(active).stop())) {
+            store.save(before)
+            val oldGeneration = store.collectorGeneration()
+            val result = unlinkCgmSensor(context, CgmBondRemover { _, _ -> CgmBondRemovalStatus.FAILED })
+            assertTrue(result.detached)
+            val reopened = CgmSensorStateStore(context)
+            CgmCollectorService.resumeEnabled(context)
+            assertNull(reopened.read().sensor)
+            assertNull(reopened.read().nextReconnectEpochMs)
+            val replacement = moveCgmSensorToThisWatch(context, "5678", saveSetup = {})
+            reopened.save(CgmSessionManager(reopened.read()).startCollector())
+            assertFalse(reopened.saveFromCollector(before, oldGeneration))
+            assertEquals(replacement.sessionId, reopened.read().sensor?.sessionId)
+        }
+    }
+
     @Test fun `automatic source and recovery cannot enable intentional pause`() {
         store.save(CgmSessionManager(active).stop())
         CgmCollectorService.resumeEnabled(context)

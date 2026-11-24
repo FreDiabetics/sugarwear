@@ -747,8 +747,7 @@ class CgmWatchActivityLayoutTest {
             assertEquals(1, calls)
             assertSame(overview, content.getChildAt(0))
             assertEquals(oldY, scroll.scrollY)
-            awaitCondition(activity) { findText(overview, "App Stoppen") != null }
-            findText(overview, "Zurück")!!.performClick()
+            assertNull(findText(overview, "App Stoppen"))
             awaitCondition(activity) { findText(overview, "Sensor verbinden") != null }
             assertNotNull(findText(overview, "Sensor verbinden"))
             assertNull(findEditor(overview))
@@ -785,27 +784,25 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `cancelled companion access never runs unlink or changes the association`() {
+    fun `local unlink permits new pairing without companion access`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
-        val before = CgmSensorStateStore(context).read().sensor
+        val store = CgmSensorStateStore(context)
         val controller = Robolectric.buildActivity(CgmWatchActivity::class.java).also { activeControllers += it }.setup()
         val activity = controller.get().awaitUi()
         var unlinkCalls = 0
         activity.prepareUnlinkAccess = { _, failed -> failed("Systemfreigabe abgebrochen") }
         activity.unlinkSensor = {
             unlinkCalls++
+            store.reset()
             CgmUnlinkResult(CgmBondRemovalStatus.REMOVED)
         }
         try {
             activity.performSensorUnlink()
-            awaitCondition(activity) { findText(activity.window.decorView, "Systemfreigabe abgebrochen") != null }
-            assertEquals(0, unlinkCalls)
-            assertEquals(before, CgmSensorStateStore(context).read().sensor)
-            assertNull(findText(activity.window.decorView, "Sensor trennen"))
-            assertNull(findEditor(activity.window.decorView))
-            assertNotNull(findText(activity.window.decorView, "Systemfreigabe abgebrochen"))
+            awaitCondition(activity) { unlinkCalls == 1 && findText(activity.window.decorView, "Sensor verbinden") != null }
+            findText(activity.window.decorView, "Sensor verbinden")!!.performClick()
+            awaitCondition(activity) { findEditor(activity.window.decorView) != null }
         } finally {
             controller.pause().stop().destroy()
         }
@@ -1175,7 +1172,11 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `system status entry opens system status`() {
+    fun `associated sensor card opens sensor management`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        CgmSensorStateStore(context).save(
+            CgmPersistedState(sensor = CgmSensor("test-sensor", "test-session")),
+        )
         val activity =
             Robolectric
                 .buildActivity(CgmConnectionsActivity::class.java)
@@ -1185,7 +1186,7 @@ class CgmWatchActivityLayoutTest {
                 .awaitUi()
         val root = activity.findViewById<android.view.View>(android.R.id.content)
 
-        root.findViewWithTag<View>("connections-systemstatus").performClick()
+        root.findViewWithTag<View>("connections-manage-sensor").performClick()
 
         assertEquals(
             CgmSystemStatusActivity::class.java.name,

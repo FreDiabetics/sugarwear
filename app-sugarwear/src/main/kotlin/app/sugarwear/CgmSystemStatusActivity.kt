@@ -28,10 +28,6 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
     private val unlinkInFlight get() = pairing.state.value.unlinkInFlight
     private val unlinkFailed get() = pairing.state.value.unlinkFailed
     private val unlinkFailureReason get() = pairing.state.value.unlinkFailureReason
-    private var companionAccessClosed = false
-    private var claimedAccessToken: Long? = null
-    private val companionConsent: CgmCompanionConsentLauncher = CgmCompanionConsentLauncher(this) { request, result -> companionBondAccess.onActivityResult(request, result) }
-    private val companionBondAccess: CgmCompanionBondAccess by lazy { CgmCompanionBondAccess(this, launchConsent = companionConsent::launch) }
     private var showPairingCode: Boolean
         get() = status.state.value.showPairingCode
         set(value) = status.showCode(value)
@@ -56,37 +52,20 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
                 }
             },
         )
-        var wasUnlinking = pairing.state.value.unlinkInFlight
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { status.state.collect { render() } }
                 launch {
                     pairing.state.collect { state ->
-                        if (wasUnlinking && !state.unlinkInFlight) {
-                            status.refresh()
-                            if (!state.unlinkFailed) {
-                                startActivity(
-                                    android.content
-                                        .Intent(this@CgmSystemStatusActivity, CgmWatchActivity::class.java)
-                                        .putExtra(CgmWatchActivity.EXTRA_SENSOR_UNLINKED, true),
-                                )
-                                finish()
-                            }
+                        if (state.unlinkCompleted) {
+                            startActivity(
+                                Intent(this@CgmSystemStatusActivity, CgmWatchActivity::class.java)
+                                    .putExtra(CgmWatchActivity.EXTRA_SENSOR_UNLINKED, true),
+                            )
+                            finish()
+                        } else {
+                            render()
                         }
-                        wasUnlinking = state.unlinkInFlight
-                        render()
-                        val effect = state.effect as? CgmPairingEffect.Access ?: return@collect
-                        if (effect.operation != CgmPairingOperation.UNLINK || claimedAccessToken == effect.token) return@collect
-                        claimedAccessToken = effect.token
-                        companionBondAccess.ensureForUnlink(
-                            onReady = {
-                                if (!companionAccessClosed) {
-                                    pairing.accessReady(effect.token)
-                                    status.refresh()
-                                }
-                            },
-                            onFailure = { reason -> if (!companionAccessClosed) pairing.accessFailed(effect.token, reason) },
-                        )
                     }
                 }
             }
@@ -723,8 +702,6 @@ class CgmSystemStatusActivity : CgmSettingsComposeActivity() {
             ?.exactAlarmsGranted == true
 
     override fun onDestroy() {
-        companionAccessClosed = true
-        companionBondAccess.cancel()
         pairing.platformDetached()
         super.onDestroy()
     }
