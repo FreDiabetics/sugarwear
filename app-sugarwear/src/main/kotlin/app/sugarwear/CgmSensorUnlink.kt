@@ -47,8 +47,10 @@ internal fun cgmDetachSemantics() = CgmDetachSemantics()
 internal fun releaseCgmCollectorOwnership(context: Context) {
     val app = context.applicationContext
     val stateStore = CgmSensorStateStore(app)
-    val current = stateStore.read()
-    stateStore.save(current.copy(collectorEnabled = false, health = CgmCollectorReliability.releasePending(current.health, System.currentTimeMillis())))
+    synchronized(CgmSensorStateStore.lifecycleLock) {
+        val current = stateStore.read()
+        stateStore.save(current.copy(collectorEnabled = false, health = CgmCollectorReliability.releasePending(current.health, System.currentTimeMillis())))
+    }
     CgmCollectorRuntimeRegistry.cancelLiveCycle()
     SensorScanner.forceCleanup()
     CgmCollectorService.stop(app)

@@ -213,6 +213,50 @@ class CgmPairingViewModelTest {
             assertFalse(vm.state.value.unlinkFailed)
         }
 
+
+    @Test fun `retry detaches failed setup before reconnecting with submitted code`() =
+        runTest {
+            val commands = Commands()
+            val vm = SensorConnectionViewModel(commands, scope = backgroundScope)
+            vm.open()
+            vm.start("1234")
+            runCurrent()
+            vm.accessReady(checkNotNull(vm.state.value.effect).token)
+            runCurrent()
+            vm.sensorChanged(CgmPersistedState(sensor = CgmSensor("failed-setup")))
+            vm.retry()
+            runCurrent()
+            assertEquals(listOf("release", "connect", "unlink", "release"), commands.calls)
+            vm.accessReady(checkNotNull(vm.state.value.effect).token)
+            runCurrent()
+            assertEquals(listOf("release", "connect", "unlink", "release", "connect"), commands.calls)
+            assertEquals("1234", vm.state.value.draft)
+        }
+
+    @Test fun `retry after recreation clears failed setup before accepting code`() =
+        runTest {
+            val commands = Commands()
+            val vm = SensorConnectionViewModel(commands, scope = backgroundScope)
+            vm.open(CgmPairingScreenStep.CONNECTING)
+            vm.sensorChanged(CgmPersistedState(sensor = CgmSensor("failed-setup")))
+            vm.retry()
+            runCurrent()
+            assertEquals(listOf("unlink"), commands.calls)
+            assertEquals(CgmPairingScreenStep.ENTER_CODE, vm.state.value.step)
+            assertTrue(vm.start("1234"))
+        }
+
+    @Test fun `retry must not detach a sensor with a valid live session`() =
+        runTest {
+            val commands = Commands()
+            val vm = SensorConnectionViewModel(commands, scope = backgroundScope)
+            vm.open(CgmPairingScreenStep.CONNECTING)
+            vm.sensorChanged(connected())
+            vm.retry()
+            runCurrent()
+            assertTrue(commands.calls.isEmpty())
+        }
+
     private class Commands : CgmPairingCommands {
         val calls = mutableListOf<String>()
 

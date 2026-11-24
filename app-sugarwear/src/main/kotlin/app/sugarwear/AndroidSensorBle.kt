@@ -592,9 +592,13 @@ internal class CgmHardwareCollector(
                     )
                 ) {
                     absentBondRecoveryAttempted = true
+                    // A fresh setup (including reinstall) has no recorded address. Retry only
+                    // the peer that just rejected authentication; do not persist its identity
+                    // or remove any platform bond as part of this recovery.
+                    val hadSessionKey = sharedKey != null || !initialSensor.deviceAddress.isNullOrBlank()
                     sharedKey = null
-                    onSessionKeyReset()
-                    discoveryRequired = true
+                    if (hadSessionKey) onSessionKeyReset()
+                    discoveryRequired = !initialSensor.deviceAddress.isNullOrBlank()
                     fallbackUsed = false
                     bondReconnectAttempts = 0
                     gatt133Retries = 0
@@ -639,6 +643,14 @@ internal class CgmHardwareCollector(
                             )
                         }
                     }
+                }
+                if (error.errorCode == "G7-AUTH-211") {
+                    throw CgmBleException(
+                        error.errorCode,
+                        cgmAuthenticationRejectionMessage(currentBondState(sensor.deviceAddress)),
+                        false,
+                        error,
+                    )
                 }
                 if (error.errorCode == "G7-AUTH-MISMATCH" && initialSensor.deviceAddress.isNullOrBlank() && scanner is SensorScanner) {
                     sensor.deviceAddress?.let(scanner::rejectCandidate)

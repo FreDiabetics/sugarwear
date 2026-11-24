@@ -19,11 +19,13 @@ import java.util.UUID
 
 class CgmBlePolicyTest {
 
-    @Test fun `absent bond recovery is bounded and restricted to the recorded peer`() {
+    @Test fun `absent bond recovery is bounded and handles a fresh setup without a recorded peer`() {
         val address = "AA:BB:CC:DD:EE:FF"
         assertTrue(shouldRetryAbsentCgmBond(address, address.lowercase(), BluetoothDevice.BOND_NONE, "G7-AUTH-211", false))
         assertFalse(shouldRetryAbsentCgmBond(address, address, BluetoothDevice.BOND_NONE, "G7-AUTH-211", true))
-        assertFalse(shouldRetryAbsentCgmBond(null, address, BluetoothDevice.BOND_NONE, "G7-AUTH-211", false))
+        assertTrue(shouldRetryAbsentCgmBond(null, address, BluetoothDevice.BOND_NONE, "G7-AUTH-211", false))
+        assertFalse(shouldRetryAbsentCgmBond(null, address, BluetoothDevice.BOND_NONE, "G7-AUTH-211", true))
+        assertFalse(shouldRetryAbsentCgmBond(null, null, BluetoothDevice.BOND_NONE, "G7-AUTH-211", false))
         assertFalse(shouldRetryAbsentCgmBond(address, "AA:BB:CC:DD:EE:00", BluetoothDevice.BOND_NONE, "G7-AUTH-211", false))
         assertFalse(shouldRetryAbsentCgmBond(address, address, null, "G7-AUTH-211", false))
         assertFalse(shouldRetryAbsentCgmBond(address, address, BluetoothDevice.BOND_BONDED, "G7-AUTH-211", false))
@@ -36,6 +38,8 @@ class CgmBlePolicyTest {
         assertFalse(cgmBondRepairFailureMessage(BluetoothDevice.BOND_NONE).contains("entkoppeln"))
         assertFalse(cgmBondRepairFailureMessage(BluetoothDevice.BOND_BONDING).contains("entkoppeln"))
         assertFalse(cgmBondRepairFailureMessage(null).contains("entkoppeln"))
+        assertFalse(cgmAuthenticationRejectionMessage(BluetoothDevice.BOND_NONE).contains("entkoppeln"))
+        assertFalse(cgmAuthenticationRejectionMessage(null).contains("entkoppeln"))
     }
     @Test fun `interrupted initial bond searches across next sensor window within remaining budget`() {
         val sensor = CgmSensor("setup", deviceAddress = "AA:BB:CC:DD:EE:FF")

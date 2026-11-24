@@ -82,6 +82,7 @@ internal class SensorConnectionViewModel(
     private var pendingCode: String? = null
     private var closeAfterUnlink = false
     private var editAfterUnlink = false
+    private var retryCodeAfterUnlink: String? = null
     private var latestSensor = CgmPersistedState()
     private var openRequested = false
     private var visible = false
@@ -211,6 +212,7 @@ internal class SensorConnectionViewModel(
 
     fun correctCode() {
         if (state.value.unlinkInFlight) return
+        retryCodeAfterUnlink = null
         editAfterUnlink = true
         unlink()
     }
@@ -219,9 +221,12 @@ internal class SensorConnectionViewModel(
         mutableState.update { it.copy(unlinkCompleted = detached, offerStop = false, unlinkInFlight = false, unlinkFailed = !detached, effect = null, unlinkFailureReason = if (detached) null else commands.unlinkWarning ?: it.unlinkFailureReason) }
         if (editAfterUnlink && detached) {
             editAfterUnlink = false
+            val retryCode = retryCodeAfterUnlink
+            retryCodeAfterUnlink = null
             latestSensor = CgmPersistedState()
             mutableState.update { CgmPairingUiState(step = CgmPairingScreenStep.ENTER_CODE) }
             updateClock()
+            if (retryCode != null) start(retryCode)
         } else if (closeAfterUnlink && detached) {
             close()
         }
@@ -239,10 +244,17 @@ internal class SensorConnectionViewModel(
     }
 
     fun retry() {
+        if (state.value.unlinkInFlight || state.value.startInFlight) return
         if (state.value.bondFailure != null) {
             mutableState.update { it.copy(bondFailure = null, startInFlight = false) }
             sensorChanged(latestSensor)
-        } else {
+        } else if (state.value.step == CgmPairingScreenStep.CONNECTING && !hasEstablishedCgmSensorSession(latestSensor)) {
+            // The connect command rejects an existing local association. Retry must
+            // first detach the failed setup, not merely navigate to code entry.
+            retryCodeAfterUnlink = state.value.draft.takeIf(::isValidCgmPairingCode)
+            editAfterUnlink = true
+            unlink()
+        } else if (!hasEstablishedCgmSensorSession(latestSensor)) {
             mutableState.update { it.copy(step = CgmPairingScreenStep.ENTER_CODE, startInFlight = false) }
             updateClock()
         }
@@ -343,6 +355,7 @@ internal class SensorConnectionViewModel(
     fun close() {
         ++generation
         editAfterUnlink = false
+        retryCodeAfterUnlink = null
         pendingCode = null
         completionJob?.cancel()
         completionJob = null

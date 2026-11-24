@@ -105,7 +105,7 @@ internal fun cgmDiscoveryScanTimeoutMs(
         else -> cgmScanTimeoutMs(sensor)
     }
 
-/** Retry only the exact recorded peer after a protocol rejection and confirmed absent OS bond. */
+/** Retry the current peer without deleting an OS bond; fresh setups have no recorded address yet. */
 internal fun shouldRetryAbsentCgmBond(
     initialAddress: String?,
     candidateAddress: String?,
@@ -114,8 +114,8 @@ internal fun shouldRetryAbsentCgmBond(
     recoveryAlreadyAttempted: Boolean,
 ): Boolean =
     !recoveryAlreadyAttempted &&
-        !initialAddress.isNullOrBlank() &&
-        initialAddress.equals(candidateAddress, ignoreCase = true) &&
+        !candidateAddress.isNullOrBlank() &&
+        (initialAddress.isNullOrBlank() || initialAddress.equals(candidateAddress, ignoreCase = true)) &&
         bondState == BluetoothDevice.BOND_NONE &&
         errorCode == "G7-AUTH-211"
 
@@ -129,4 +129,13 @@ internal fun cgmBondRepairFailureMessage(bondState: Int?): String =
             "Bluetooth-Kopplung läuft noch. Bitte erneut verbinden, sobald sie beendet ist."
         else ->
             "Bluetooth-Kopplungsstatus nicht ermittelbar. Bluetooth prüfen und erneut verbinden."
+    }
+
+internal fun cgmAuthenticationRejectionMessage(bondState: Int?): String =
+    when (bondState) {
+        BluetoothDevice.BOND_NONE ->
+            "Sensor lehnt die Authentifizierung ab. Keine Bluetooth-Kopplung vorhanden. Bluetooth neu starten und erneut versuchen."
+        BluetoothDevice.BOND_BONDED -> cgmBondRepairFailureMessage(bondState)
+        BluetoothDevice.BOND_BONDING -> cgmBondRepairFailureMessage(bondState)
+        else -> "Sensor lehnt die Authentifizierung ab. Bluetooth-Kopplungsstatus nicht ermittelbar."
     }
