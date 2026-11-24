@@ -523,6 +523,7 @@ data class CgmPersistedState(
     val pairingAttemptId: String? = null,
     val pairingStartedAtEpochMs: Long? = null,
     val pairingDeadlineEpochMs: Long? = null,
+    val otherSensorCount: Int = 0,
     val lastScanAtEpochMs: Long? = null,
     val lastAttemptCompletedAtEpochMs: Long? = null,
     val health: CgmCollectorHealth = CgmCollectorHealth(),

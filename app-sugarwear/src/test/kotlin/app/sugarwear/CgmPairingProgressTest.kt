@@ -38,20 +38,23 @@ class CgmPairingProgressTest {
         assertTrue(scanning.animate)
     }
 
-    @Test fun `rejected G7 candidate is visible without claiming Bluetooth scan failure`() {
+    @Test fun `rejected G7 candidate never replaces the stable search message`() {
         val state =
             CgmPersistedState(
                 collectorEnabled = true,
                 protocolState = CgmProtocolState.SCANNING,
                 activeAttemptId = 7L,
+                otherSensorCount = 2,
                 lastError = CgmCollectorError("G7-AUTH-MISMATCH", true, 2_000L, "Internal detail never shown"),
             )
         val progress = cgmPairingProgress(state, 1_000L)
-        assertTrue(progress.message.contains("G7 erkannt"))
-        assertTrue(progress.message.contains("Kopplungscode prüfen"))
+        assertTrue(progress.message.contains("Sensor suchen"))
+        assertFalse(progress.message.contains("G7 erkannt"))
+        assertFalse(progress.message.contains("Kopplungscode"))
         assertFalse(progress.message.contains("Internal detail"))
         assertTrue(progress.animate)
-        assertFalse(cgmPairingProgress(state, 3_000L).message.contains("Kopplungscode"))
+        assertEquals("Weitere Sensoren erkannt: 2", cgmOtherSensorsLabel(state.otherSensorCount))
+        assertEquals(null, cgmOtherSensorsLabel(0))
     }
 
     @Test fun `paused setup and terminal timeout do not animate but explicit preparation does`() {

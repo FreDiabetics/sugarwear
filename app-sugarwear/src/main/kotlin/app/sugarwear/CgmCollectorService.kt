@@ -563,15 +563,14 @@ class CgmCollectorService : Service() {
                             // Cleanup telemetry runs while the cycle is cancelling; never interrupt
                             // it before AndroidSensorBle has disconnected and closed the GATT client.
                             if (telemetry is CgmDiscoveryCandidateRejected) {
+                                val current = store.read()
                                 persist(
-                                    store.read().copy(
+                                    current.copy(
+                                        otherSensorCount = current.otherSensorCount + 1,
                                         lastError =
-                                            CgmCollectorError(
-                                                telemetry.errorCode,
-                                                true,
-                                                telemetry.timestampEpochMs,
-                                                "Ein G7-Kandidat konnte nicht authentifiziert werden; Suche wird fortgesetzt",
-                                            ),
+                                            current.lastError?.takeUnless {
+                                                it.code == "G7-AUTH-MISMATCH"
+                                            },
                                     ),
                                 )
                             }

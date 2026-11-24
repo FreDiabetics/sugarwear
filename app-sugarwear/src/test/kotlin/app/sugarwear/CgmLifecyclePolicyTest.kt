@@ -110,6 +110,7 @@ class CgmLifecyclePolicyTest {
 
         assertEquals(1_000L, started.pairingStartedAtEpochMs)
         assertEquals(1_000L + CGM_INITIAL_PAIRING_SCAN_TIMEOUT_MS, started.pairingDeadlineEpochMs)
+        assertEquals(0, started.otherSensorCount)
         assertEquals(started.pairingAttemptId, restored.pairingAttemptId)
         assertEquals(started.pairingStartedAtEpochMs, restored.pairingStartedAtEpochMs)
         assertEquals(started.pairingDeadlineEpochMs, restored.pairingDeadlineEpochMs)
@@ -125,6 +126,7 @@ class CgmLifecyclePolicyTest {
                 24L * 60 * 60_000L,
             )
         assertTrue(explicitResume.collectorEnabled)
+        assertEquals(0, explicitResume.otherSensorCount)
         assertEquals(24L * 60 * 60_000L + CGM_INITIAL_PAIRING_SCAN_TIMEOUT_MS, explicitResume.pairingDeadlineEpochMs)
 
         val discoveredButNotValidated = started.copy(sensor = CgmSensor("sensor", deviceAddress = "AA:BB:CC:DD:EE:FF"))

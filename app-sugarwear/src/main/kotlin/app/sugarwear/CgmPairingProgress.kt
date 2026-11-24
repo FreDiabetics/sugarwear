@@ -8,6 +8,9 @@ internal data class CgmPairingProgress(
     val animate: Boolean,
 )
 
+internal fun cgmOtherSensorsLabel(count: Int): String? =
+    count.takeIf { it > 0 }?.let { "Weitere Sensoren erkannt: $it" }
+
 internal fun cgmPairingProgress(
     state: CgmPersistedState,
     startedAtEpochMs: Long,
@@ -31,14 +34,7 @@ internal fun cgmPairingProgress(
         } else {
             cgmProtocolPhaseName(state.protocolState)
         }
-    val authenticationMismatch = error?.takeIf { it.code == "G7-AUTH-MISMATCH" }
-    val message =
-        listOfNotNull(
-            phase,
-            authenticationMismatch?.let {
-                "G7 erkannt, aber ein Kandidat konnte nicht authentifiziert werden. Kopplungscode prüfen; Suche läuft weiter."
-            },
-        ).distinct().joinToString("\n")
+    val message = phase
     val waiting =
         state.protocolState in
             setOf(

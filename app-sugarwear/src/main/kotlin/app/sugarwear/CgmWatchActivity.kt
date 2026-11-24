@@ -122,6 +122,7 @@ class CgmWatchActivity : ComponentActivity() {
     private var renderedPairingProgress: CgmPairingProgress? = null
     private var renderedPairingRadio: Pair<Boolean?, Boolean?>? = null
     private var renderedPairingStep: CgmPairingScreenStep? = null
+    private var renderedOtherSensorCount = 0
     private var overviewResumed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var scrollView: ScrollView
@@ -269,6 +270,7 @@ class CgmWatchActivity : ComponentActivity() {
             }
         renderedPairingProgress = progress
         renderedPairingRadio = overviewState.snapshot?.bluetoothPermission to overviewState.snapshot?.bluetoothEnabled
+        renderedOtherSensorCount = state.otherSensorCount
         content.addView(
             label(
                 when (step) {
@@ -309,6 +311,18 @@ class CgmWatchActivity : ComponentActivity() {
                     setPadding(4.dp, 4.dp, 4.dp, 2.dp)
                 },
             )
+            cgmOtherSensorsLabel(state.otherSensorCount)?.let { otherSensors ->
+                content.addView(
+                    label(
+                        otherSensors,
+                        11f,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                    ).apply {
+                        gravity = Gravity.CENTER
+                        setPadding(4.dp, 1.dp, 4.dp, 1.dp)
+                    },
+                )
+            }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 (pairingCodeDraft.takeIf { it.length == 4 } ?: overviewState.snapshot?.pairingCode)?.let { content.addView(connectionCodeLabel(it, palette)) }
             }
@@ -1042,6 +1056,7 @@ class CgmWatchActivity : ComponentActivity() {
                     renderedTileMode == mode &&
                     renderedPairingStep == pairingStep &&
                     pairingErrorCode == pairingFailureMessage &&
+                    renderedOtherSensorCount == state.otherSensorCount &&
                     (pairingStep == CgmPairingScreenStep.ENTER_CODE || (renderedPairingProgress == progress && renderedPairingRadio == (snapshot.bluetoothPermission to snapshot.bluetoothEnabled)))
             if (!pairingUnchanged) {
                 glucoseHost.removeAllViews()

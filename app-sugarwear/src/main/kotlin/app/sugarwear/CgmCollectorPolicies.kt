@@ -124,7 +124,9 @@ internal fun startCgmPairingAttempt(state: CgmPersistedState, nowEpochMs: Long):
                 .toString(),
         pairingStartedAtEpochMs = nowEpochMs,
         pairingDeadlineEpochMs = nowEpochMs + CGM_INITIAL_PAIRING_SCAN_TIMEOUT_MS,
+        otherSensorCount = 0,
         scanTimeoutAtEpochMs = nowEpochMs + CGM_INITIAL_PAIRING_SCAN_TIMEOUT_MS,
+        lastError = null,
     )
 }
 
