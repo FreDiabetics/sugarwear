@@ -438,6 +438,9 @@ class CgmAlarmSettingsActivity : CgmSettingsComposeActivity() {
                 SugarWearAlarmType.TECHNICAL_WARNING -> {
                     addView(label("Warnt bei unbehebbaren Sensorfehlern oder erforderlicher Benutzerintervention.", 10f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
                 }
+                // Alarm types without dedicated editable controls intentionally use
+                // their model defaults and still share the common delivery controls below.
+                else -> Unit
             }
 
             // Delivery Mode Selection

@@ -55,6 +55,9 @@ internal fun cgmAlarmArtwork(type: SugarWearAlarmType): CgmAlarmArtwork? =
         SugarWearAlarmType.SIGNAL_LOSS -> CgmAlarmArtwork.SIGNAL_LOSS
         SugarWearAlarmType.TEMPORARY_SENSOR_PROBLEM -> CgmAlarmArtwork.SENSOR_ERROR
         SugarWearAlarmType.TECHNICAL_WARNING -> CgmAlarmArtwork.TECHNICAL_WARNING
+        // Alarm types without dedicated full-bleed artwork (for example sensor-lifetime
+        // notices) deliberately stay out of the high/low/error artwork paths.
+        else -> null
     }
 
 /** Native children laid out on the original 450-unit Illustrator artboard. No text paths. */
