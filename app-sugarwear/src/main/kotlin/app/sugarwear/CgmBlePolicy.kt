@@ -55,6 +55,19 @@ internal fun shouldRepairPreexistingCgmBond(
         bondStateBeforeAttempt == BluetoothDevice.BOND_BONDED &&
         lastProtocolState == CgmProtocolState.REQUESTING_GLUCOSE
 
+internal fun shouldRepairPreexistingCgmBondAfterAuthFailure(
+    initialAddress: String?,
+    startedWithoutSharedKey: Boolean,
+    bondStateBeforeAttempt: Int?,
+    errorCode: String,
+    repairAlreadyAttempted: Boolean,
+): Boolean =
+    !repairAlreadyAttempted &&
+        initialAddress.isNullOrBlank() &&
+        startedWithoutSharedKey &&
+        bondStateBeforeAttempt == BluetoothDevice.BOND_BONDED &&
+        errorCode in setOf("G7-AUTH-204", "G7-AUTH-211")
+
 internal enum class CgmWriteCallbackDisposition {
     EXPECTED_SUCCESS,
     EXPECTED_FAILURE,

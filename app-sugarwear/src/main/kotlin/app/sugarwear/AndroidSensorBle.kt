@@ -584,6 +584,46 @@ internal class CgmHardwareCollector(
                 // close-before-retry is deliberate: no delay or new connect may overlap the
                 // terminal lifecycle of the generation that just failed.
                 connection.close()
+                android.util.Log.w(
+                    "G7Pairing",
+                    "BLE attempt failed code=${error.errorCode} state=$lastProtocolState recoverable=${error.recoverable}",
+                )
+                if (
+                    shouldRepairPreexistingCgmBondAfterAuthFailure(
+                        initialAddress = initialSensor.deviceAddress,
+                        startedWithoutSharedKey = startedWithoutSharedKey,
+                        bondStateBeforeAttempt = bondStateBeforeAttempt,
+                        errorCode = error.errorCode,
+                        repairAlreadyAttempted = preexistingBondRepairAttempted,
+                    )
+                ) {
+                    preexistingBondRepairAttempted = true
+                    when (removeCgmBond(context, sensor.deviceAddress)) {
+                        CgmBondRemovalStatus.REMOVED,
+                        CgmBondRemovalStatus.NOT_REQUIRED -> {
+                            sharedKey = null
+                            onSessionKeyReset()
+                            sensor = initialSensor
+                            discoveryRequired = true
+                            fallbackUsed = false
+                            bondReconnectAttempts = 0
+                            gatt133Retries = 0
+                            noCallbackRetries = 0
+                            onState(CgmProtocolState.RECOVERING)
+                            delay(BOND_RECONNECT_DELAY_MS)
+                            continue
+                        }
+
+                        CgmBondRemovalStatus.FAILED -> {
+                            throw CgmBleException(
+                                "G7-AUTH-212",
+                                "Vorhandene Bluetooth-Kopplung konnte nicht erneuert werden. Bitte den Sensor in den Bluetooth-Einstellungen der Uhr entkoppeln und erneut verbinden.",
+                                false,
+                                error,
+                            )
+                        }
+                    }
+                }
                 if (error.errorCode == "G7-AUTH-MISMATCH" && initialSensor.deviceAddress.isNullOrBlank() && scanner is SensorScanner) {
                     sensor.deviceAddress?.let(scanner::rejectCandidate)
                     // This event was previously dropped: exports showed successful GATT and

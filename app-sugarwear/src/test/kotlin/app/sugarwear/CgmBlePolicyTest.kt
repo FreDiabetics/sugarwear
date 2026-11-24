@@ -145,6 +145,68 @@ class CgmBlePolicyTest {
         )
     }
 
+    @Test fun `preexisting bonded candidate retries fresh after auth processing failure`() {
+        for (code in listOf("G7-AUTH-204", "G7-AUTH-211")) {
+            assertTrue(
+                shouldRepairPreexistingCgmBondAfterAuthFailure(
+                    initialAddress = null,
+                    startedWithoutSharedKey = true,
+                    bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                    errorCode = code,
+                    repairAlreadyAttempted = false,
+                ),
+            )
+        }
+    }
+
+    @Test fun `preexisting bond auth recovery never consumes mismatch or established sessions`() {
+        assertFalse(
+            shouldRepairPreexistingCgmBondAfterAuthFailure(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                errorCode = "G7-AUTH-MISMATCH",
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBondAfterAuthFailure(
+                initialAddress = "AA:BB:CC:DD:EE:FF",
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                errorCode = "G7-AUTH-204",
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBondAfterAuthFailure(
+                initialAddress = null,
+                startedWithoutSharedKey = false,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                errorCode = "G7-AUTH-204",
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBondAfterAuthFailure(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_NONE,
+                errorCode = "G7-AUTH-204",
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBondAfterAuthFailure(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                errorCode = "G7-AUTH-204",
+                repairAlreadyAttempted = true,
+            ),
+        )
+    }
+
     @Test fun `authenticated address anchors an addressless sensor change`() {
         val sensor = CgmSensor("new-sensor", sessionId = "new-session")
 
