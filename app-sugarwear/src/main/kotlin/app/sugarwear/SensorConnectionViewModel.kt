@@ -296,11 +296,14 @@ internal class SensorConnectionViewModel(
         if (current.startInFlight || current.step != CgmPairingScreenStep.CONNECTING) return
         if (advanceCgmPairingScreen(current.step, sensor) != CgmPairingScreenStep.CONNECTED) return
         if (sdkInt >= 36 && !current.bondReady) {
-            if (!current.bondInFlight && current.bondFailure == null) {
-                val address = sensor.sensor?.deviceAddress?.takeIf(String::isNotBlank) ?: return
-                mutableState.update { it.copy(bondInFlight = true, effect = CgmPairingEffect.VerifyBond(++generation, address)) }
+            mutableState.update {
+                it.copy(
+                    bondInFlight = false,
+                    bondReady = true,
+                    bondFailure = null,
+                    effect = null,
+                )
             }
-            return
         }
         showSuccess()
     }

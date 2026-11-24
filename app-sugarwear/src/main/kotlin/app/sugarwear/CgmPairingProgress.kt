@@ -21,15 +21,35 @@ internal fun cgmPairingProgress(
     if (error?.recoverable == false) return CgmPairingProgress(error.safeMessage, false)
     if (!state.collectorEnabled) return CgmPairingProgress("Sensorsuche pausiert", false)
     if (awaitingSystemAccess) return CgmPairingProgress("Android-Bluetooth-Freigabe wird benötigt", true)
-    val phase = cgmProtocolPhaseName(state.protocolState)
-    val radioError = error?.takeIf { it.code.startsWith("G7-GATT-") || it.code.startsWith("G7-BLE-") }
+    val recoverableRadioRetry =
+        error?.recoverable == true &&
+            (error.code.startsWith("G7-GATT-") || error.code.startsWith("G7-BLE-")) &&
+            state.protocolState == CgmProtocolState.RECOVERING
+    val phase =
+        if (recoverableRadioRetry) {
+            "Sensor suchen"
+        } else {
+            cgmProtocolPhaseName(state.protocolState)
+        }
     val authenticationMismatch = error?.takeIf { it.code == "G7-AUTH-MISMATCH" }
     val message =
         listOfNotNull(
             phase,
-            authenticationMismatch?.let { "G7 erkannt, aber ein Kandidat konnte nicht authentifiziert werden. Kopplungscode prüfen; Suche läuft weiter." },
-            radioError?.safeMessage?.substringBefore(" · scan="),
+            authenticationMismatch?.let {
+                "G7 erkannt, aber ein Kandidat konnte nicht authentifiziert werden. Kopplungscode prüfen; Suche läuft weiter."
+            },
         ).distinct().joinToString("\n")
-    val waiting = state.protocolState in setOf(CgmProtocolState.RECOVERING, CgmProtocolState.WAITING_FOR_NEXT_READING, CgmProtocolState.IDLE, CgmProtocolState.DISCONNECTED, CgmProtocolState.ERROR)
-    return CgmPairingProgress(message, state.activeAttemptId != null && !waiting)
+    val waiting =
+        state.protocolState in
+            setOf(
+                CgmProtocolState.RECOVERING,
+                CgmProtocolState.WAITING_FOR_NEXT_READING,
+                CgmProtocolState.IDLE,
+                CgmProtocolState.DISCONNECTED,
+                CgmProtocolState.ERROR,
+            )
+    return CgmPairingProgress(
+        message,
+        state.activeAttemptId != null && (!waiting || recoverableRadioRetry),
+    )
 }

@@ -144,15 +144,23 @@ class CgmPairingViewModelTest {
             assertEquals(listOf("release", "connect"), commands.calls)
         }
 
-    @Test fun `success verifies bond once and closes after exact existing delay`() =
+    @Test fun `validated live value completes pairing without redundant bond gate`() =
         runTest {
-            val vm = SensorConnectionViewModel(Commands(), scope = backgroundScope, clock = { testScheduler.currentTime }, sdkInt = 36)
+            val vm =
+                SensorConnectionViewModel(
+                    Commands(),
+                    scope = backgroundScope,
+                    clock = { testScheduler.currentTime },
+                    sdkInt = 36,
+                )
             vm.open(CgmPairingScreenStep.CONNECTING, 0L)
             vm.sensorChanged(connected())
-            val verify = vm.state.value.effect as CgmPairingEffect.VerifyBond
-            vm.bondReady(verify.token)
             runCurrent()
+
             assertEquals(CgmPairingScreenStep.CONNECTED, vm.state.value.step)
+            assertNull(vm.state.value.effect)
+            assertTrue(vm.state.value.bondReady)
+
             advanceTimeBy(2_999)
             runCurrent()
             assertEquals(CgmPairingScreenStep.CONNECTED, vm.state.value.step)

@@ -9,20 +9,33 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CgmPairingProgressTest {
-    @Test fun `radio failure stays visible while retry phase never masquerades as an active scan`() {
+    @Test fun `recoverable radio retry keeps stable sensor search text`() {
         val state =
             CgmPersistedState(
                 collectorEnabled = true,
                 protocolState = CgmProtocolState.RECOVERING,
-                lastError = CgmCollectorError("G7-GATT-133", true, 2_000L, "Bluetooth-Verbindungsfehler (133)"),
+                activeAttemptId = 7L,
+                lastError =
+                    CgmCollectorError(
+                        "G7-GATT-133",
+                        true,
+                        2_000L,
+                        "G7-Kandidat nicht erreichbar · weitere Sensoren werden gesucht",
+                    ),
             )
-        val waiting = cgmPairingProgress(state, 1_000L)
-        assertTrue(waiting.message.contains("133"))
-        assertFalse(waiting.animate)
-        val scanning = cgmPairingProgress(state.copy(protocolState = CgmProtocolState.SCANNING, activeAttemptId = 1L), 1_000L)
+        val retrying = cgmPairingProgress(state, 1_000L)
+        assertEquals("Sensor suchen", retrying.message)
+        assertFalse(retrying.message.contains("Kandidat"))
+        assertTrue(retrying.animate)
+
+        val scanning =
+            cgmPairingProgress(
+                state.copy(protocolState = CgmProtocolState.SCANNING),
+                1_000L,
+            )
         assertTrue(scanning.message.contains("Sensor suchen"))
+        assertFalse(scanning.message.contains("Kandidat"))
         assertTrue(scanning.animate)
-        assertFalse(cgmPairingProgress(state, 3_000L).message.contains("133"))
     }
 
     @Test fun `rejected G7 candidate is visible without claiming Bluetooth scan failure`() {

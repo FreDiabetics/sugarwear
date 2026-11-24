@@ -562,29 +562,15 @@ class CgmCollectorService : Service() {
                         onTelemetry = { telemetry ->
                             // Cleanup telemetry runs while the cycle is cancelling; never interrupt
                             // it before AndroidSensorBle has disconnected and closed the GATT client.
-                            if (telemetry is CgmDiscoveryCandidateDeferred || telemetry is CgmDiscoveryCandidateRejected) {
-                                val errorCode =
-                                    when (telemetry) {
-                                        is CgmDiscoveryCandidateDeferred -> telemetry.errorCode
-                                        is CgmDiscoveryCandidateRejected -> telemetry.errorCode
-                                    }
-                                val occurredAt =
-                                    when (telemetry) {
-                                        is CgmDiscoveryCandidateDeferred -> telemetry.timestampEpochMs
-                                        is CgmDiscoveryCandidateRejected -> telemetry.timestampEpochMs
-                                    }
+                            if (telemetry is CgmDiscoveryCandidateRejected) {
                                 persist(
                                     store.read().copy(
                                         lastError =
                                             CgmCollectorError(
-                                                errorCode,
+                                                telemetry.errorCode,
                                                 true,
-                                                occurredAt,
-                                                if (telemetry is CgmDiscoveryCandidateRejected) {
-                                                    "Ein G7-Kandidat konnte nicht authentifiziert werden; Suche wird fortgesetzt"
-                                                } else {
-                                                    "G7-Kandidat nicht erreichbar · weitere Sensoren werden gesucht"
-                                                },
+                                                telemetry.timestampEpochMs,
+                                                "Ein G7-Kandidat konnte nicht authentifiziert werden; Suche wird fortgesetzt",
                                             ),
                                     ),
                                 )

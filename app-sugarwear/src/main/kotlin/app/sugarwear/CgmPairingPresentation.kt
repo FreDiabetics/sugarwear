@@ -2,6 +2,7 @@ package app.sugarwear
 
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmReading
+import app.sugarlicious.sensor.protocol.CgmReadingOrigin
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
 
 internal const val CGM_PAIRING_SUCCESS_DURATION_MS = 3_000L
@@ -9,14 +10,26 @@ internal const val CGM_PAIRING_SUCCESS_DURATION_MS = 3_000L
 internal fun hasUsableCollectorSession(
     reading: CgmReading?,
     sensorId: String?,
-): Boolean = reading != null && reading.status == CgmReadingStatus.VALID && reading.sensorId == sensorId
+    sessionId: String? = null,
+): Boolean =
+    reading != null &&
+        reading.status == CgmReadingStatus.VALID &&
+        !reading.displayOnly &&
+        reading.origin == CgmReadingOrigin.LIVE &&
+        reading.glucoseMgDl.isFinite() &&
+        reading.sensorId == sensorId &&
+        (sessionId == null || reading.sessionId == sessionId)
 
 internal fun hasCgmSensorAssociation(state: CgmPersistedState): Boolean =
     state.sensor != null &&
         (
             !state.sensor?.deviceAddress.isNullOrBlank() ||
                 state.authenticationState == app.sugarlicious.sensor.protocol.CgmAuthenticationState.AUTHENTICATED ||
-                hasUsableCollectorSession(state.lastReading, state.sensor?.sensorId)
+                hasUsableCollectorSession(
+                    state.lastReading,
+                    state.sensor?.sensorId,
+                    state.sensor?.sessionId,
+                )
         )
 
 @Suppress("UNUSED_PARAMETER")
@@ -49,7 +62,11 @@ internal fun advanceCgmPairingScreen(
     if (
         current == CgmPairingScreenStep.CONNECTING &&
         !state.sensor?.deviceAddress.isNullOrBlank() &&
-        hasUsableCollectorSession(state.lastReading, state.sensor?.sensorId)
+        hasUsableCollectorSession(
+            state.lastReading,
+            state.sensor?.sensorId,
+            state.sensor?.sessionId,
+        )
     ) {
         CgmPairingScreenStep.CONNECTED
     } else {

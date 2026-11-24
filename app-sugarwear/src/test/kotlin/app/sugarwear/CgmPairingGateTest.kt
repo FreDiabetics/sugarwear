@@ -2,6 +2,7 @@ package app.sugarwear
 
 import app.sugarlicious.model.DataSourceId
 import app.sugarlicious.sensor.protocol.CgmReading
+import app.sugarlicious.sensor.protocol.CgmReadingOrigin
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -16,8 +17,29 @@ class CgmPairingGateTest {
         assertFalse(hasUsableCollectorSession(reading("old"), "new"))
     }
 
-    @Test fun `validated matching session survives restart`() {
-        assertTrue(hasUsableCollectorSession(reading("sensor"), "sensor"))
+    @Test fun `validated matching live session survives restart`() {
+        assertTrue(hasUsableCollectorSession(reading("sensor"), "sensor", "sensor"))
+        assertFalse(
+            hasUsableCollectorSession(
+                reading("sensor").copy(sessionId = "old-session"),
+                "sensor",
+                "sensor",
+            ),
+        )
+        assertFalse(
+            hasUsableCollectorSession(
+                reading("sensor").copy(origin = CgmReadingOrigin.BACKFILL),
+                "sensor",
+                "sensor",
+            ),
+        )
+        assertFalse(
+            hasUsableCollectorSession(
+                reading("sensor").copy(displayOnly = true),
+                "sensor",
+                "sensor",
+            ),
+        )
     }
 
     private fun reading(sensorId: String) =
