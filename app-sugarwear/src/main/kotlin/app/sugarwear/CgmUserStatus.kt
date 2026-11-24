@@ -31,16 +31,34 @@ internal fun cgmSensorWarning(status: CgmStatusPillState, hasValidReading: Boole
         else -> null
     }
 
+/** A retained setup or Bluetooth bond alone is not evidence of a completed pairing. */
+internal fun hasCgmSessionValue(
+    state: CgmPersistedState,
+    lastValidReading: app.sugarlicious.sensor.protocol.CgmReading? = null,
+): Boolean {
+    val sensor = state.sensor ?: return false
+    val sessionId = sensor.sessionId ?: sensor.sensorId
+    return hasUsableCollectorSession(state.lastReading, sensor.sensorId, sessionId) ||
+        hasUsableCollectorSession(lastValidReading, sensor.sensorId, sessionId)
+}
+
 internal fun deriveCgmStatusPillState(
     state: CgmPersistedState,
     credentialsPresent: Boolean,
     nowEpochMs: Long = System.currentTimeMillis(),
+    lastValidReading: app.sugarlicious.sensor.protocol.CgmReading? = null,
 ): CgmStatusPillState {
     val sensor = state.sensor
     if (sensor == null || !credentialsPresent || sensor.state == CgmSensorState.ENDED) {
         return CgmStatusPillState.NO_ACTIVE_SENSOR
     }
-    if (!state.collectorEnabled) return CgmStatusPillState.PAUSED
+    if (!state.collectorEnabled) {
+        return if (hasCgmSessionValue(state, lastValidReading)) {
+            CgmStatusPillState.PAUSED
+        } else {
+            CgmStatusPillState.NO_ACTIVE_SENSOR
+        }
+    }
     if (sensor.state == CgmSensorState.ERROR || (cgmReadingBelongsToSession(state, state.lastReading) && state.lastReading?.status == CgmReadingStatus.SENSOR_ERROR)) {
         return CgmStatusPillState.SENSOR_ERROR
     }
@@ -74,6 +92,16 @@ internal fun deriveCgmUserStatus(
     credentialsPresent: Boolean,
     nowEpochMs: Long = System.currentTimeMillis(),
 ): CgmUserStatus {
+    if (!state.collectorEnabled && deriveCgmStatusPillState(state, credentialsPresent, nowEpochMs) == CgmStatusPillState.NO_ACTIVE_SENSOR) {
+        return CgmUserStatus(
+            CgmUserStatusLevel.OFF,
+            "Kein aktiver Sensor verbunden",
+            "Sensor verbinden",
+            "Nicht verbunden",
+            "Es liegt noch keine bestätigte Sensorsitzung vor.",
+            "Sensor verbinden wählen.",
+        )
+    }
     if (!state.collectorEnabled) {
         return CgmUserStatus(
             CgmUserStatusLevel.OFF,

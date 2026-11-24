@@ -600,7 +600,8 @@ internal class CgmHardwareCollector(
                     preexistingBondRepairAttempted = true
                     when (removeCgmBond(context, sensor.deviceAddress)) {
                         CgmBondRemovalStatus.REMOVED,
-                        CgmBondRemovalStatus.NOT_REQUIRED -> {
+                        CgmBondRemovalStatus.NOT_REQUIRED,
+                        -> {
                             sharedKey = null
                             onSessionKeyReset()
                             sensor = initialSensor
@@ -693,7 +694,8 @@ internal class CgmHardwareCollector(
                         }
 
                         CgmBondRemovalStatus.NOT_REQUIRED,
-                        CgmBondRemovalStatus.FAILED -> {
+                        CgmBondRemovalStatus.FAILED,
+                        -> {
                             throw CgmBleException(
                                 "G7-AUTH-210",
                                 "Vorhandene Bluetooth-Kopplung konnte nicht erneuert werden. Bitte den Sensor in den Bluetooth-Einstellungen der Uhr entkoppeln und erneut verbinden.",

@@ -55,6 +55,25 @@ class CgmUserStatusTest {
         )
     }
 
+    @Test fun `retained failed setup without a validated session is not paused`() {
+        val incomplete =
+            CgmPersistedState(
+                sensor = sensor.copy(deviceAddress = "AA:BB:CC:DD:EE:FF"),
+                collectorEnabled = false,
+                lastError = CgmCollectorError("G7-AUTH-204", false, now, "Authentifizierung fehlgeschlagen"),
+            )
+        assertEquals(CgmStatusPillState.NO_ACTIVE_SENSOR, deriveCgmStatusPillState(incomplete, true, now))
+        assertEquals("Kein aktiver Sensor verbunden", deriveCgmUserStatus(incomplete, true, now).title)
+        assertEquals(
+            CgmStatusPillState.NO_ACTIVE_SENSOR,
+            deriveCgmStatusPillState(incomplete.copy(lastReading = reading(now).copy(sessionId = "old")), true, now),
+        )
+        assertEquals(
+            CgmStatusPillState.PAUSED,
+            deriveCgmStatusPillState(incomplete, true, now, lastValidReading = reading(now)),
+        )
+    }
+
     @Test fun `collector phases do not alter a healthy connected pill`() {
         val intermediatePhases =
             listOf(

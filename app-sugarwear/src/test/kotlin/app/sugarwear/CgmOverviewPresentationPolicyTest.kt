@@ -63,6 +63,29 @@ class CgmOverviewPresentationPolicyTest {
         assertEquals(CgmOverviewMode.PERMISSION_REQUIRED, cgmOverviewPresentation(state, true, resume, start + 100, true, false).mode)
     }
 
+    @Test fun `failed first pairing never looks like a paused established sensor`() {
+        val incomplete =
+            state.copy(
+                collectorEnabled = false,
+                lastReading = null,
+                lastSuccessfulConnectionEpochMs = null,
+                lastError = CgmCollectorError("G7-AUTH-204", false, start + 2, "Authentifizierung fehlgeschlagen"),
+            )
+        assertEquals(CgmOverviewMode.NO_SENSOR, display(incomplete, resume.copy(action = CgmUiSensorAction.PAUSE)).mode)
+        assertEquals(CgmOverviewMode.NO_SENSOR, display(incomplete, resume.copy(action = CgmUiSensorAction.PAIR)).mode)
+        assertEquals(CgmOverviewMode.NO_SENSOR, display(incomplete, null).mode)
+        assertEquals(
+            CgmOverviewMode.PAUSED,
+            cgmOverviewPresentation(
+                incomplete,
+                true,
+                resume.copy(action = CgmUiSensorAction.PAUSE),
+                start + 100,
+                lastValidReading = reading,
+            ).mode,
+        )
+    }
+
     @Test fun `disabled collector without explicit pause never renders paused during pairing`() {
         val waiting =
             state.copy(

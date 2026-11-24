@@ -40,6 +40,7 @@ import app.sugarlicious.model.wearGlucoseCardPresentation
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmReadingStatus
+import app.sugarlicious.sensor.protocol.CgmSensorState
 import app.sugarlicious.uishared.TrendDrawableResources
 import app.sugarlicious.uishared.centerOnGlucoseMetadata
 import kotlin.math.roundToInt
@@ -809,9 +810,22 @@ class CgmWatchActivity : ComponentActivity() {
                     },
                 )
             } else if (noActiveSensor) {
+                val credentialsPresent = overviewState.snapshot?.credentialsPresent == true
+                val canRetrySetup =
+                    persisted.sensor != null &&
+                        persisted.sensor?.state != CgmSensorState.ENDED &&
+                        credentialsPresent
+                val requiresExplicitUnlink = !canRetrySetup && (persisted.sensor != null || credentialsPresent)
                 tile.addView(
-                    pill("Sensor verbinden") {
-                        pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
+                    pill(if (requiresExplicitUnlink) "Sensor trennen" else "Sensor verbinden") {
+                        when {
+                            requiresExplicitUnlink -> performSensorUnlink()
+                            canRetrySetup -> {
+                                pairingModel.open(CgmPairingScreenStep.CONNECTING, System.currentTimeMillis())
+                                sensorStatusModel.resumeCollector()
+                            }
+                            else -> pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
+                        }
                         refreshScreen()
                     },
                 )
@@ -1050,7 +1064,7 @@ class CgmWatchActivity : ComponentActivity() {
             val state = snapshot.persisted
             val lastReading = state.lastReading
             val effectiveNow = maxOf(overviewState.now, lastReading?.timestampEpochMs ?: 0L)
-            val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent, effectiveNow)
+            val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent, effectiveNow, snapshot.lastValidReading)
 
             statusHost.removeAllViews()
             val warning =
