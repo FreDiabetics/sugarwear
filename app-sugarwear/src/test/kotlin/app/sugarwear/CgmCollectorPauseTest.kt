@@ -2,6 +2,8 @@ package app.sugarwear
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import app.sugarlicious.model.DataSourceId
+import app.sugarlicious.sensor.protocol.CgmReading
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmSensor
 import app.sugarlicious.sensor.protocol.CgmSessionManager
@@ -75,7 +77,18 @@ class CgmCollectorPauseTest {
     }
 
     @Test fun `automatic source and recovery cannot enable intentional pause`() {
-        store.save(CgmSessionManager(active).stop())
+        val now = System.currentTimeMillis()
+        val reading =
+            CgmReading(
+                id = "last-valid-reading",
+                source = DataSourceId.DEXCOM_G7_WATCH,
+                sensorId = "sensor-a",
+                sessionId = "session-a",
+                glucoseMgDl = 110.0,
+                timestampEpochMs = now,
+                receivedAtEpochMs = now,
+            )
+        store.save(CgmSessionManager(active.copy(lastReading = reading)).stop())
         CgmCollectorService.resumeEnabled(context)
         assertFalse(store.read().collectorEnabled)
         assertEquals(CgmStatusPillState.PAUSED, deriveCgmStatusPillState(store.read(), true))
