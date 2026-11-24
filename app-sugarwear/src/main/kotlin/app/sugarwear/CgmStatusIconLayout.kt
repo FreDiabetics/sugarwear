@@ -25,8 +25,6 @@ internal data class CgmStatusIconLayout(
 internal fun cgmStatusIconLayout(resource: Int): CgmStatusIconLayout? =
     when (resource) {
         R.drawable.ic_status_bluetooth -> CgmStatusIconLayout(RectF(23.47047f, 14.2437f, 44.84f, 50.25f))
-        R.drawable.ic_status_paused -> CgmStatusIconLayout(RectF(19.38f, 16.5f, 46.59f, 49.49439f))
         R.drawable.ic_status_sensor_error -> CgmStatusIconLayout(RectF(20.03f, 16.49f, 45.98f, 49.51206f))
-        R.drawable.ic_status_signal_loss -> CgmStatusIconLayout(RectF(18.82f, 16.49f, 47.17f, 49.48439f))
         else -> null
     }

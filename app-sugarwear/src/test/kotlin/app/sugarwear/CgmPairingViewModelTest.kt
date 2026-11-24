@@ -119,7 +119,8 @@ class CgmPairingViewModelTest {
             vm.accessReady(token)
             vm.accessFailed(token, "late")
             runCurrent()
-            assertNull(vm.state.value.step)
+            assertEquals(CgmPairingScreenStep.ENTER_CODE, vm.state.value.step)
+            assertEquals("", vm.state.value.draft)
             assertEquals(listOf("release"), commands.calls)
             assertNull(vm.state.value.failureMessage)
         }

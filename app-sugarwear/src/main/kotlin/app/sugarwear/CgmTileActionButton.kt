@@ -1,7 +1,9 @@
 package app.sugarwear
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
@@ -29,18 +31,14 @@ internal fun Button.applyCgmTileActionStyle() {
         }
 }
 
-/** The same 280 by 85 artboard button used by the native alarm's OK action. */
-internal object CgmPairingActionTokens {
-    const val WIDTH_FRACTION = 0.74f
-    const val TEXT_SIZE = 36f
-    const val TEXT_WIDTH_FRACTION = 0.90f
-    const val REFERENCE_TEXT = "Erneut versuchen"
-}
-
 internal class CgmTileActionButton(
     context: Context,
 ) : Button(context) {
-    private var pairingStyle = false
+    var pairingStyle = false
+        private set
+    private val ink = Rect()
+    private var pairingWidth = 0
+    private var pairingHeight = 0
 
     init {
         applyCgmTileActionStyle()
@@ -48,63 +46,61 @@ internal class CgmTileActionButton(
 
     fun usePairingStyle() {
         pairingStyle = true
-        requestLayout()
+        setSingleLine()
+    }
+
+    fun pairingInkBounds(): Rect {
+        val label = text.toString()
+        paint.getTextBounds(label, 0, label.length, ink)
+        return ink
+    }
+
+    fun setPairingSize(width: Int, height: Int) {
+        if (pairingWidth == width && pairingHeight == height) return
+        pairingWidth = width
+        pairingHeight = height
+        forceLayout()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val available = MeasureSpec.getSize(widthMeasureSpec)
-        val baseWidth =
+        if (pairingStyle) {
+            super.onMeasure(
+                MeasureSpec.makeMeasureSpec(minOf(pairingWidth, available), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(pairingHeight, MeasureSpec.EXACTLY),
+            )
+            return
+        }
+
+        val width =
             if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY) {
                 available
             } else {
                 (available * CgmAlarmDesignTokens.ACTION_WIDTH / CgmAlarmDesignTokens.SIZE).toInt()
             }
-        val width =
-            if (pairingStyle && MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.EXACTLY) {
-                (available * CgmPairingActionTokens.WIDTH_FRACTION).toInt()
-            } else {
-                baseWidth
-            }
-        val heightReferenceWidth = if (pairingStyle) baseWidth else width
-        val height =
-            (
-                heightReferenceWidth *
-                    CgmAlarmDesignTokens.ACTION_HEIGHT /
-                    CgmAlarmDesignTokens.ACTION_WIDTH
-            ).toInt()
-        val textReferenceSize =
-            if (pairingStyle) {
-                CgmPairingActionTokens.TEXT_SIZE
-            } else {
-                CgmAlarmDesignTokens.ACTION_TEXT_SIZE
-            }
-        val desiredText =
-            heightReferenceWidth * textReferenceSize /
-                CgmAlarmDesignTokens.ACTION_WIDTH *
-                resources.configuration.fontScale
-        val finalTextSize =
-            if (pairingStyle) {
-                paint.textSize = desiredText
-                val referenceWidth = paint.measureText(CgmPairingActionTokens.REFERENCE_TEXT)
-                val availableTextWidth = width * CgmPairingActionTokens.TEXT_WIDTH_FRACTION
-                if (referenceWidth > availableTextWidth) {
-                    desiredText * availableTextWidth / referenceWidth
-                } else {
-                    desiredText
-                }
-            } else {
-                paint.textSize = desiredText
-                val textWidth = paint.measureText(text.toString())
-                if (textWidth > width * 0.94f) {
-                    desiredText * width * 0.94f / textWidth
-                } else {
-                    desiredText
-                }
-            }
+        val height = (width * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
+        val desiredText = width * CgmAlarmDesignTokens.ACTION_TEXT_SIZE / CgmAlarmDesignTokens.ACTION_WIDTH * resources.configuration.fontScale
+        paint.textSize = desiredText
+        val textWidth = paint.measureText(text.toString())
+        val finalTextSize = if (textWidth > width * 0.94f) desiredText * width * 0.94f / textWidth else desiredText
         setTextSize(TypedValue.COMPLEX_UNIT_PX, finalTextSize)
         super.onMeasure(
             MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),
         )
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (!pairingStyle) {
+            super.onDraw(canvas)
+            return
+        }
+        // Center the visible glyphs instead of the font's advance and line box.
+        val bounds = pairingInkBounds()
+        val lineLeft = layout?.getLineLeft(0) ?: 0f
+        val checkpoint = canvas.save()
+        canvas.translate(width / 2f - lineLeft - bounds.exactCenterX(), height / 2f - baseline - bounds.exactCenterY())
+        super.onDraw(canvas)
+        canvas.restoreToCount(checkpoint)
     }
 }

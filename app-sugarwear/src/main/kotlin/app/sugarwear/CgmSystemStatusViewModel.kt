@@ -29,6 +29,7 @@ internal data class CgmSystemStatusSnapshot(
     val access: CgmSystemAccessSnapshot,
     val serviceRunning: Boolean,
     val bluetooth: CgmBluetoothBondSnapshot = CgmBluetoothBondSnapshot("Nicht ermittelbar", 0, 0, emptyList()),
+    val sensorNotices: List<SugarWearAlarmType> = emptyList(),
 )
 
 internal data class CgmSystemStatusUiState(
@@ -58,6 +59,7 @@ internal class CgmSystemStatusRepository(
             CgmSystemAccess.snapshot(app),
             CgmCollectorService.isServiceRunning(),
             readCgmBluetoothBondSnapshot(app),
+            sensorNotices = CgmAlarmCoordinator.pendingNotices(app).map { it.type }.filterNot { it.usesGlucoseReading },
         )
     }
 

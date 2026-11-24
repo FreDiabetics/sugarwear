@@ -234,18 +234,8 @@ internal class SensorConnectionViewModel(
     fun cancelPendingAccess() {
         ++generation
         pendingCode = null
-        mutableState.update { it.copy(accessPending = false, startInFlight = false, effect = null, step = null) }
+        mutableState.value = CgmPairingUiState(step = CgmPairingScreenStep.ENTER_CODE)
         updateClock()
-    }
-
-    fun retry() {
-        if (state.value.bondFailure != null) {
-            mutableState.update { it.copy(bondFailure = null, startInFlight = false) }
-            sensorChanged(latestSensor)
-        } else {
-            mutableState.update { it.copy(step = CgmPairingScreenStep.ENTER_CODE, startInFlight = false) }
-            updateClock()
-        }
     }
 
     fun inspectRecovery(context: Context) {

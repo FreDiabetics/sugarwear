@@ -60,8 +60,19 @@ class CgmConnectionsPresentationTest {
 
     @Test
     fun `no sensor warmup and pause have distinct states`() {
-        assertEquals("Kein aktiver Sensor verbunden", cgmConnectionsSensorStatus(CgmPersistedState(), now))
+        assertEquals("Kein Sensor verbunden", cgmConnectionsSensorStatus(CgmPersistedState(), now))
         assertEquals("Sensoraufwärmung", cgmConnectionsSensorStatus(state(CgmSensorState.WARMUP), now))
         assertEquals("Datenempfang pausiert", cgmConnectionsSensorStatus(state().copy(collectorEnabled = false), now))
+    }
+
+    @Test
+    fun `sensor icon ignores glucose alarms and reflects sensor notices and state`() {
+        val active = state()
+        assertEquals(R.drawable.ic_sensor_outline, cgmConnectionsSensorIcon(active, now, listOf(SugarWearAlarmType.LOW, SugarWearAlarmType.HIGH)))
+        assertEquals(R.drawable.ic_status_signal_loss, cgmConnectionsSensorIcon(active, now, listOf(SugarWearAlarmType.URGENT_LOW, SugarWearAlarmType.SIGNAL_LOSS)))
+        assertEquals(R.drawable.ic_status_sensor_error, cgmConnectionsSensorIcon(active, now, listOf(SugarWearAlarmType.TECHNICAL_WARNING)))
+        assertEquals(R.drawable.ic_sensorend, cgmConnectionsSensorIcon(active, now, listOf(SugarWearAlarmType.SENSOR_END_24H)))
+        assertEquals(R.drawable.ic_status_paused, cgmConnectionsSensorIcon(active.copy(collectorEnabled = false), now, emptyList()))
+        assertEquals(R.drawable.ic_status_no_active_sensor, cgmConnectionsSensorIcon(CgmPersistedState(), now, emptyList()))
     }
 }

@@ -6,10 +6,12 @@ import androidx.core.content.edit
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import kotlinx.serialization.json.Json
 
+internal const val CGM_COLLECTOR_PREFERENCES = "g7_collector_state"
+
 internal class CgmSensorStateStore(
     context: Context,
 ) {
-    private val preferences = context.getSharedPreferences("g7_collector_state", Context.MODE_PRIVATE)
+    private val preferences = context.getSharedPreferences(CGM_COLLECTOR_PREFERENCES, Context.MODE_PRIVATE)
     private val json =
         Json {
             ignoreUnknownKeys = true

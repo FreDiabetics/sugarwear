@@ -160,8 +160,8 @@ class CgmWatchActivityLayoutTest {
         assertEquals(View.VISIBLE, resume.visibility)
         val warningIcon = ((resume.parent as ViewGroup).getChildAt(0) as ViewGroup).getChildAt(0) as ImageView
         assertEquals(R.drawable.ic_status_paused, Shadows.shadowOf(warningIcon.drawable).createdFromResId)
-        assertEquals(cgmStatusIconLayout(R.drawable.ic_status_paused)!!.width(activity.resources.displayMetrics.density), warningIcon.layoutParams.width)
-        assertEquals(cgmStatusIconLayout(R.drawable.ic_status_paused)!!.height(activity.resources.displayMetrics.density), warningIcon.layoutParams.height)
+        assertEquals((48 * activity.resources.displayMetrics.density).toInt(), warningIcon.layoutParams.width)
+        assertEquals((48 * activity.resources.displayMetrics.density).toInt(), warningIcon.layoutParams.height)
         val card = resume.parent as ViewGroup
         val lastValue = findText(card, "Letzter Messwert: ${kotlin.math.round(before.lastReading!!.glucoseMgDl).toInt()} mg/dL")!!
         val expectedTextSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 12f, activity.resources.displayMetrics)
@@ -419,6 +419,7 @@ class CgmWatchActivityLayoutTest {
         val codeRoot = activity.findViewById<android.view.View>(android.R.id.content)
         assertNotNull(findScrollView(codeRoot))
         assertNotNull(findText(codeRoot, "Sensorcode eingeben"))
+        assertNull(findText(codeRoot, "Sensor verbinden"))
         assertNull(findText(codeRoot, "Vierstelligen Sensorcode eingeben"))
         assertNotNull(findText(codeRoot, "Verbinden"))
         val editor = findEditor(codeRoot)
@@ -598,7 +599,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `pairing wraps each step and matches alarm action geometry`() {
+    fun `pairing keeps one tile height and sizes actions to their text`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
@@ -629,70 +630,62 @@ class CgmWatchActivityLayoutTest {
                 .apply { isAccessible = true }
                 .invoke(activity)
             measureAndLayout(activity.window.decorView)
-            val card = activity.window.decorView.findViewWithTag<ViewGroup>("glucose-tile-pairing")
-            heights[step] = card.height
-            assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, card.layoutParams.height)
-            val lastChild = card.getChildAt(card.childCount - 1)
-            val bottomMargin = (lastChild.layoutParams as LinearLayout.LayoutParams).bottomMargin
-            assertEquals(lastChild.bottom + bottomMargin + card.paddingBottom, card.height)
+            val viewport = activity.window.decorView.findViewWithTag<ViewGroup>("glucose-tile-pairing")
+            heights[step] = viewport.height
+            assertEquals((CgmPairingTileLayout.TILE_HEIGHT_DP * activity.resources.displayMetrics.density).toInt(), viewport.height)
+            val card = viewport.getChildAt(0) as CgmPairingTileLayout
+            assertTrue(card.height >= viewport.height)
             val actions = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmTileActionButton>()
-            assertEquals(if (step == CgmPairingScreenStep.CONNECTED) 0 else 2, actions.size)
-            actions.forEach { button ->
-                val contentWidth = card.width - card.paddingLeft - card.paddingRight
-                val alarmWidth =
-                    (contentWidth * CgmAlarmDesignTokens.ACTION_WIDTH / CgmAlarmDesignTokens.SIZE).toInt()
-                val expectedWidth = (contentWidth * CgmPairingActionTokens.WIDTH_FRACTION).toInt()
-                val scale = alarmWidth / CgmAlarmDesignTokens.ACTION_WIDTH
-                val referenceHeight =
-                    (alarmWidth * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
-                assertTrue(expectedWidth > alarmWidth)
-                assertEquals(expectedWidth, button.width)
-                assertEquals(referenceHeight, button.height)
-                assertTrue(button.bottom <= card.height - card.paddingBottom)
-                assertEquals(android.graphics.Color.WHITE, button.currentTextColor)
-                assertTrue(button.typeface.isBold)
-                assertEquals(CgmAlarmDesignTokens.BUTTON, (button.background as android.graphics.drawable.GradientDrawable).color!!.defaultColor)
-                assertEquals(0, button.paddingLeft)
-                assertEquals(0, button.paddingRight)
-                val referenceTextSize =
-                    CgmPairingActionTokens.TEXT_SIZE * scale * activity.resources.configuration.fontScale
-                val referencePaint =
-                    android.graphics.Paint(button.paint).apply {
-                        textSize = referenceTextSize
-                    }
-                val referenceTextWidth =
-                    referencePaint.measureText(CgmPairingActionTokens.REFERENCE_TEXT)
-                val available = button.width * CgmPairingActionTokens.TEXT_WIDTH_FRACTION
-                val expectedTextSize =
-                    if (referenceTextWidth > available) {
-                        referenceTextSize * available / referenceTextWidth
-                    } else {
-                        referenceTextSize
-                    }
-                assertEquals(expectedTextSize, button.textSize, 0.01f)
+            assertEquals(when (step) {
+                CgmPairingScreenStep.ENTER_CODE -> 2
+                CgmPairingScreenStep.CONNECTING -> 1
+                CgmPairingScreenStep.CONNECTED -> 0
+            }, actions.size)
+            if (actions.isNotEmpty()) {
+                val widestText = actions.maxOf { it.pairingInkBounds().width() }
+                val tallestText = actions.maxOf { it.pairingInkBounds().height() }
+                assertEquals(1, actions.map { it.width to it.height }.distinct().size)
+                actions.forEach { button ->
+                    assertTrue(button.width > widestText)
+                    assertEquals(button.width - widestText, button.height - tallestText)
+                    assertTrue(button.bottom <= card.height - card.paddingBottom)
+                }
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
+                val status = card.findViewWithTag<View>("pairing-progress-status")
+                val progress = card.getChildAt(1)
+                val description = checkNotNull(findText(card, "Der Sensor wird anhand des Kopplungscodes gesucht."))
                 val code = card.findViewWithTag<TextView>("connection-sensor-code")
+                assertTrue(status.bottom <= progress.top)
+                assertTrue(progress.bottom <= description.top)
+                assertTrue(description.bottom <= code.top)
                 assertEquals("0123", code.text.toString())
-                val progress = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmSensorConnectionProgressView>().single()
-                assertTrue(code.top > progress.bottom)
-                assertNull(findText(card, "Sensorcode korrigieren"))
-                assertTrue(findText(card, "Code ändern") is CgmTileActionButton)
-                assertTrue(findText(card, "Zurück") is CgmTileActionButton)
-                val pairingActions =
-                    (0 until card.childCount)
-                        .map { card.getChildAt(it) }
-                        .filterIsInstance<CgmTileActionButton>()
-                assertEquals(1, pairingActions.map { it.textSize }.distinct().size)
-                assertEquals(1, pairingActions.map { it.width }.distinct().size)
+                assertTrue(findText(card, "Abbrechen") is CgmTileActionButton)
+                assertNull(findText(card, "Code ändern"))
+                assertNull(findText(card, "Zurück"))
             }
             if (step == CgmPairingScreenStep.CONNECTED) {
                 val check = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<ImageView>().single()
-                assertEquals((32 * activity.resources.displayMetrics.density).toInt(), check.layoutParams.width)
+                assertEquals((26 * activity.resources.displayMetrics.density).toInt(), check.layoutParams.width)
             }
         }
-        assertTrue(heights.getValue(CgmPairingScreenStep.CONNECTED) < heights.getValue(CgmPairingScreenStep.ENTER_CODE))
-        assertTrue(heights.getValue(CgmPairingScreenStep.CONNECTED) < heights.getValue(CgmPairingScreenStep.CONNECTING))
+        flow.value = CgmPairingUiState(
+            step = CgmPairingScreenStep.CONNECTING,
+            draft = "0123",
+            startedAt = System.currentTimeMillis(),
+            bondFailure = "Die Kopplungsanfrage ist fehlgeschlagen.\n".repeat(24),
+        )
+        CgmWatchActivity::class.java.getDeclaredMethod("refreshScreen").apply { isAccessible = true }.invoke(activity)
+        measureAndLayout(activity.window.decorView)
+        val errorTile = activity.window.decorView.findViewWithTag<androidx.core.widget.NestedScrollView>("glucose-tile-pairing")
+        assertEquals(heights.getValue(CgmPairingScreenStep.ENTER_CODE), errorTile.height)
+        errorTile.scrollTo(0, 0)
+        assertTrue(errorTile.canScrollVertically(1))
+        val errorContent = errorTile.getChildAt(0) as ViewGroup
+        val errorIcon = (0 until errorContent.childCount).map { errorContent.getChildAt(it) }.filterIsInstance<ImageView>().single()
+        assertEquals((30 * activity.resources.displayMetrics.density).toInt(), errorIcon.layoutParams.width)
+        assertNotNull(findText(errorTile, "Abbrechen"))
+        assertEquals(1, heights.values.distinct().size)
     }
 
     @Test
@@ -704,9 +697,9 @@ class CgmWatchActivityLayoutTest {
 
     @Test
     @Config(qualifiers = "w192dp-h192dp-round-night-xhdpi")
-    fun `pairing actions keep alarm geometry with large text`() {
+    fun `pairing actions keep equal insets with large text`() {
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
-        `pairing wraps each step and matches alarm action geometry`()
+        `pairing keeps one tile height and sizes actions to their text`()
     }
 
     @Test

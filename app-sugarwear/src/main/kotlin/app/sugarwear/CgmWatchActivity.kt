@@ -123,7 +123,6 @@ class CgmWatchActivity : ComponentActivity() {
     private var renderedPairingProgress: CgmPairingProgress? = null
     private var renderedPairingRadio: Pair<Boolean?, Boolean?>? = null
     private var renderedPairingStep: CgmPairingScreenStep? = null
-    private var renderedOtherSensorCount = 0
     private var overviewResumed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var scrollView: ScrollView
@@ -254,29 +253,35 @@ class CgmWatchActivity : ComponentActivity() {
         activePalette = palette
         val background = palette.argb(CgmAppearanceRole.MENU_BACKGROUND)
         applyCgmSystemChrome(window, background)
-        val content =
-            CgmPairingTileLayout(this).apply {
-                tag = "glucose-tile-pairing"
-                this.background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
-            }
+        val content = CgmPairingTileLayout(this)
         val step = pairingStep ?: CgmPairingScreenStep.ENTER_CODE
         val pairingFailed = pairingBondAccessFailure != null || isTerminalCgmPairingFailure(state, pairingStartedAtEpochMs, System.currentTimeMillis())
-        val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
+        val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingAccessPending || pairingBondAccessInFlight, pairingBondAccessFailure, overviewPairing = true)
         val accessMessage =
             when {
-                pairingAccessPending -> "Bluetooth-Berechtigung wird benötigt. Bitte die Systemfreigabe bestätigen."
                 state.collectorEnabled && overviewState.snapshot?.bluetoothPermission == false -> "Bluetooth-Berechtigung fehlt. Bitte Geräte in der Nähe für SugarWear erlauben."
                 state.collectorEnabled && overviewState.snapshot?.bluetoothEnabled == false -> "Bluetooth deaktiviert! Bitte Bluetooth in den Systemeinstellungen aktivieren."
                 else -> null
             }
         renderedPairingProgress = progress
         renderedPairingRadio = overviewState.snapshot?.bluetoothPermission to overviewState.snapshot?.bluetoothEnabled
-        renderedOtherSensorCount = state.otherSensorCount
+        if (step == CgmPairingScreenStep.CONNECTED) {
+            content.addView(
+                ImageView(this).apply {
+                    setImageResource(R.drawable.ic_success_check)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                },
+                LinearLayout.LayoutParams(26.dp, 26.dp).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    bottomMargin = 6.dp
+                },
+            )
+        }
         content.addView(
             label(
                 when (step) {
-                    CgmPairingScreenStep.ENTER_CODE -> "Sensor verbinden"
-                    CgmPairingScreenStep.CONNECTING -> "Sensor verbinden"
+                    CgmPairingScreenStep.ENTER_CODE -> "Sensorcode eingeben"
+                    CgmPairingScreenStep.CONNECTING -> if (pairingFailed) "Verbindung fehlgeschlagen" else accessMessage ?: progress.message
                     CgmPairingScreenStep.CONNECTED -> "Sensor verbunden"
                 },
                 15f,
@@ -284,68 +289,29 @@ class CgmWatchActivity : ComponentActivity() {
                 true,
             ).apply {
                 gravity = Gravity.CENTER
-                maxLines = 2
+                if (step == CgmPairingScreenStep.CONNECTING) {
+                    tag = "pairing-progress-status"
+                    setPadding(0, 0, 0, 6.dp)
+                }
             },
         )
-        if (step == CgmPairingScreenStep.CONNECTING || step == CgmPairingScreenStep.CONNECTED) {
+        if (step == CgmPairingScreenStep.CONNECTING) {
             content.addView(
-                CgmSensorConnectionProgressView(this, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.argb(if (pairingFailed) CgmAppearanceRole.GLUCOSE_ERROR else CgmAppearanceRole.MENU_PRIMARY), !pairingFailed && step == CgmPairingScreenStep.CONNECTING && progress.animate, 28),
-                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = 4.dp
-                    gravity = Gravity.CENTER_HORIZONTAL
-                },
-            )
-            content.addView(
-                label(
-                    if (step ==
-                        CgmPairingScreenStep.CONNECTED
-                    ) {
-                        "Sensor erfolgreich verbunden"
-                    } else {
-                        accessMessage ?: progress.message
-                    },
-                    16f,
+                CgmSensorConnectionProgressView(
+                    this,
                     palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                    true,
-                ).apply {
-                    gravity = Gravity.CENTER
-                    setPadding(4.dp, 4.dp, 4.dp, 2.dp)
-                },
+                    palette.argb(if (pairingFailed) CgmAppearanceRole.GLUCOSE_ERROR else CgmAppearanceRole.MENU_PRIMARY),
+                    !pairingFailed && progress.animate,
+                    28,
+                ),
             )
-            cgmOtherSensorsLabel(state.otherSensorCount)?.let { otherSensors ->
-                content.addView(
-                    label(
-                        otherSensors,
-                        11f,
-                        palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
-                    ).apply {
-                        gravity = Gravity.CENTER
-                        setPadding(4.dp, 1.dp, 4.dp, 1.dp)
-                    },
-                )
-            }
-            if (step == CgmPairingScreenStep.CONNECTING) {
-                (pairingCodeDraft.takeIf { it.length == 4 } ?: overviewState.snapshot?.pairingCode)?.let { content.addView(connectionCodeLabel(it, palette)) }
-            }
-            if (step == CgmPairingScreenStep.CONNECTED) {
-                content.addView(
-                    ImageView(this).apply {
-                        setImageResource(R.drawable.ic_success_check)
-                        contentDescription = "Sensor erfolgreich verbunden"
-                    },
-                    LinearLayout.LayoutParams(32.dp, 32.dp).apply {
-                        gravity = Gravity.CENTER_HORIZONTAL
-                        bottomMargin = 2.dp
-                    },
-                )
-            }
-            if (step == CgmPairingScreenStep.CONNECTING && pairingFailed) {
+            if (pairingFailed) {
                 content.addView(
                     ImageView(this).apply {
                         setImageResource(R.drawable.ic_pairing_error)
                         contentDescription = "Sensorverbindung fehlgeschlagen"
                     },
-                    LinearLayout.LayoutParams(52.dp, 52.dp).apply {
+                    LinearLayout.LayoutParams(30.dp, 30.dp).apply {
                         gravity = Gravity.CENTER_HORIZONTAL
                         bottomMargin = 4.dp
                     },
@@ -361,54 +327,42 @@ class CgmWatchActivity : ComponentActivity() {
                         setPadding(4.dp, 4.dp, 4.dp, 0)
                     },
                 )
+            } else if (accessMessage == null) {
                 content.addView(
-                    pairingPill("Erneut versuchen") {
-                        pairingModel.retry()
-                        refreshScreen()
+                    label(
+                        "Der Sensor wird anhand des Kopplungscodes gesucht.",
+                        12f,
+                        palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
+                    ).apply {
+                        setPadding(4.dp, 6.dp, 4.dp, 0)
                     },
                 )
             }
-            if (step == CgmPairingScreenStep.CONNECTING) {
-                content.addView(
-                    pairingPill("Code ändern") {
-                        companionBondAccess.cancel()
+            (pairingCodeDraft.takeIf { it.length == 4 } ?: overviewState.snapshot?.pairingCode)?.let { code ->
+                content.addView(connectionCodeLabel(code, palette))
+            }
+            content.addView(
+                pairingPill("Abbrechen") {
+                    if (pairingAccessPending) {
+                        pairingModel.cancelPendingAccess()
+                    } else {
                         pairingModel.correctCode()
-                        refreshScreen()
-                    },
-                )
-                content.addView(
-                    pairingPill("Zurück") {
-                        if (pairingAccessPending) {
-                            pairingModel.cancelPendingAccess()
-                            companionBondAccess.cancel()
-                            refreshScreen()
-                        } else {
-                            performSensorUnlink(closePairing = true)
-                        }
-                    },
-                )
-            }
-        } else {
+                    }
+                    companionBondAccess.cancel()
+                    refreshScreen()
+                }.apply { isEnabled = !pairingModel.state.value.unlinkInFlight },
+            )
+        } else if (step == CgmPairingScreenStep.ENTER_CODE) {
             content.addView(
                 ImageView(this).apply {
                     setImageResource(R.drawable.ic_sensor_outline)
                     setColorFilter(palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), PorterDuff.Mode.SRC_IN)
-                    contentDescription = "Sensor verbinden"
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 },
-                LinearLayout.LayoutParams(32.dp, 32.dp).apply {
+                LinearLayout.LayoutParams(40.dp, 40.dp).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
-                    topMargin = 3.dp
-                },
-            )
-            content.addView(
-                label(
-                    "Sensorcode eingeben",
-                    13f,
-                    palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
-                ).apply {
-                    gravity = Gravity.CENTER
-                    setPadding(0, 2.dp, 0, 1.dp)
-                    maxLines = 1
+                    topMargin = 5.dp
+                    bottomMargin = 5.dp
                 },
             )
             pairingFailureMessage?.let { message ->
@@ -477,7 +431,12 @@ class CgmWatchActivity : ComponentActivity() {
             )
         }
         renderedPairingStep = step
-        glucoseHost.addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        glucoseHost.addView(
+            content.viewport().apply {
+                tag = "glucose-tile-pairing"
+                this.background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
+            },
+        )
     }
 
     private fun buildScreen(palette: CgmAppearancePalette) {
@@ -545,7 +504,7 @@ class CgmWatchActivity : ComponentActivity() {
                 addView(ImageView(this@CgmWatchActivity).apply {
                     setImageResource(R.drawable.ic_sensorend)
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                }, LinearLayout.LayoutParams(32.dp, 32.dp))
+                }, LinearLayout.LayoutParams(48.dp, 48.dp))
             }
             addView(label(alarm.type.titleGerman, 18f, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), true).apply {
                 gravity = Gravity.CENTER
@@ -689,9 +648,9 @@ class CgmWatchActivity : ComponentActivity() {
                     titleText = "Datenempfang pausiert"
                 }
                 noActiveSensor -> {
-                    iconRes = R.drawable.ic_artwork_low
+                    iconRes = R.drawable.ic_status_no_active_sensor
                     iconTint = null
-                    titleText = "Kein aktiver Sensor verbunden"
+                    titleText = "Kein Sensor\nverbunden"
                 }
                 else -> {
                     iconRes = app.sugarlicious.uishared.R.drawable.ic_alert
@@ -707,7 +666,7 @@ class CgmWatchActivity : ComponentActivity() {
 
             val statusIconLayout = cgmStatusIconLayout(iconRes)
             val iconDensity = resources.displayMetrics.density * if (iconRes == R.drawable.ic_status_bluetooth) 0.65f else 1f
-            val fallbackIconSize = if (noActiveSensor) 40.dp else 66.dp
+            val fallbackIconSize = if (noActiveSensor || isPaused || isSignalLoss) 48.dp else 66.dp
             tile.addView(
                 LinearLayout(this@CgmWatchActivity).apply {
                     orientation = LinearLayout.VERTICAL
@@ -1086,13 +1045,12 @@ class CgmWatchActivity : ComponentActivity() {
             CgmBottomNavigation.appendAtEnd(this, scrollView, palette, detailOpen = pairingStep != null)
             val tileAlarm = snapshot.pendingAlarms.firstOrNull { !it.type.isSensorLifetime } ?: snapshot.pendingAlarms.firstOrNull()
             val mode = cgmGlucoseTileMode(tileAlarm != null, pairingStep, stopRequested || pairingModel.state.value.offerStop, unlinkFailed)
-            val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingBondAccessInFlight, pairingBondAccessFailure)
+            val progress = cgmPairingProgress(state, pairingStartedAtEpochMs, pairingStartInFlight, pairingAccessPending || pairingBondAccessInFlight, pairingBondAccessFailure, overviewPairing = true)
             val pairingUnchanged =
                 mode == CgmGlucoseTileMode.PAIRING &&
                     renderedTileMode == mode &&
                     renderedPairingStep == pairingStep &&
                     pairingErrorCode == pairingFailureMessage &&
-                    renderedOtherSensorCount == state.otherSensorCount &&
                     (pairingStep == CgmPairingScreenStep.ENTER_CODE || (renderedPairingProgress == progress && renderedPairingRadio == (snapshot.bluetoothPermission to snapshot.bluetoothEnabled)))
             if (!pairingUnchanged) {
                 glucoseHost.removeAllViews()

@@ -1,6 +1,8 @@
 package app.sugarwear
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -18,11 +20,26 @@ import app.sugarlicious.sensor.protocol.CgmSensorState
 class CgmConnectionsActivity : CgmSettingsComposeActivity() {
     private val status by viewModels<CgmSystemStatusViewModel>()
     private var scrollView: ScrollView? = null
+    private val sensorStatePreferences by lazy {
+        listOf(CGM_COLLECTOR_PREFERENCES, CgmAlarmCoordinator.PREFERENCES)
+            .map { getSharedPreferences(it, Context.MODE_PRIVATE) }
+    }
+    private val sensorStateListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> status.refresh() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         bindSettingsState(status.state, render = ::render)
         render()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        sensorStatePreferences.forEach { it.registerOnSharedPreferenceChangeListener(sensorStateListener) }
+    }
+
+    override fun onStop() {
+        sensorStatePreferences.forEach { it.unregisterOnSharedPreferenceChangeListener(sensorStateListener) }
+        super.onStop()
     }
 
     override fun onResume() {
@@ -50,6 +67,8 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
             }
 
         val state = snapshot.sensor
+        val now = System.currentTimeMillis()
+        val sensorIcon = cgmConnectionsSensorIcon(state, now, snapshot.sensorNotices)
         val sensorCard = card(palette)
         sensorCard.apply {
             val sensor = state.sensor
@@ -59,7 +78,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                     addView(label("SENSOR", 9f, palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true))
                     addView(
                         label(
-                            sensor?.deviceName?.takeIf { it.isNotBlank() } ?: if (sensor == null) "Kein aktiver Sensor verbunden" else "Dexcom G7",
+                            sensor?.deviceName?.takeIf { it.isNotBlank() } ?: if (sensor == null) "Kein Sensor verbunden" else "Dexcom G7",
                             14f,
                             palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
                             true,
@@ -68,7 +87,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                     if (sensor != null) {
                         addView(
                             label(
-                                cgmConnectionsSensorStatus(state, System.currentTimeMillis()),
+                                cgmConnectionsSensorStatus(state, now),
                                 10f,
                                 palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
                             ),
@@ -82,8 +101,10 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                     addView(details, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     addView(
                         ImageView(context).apply {
-                            setImageResource(R.drawable.ic_sensor_outline)
-                            setColorFilter(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+                            setImageResource(sensorIcon)
+                            if (sensorIcon == R.drawable.ic_sensor_outline) {
+                                setColorFilter(palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY))
+                            }
                             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                         },
                         LinearLayout.LayoutParams(32.dp, 32.dp).apply { marginStart = 8.dp },
@@ -91,7 +112,7 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                 },
                 fullWidth(),
             )
-            val lifetime = cgmSensorLifetime(state, System.currentTimeMillis())
+            val lifetime = cgmSensorLifetime(state, now)
             addView(
                 segments(
                     remaining = lifetime?.remainingDaySegments ?: 0,
@@ -102,21 +123,22 @@ class CgmConnectionsActivity : CgmSettingsComposeActivity() {
                 ),
                 cardSpacing(12),
             )
-            addView(
-                label(
-                    when {
-                        sensor == null -> "Kein Sensor gekoppelt"
-                        lifetime?.hasVerifiedEnd != true -> "Verbleibende Laufzeit unbekannt"
-                        sensor?.state == CgmSensorState.ENDED || lifetime.graceExpired -> "Sensorlaufzeit beendet"
-                        lifetime.expired && !lifetime.inGracePeriod -> "Reguläre Sensorlaufzeit beendet"
-                        else -> lifetime.compactRemainingTime()
-                    },
-                    11f,
-                    palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
-                    true,
-                ),
-                cardSpacing(9),
-            )
+            if (sensor != null) {
+                addView(
+                    label(
+                        when {
+                            lifetime?.hasVerifiedEnd != true -> "Verbleibende Laufzeit unbekannt"
+                            sensor.state == CgmSensorState.ENDED || lifetime.graceExpired -> "Sensorlaufzeit beendet"
+                            lifetime.expired && !lifetime.inGracePeriod -> "Reguläre Sensorlaufzeit beendet"
+                            else -> lifetime.compactRemainingTime()
+                        },
+                        11f,
+                        palette.settingsArgb(CgmAppearanceRole.MENU_TEXT_PRIMARY),
+                        true,
+                    ),
+                    cardSpacing(9),
+                )
+            }
             if (sensor?.state != CgmSensorState.ENDED) {
                 lifetime?.toleranceTimeText()?.let { tolerance ->
                     addView(

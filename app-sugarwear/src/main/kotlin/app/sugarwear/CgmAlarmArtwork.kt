@@ -98,9 +98,9 @@ internal class CgmAlarmFullBleedView(
                 CgmAlarmArtwork.LOW_SOON -> R.drawable.ic_artwork_low_soon
                 CgmAlarmArtwork.SENSOR_ERROR -> R.drawable.ic_artwork_sensor_error
                 CgmAlarmArtwork.TECHNICAL_WARNING -> R.drawable.ic_artwork_low
-                CgmAlarmArtwork.SIGNAL_LOSS -> R.drawable.ic_artwork_signal_loss
+                CgmAlarmArtwork.SIGNAL_LOSS -> R.drawable.ic_status_signal_loss
                 CgmAlarmArtwork.BLUETOOTH -> R.drawable.ic_artwork_bluetooth
-                CgmAlarmArtwork.PAUSED -> R.drawable.ic_artwork_paused
+                CgmAlarmArtwork.PAUSED -> R.drawable.ic_status_paused
             }
         val box =
             when (artwork) {

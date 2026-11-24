@@ -42,7 +42,7 @@ internal object CgmAlarmSettingsStore {
 }
 
 internal object CgmAlarmCoordinator {
-    private const val PREFERENCES = "g7_cgm_alarm_state"
+    const val PREFERENCES = "g7_cgm_alarm_state"
     private const val KEY_STATE = "state_v2"
     private const val KEY_NOTICES = "pending_notices_v2"
     private val json =

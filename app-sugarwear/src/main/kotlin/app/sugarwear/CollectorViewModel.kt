@@ -68,7 +68,7 @@ internal class AndroidCgmOverviewRepository(
                 }
             app.registerReceiver(radioReceiver, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED), Context.RECEIVER_EXPORTED)
             val preferences =
-                listOf("g7_collector_state", CGM_CREDENTIAL_PREFERENCES, "g7_ui_sensor_transition", "g7_cgm_alarm_state")
+                listOf(CGM_COLLECTOR_PREFERENCES, CGM_CREDENTIAL_PREFERENCES, "g7_ui_sensor_transition", CgmAlarmCoordinator.PREFERENCES)
                     .map { app.getSharedPreferences(it, Context.MODE_PRIVATE) }
             app.contentResolver.registerContentObserver(CgmReadingProvider.CONTENT_URI, true, observer)
             preferences.forEach { it.registerOnSharedPreferenceChangeListener(listener) }

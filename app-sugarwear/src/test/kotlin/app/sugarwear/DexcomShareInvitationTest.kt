@@ -122,6 +122,24 @@ class DexcomShareInvitationTest {
             }
         }
 
+    @Test fun `only the zero subscriber identifier marks a pending invitation`() =
+        runBlocking {
+            val samples = listOf(
+                null to null,
+                "invalid" to null,
+                "00000000-0000-0000-0000-000000000000" to false,
+                session to true,
+            )
+            for ((subscriber, expected) in samples) {
+                val entry = JSONObject().put("ContactId", contact).put("SubscriberId", subscriber)
+                val client = client { op, _, _ ->
+                    assertEquals("ListPublisherAccountSubscriptions", op)
+                    DexcomShareHttpResponse(200, "[$entry]")
+                }
+                assertEquals(expected, client.listFollowers(config).single().accepted)
+            }
+        }
+
     @Test fun `an existing name never authorizes sending to an unknown address`() =
         runBlocking {
             val client =

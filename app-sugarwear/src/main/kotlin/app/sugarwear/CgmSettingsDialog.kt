@@ -19,7 +19,7 @@ internal fun Activity.showCgmSettingsDialog(
     title: String,
     content: View? = null,
     message: String? = null,
-    cancel: String = getString(android.R.string.cancel),
+    cancel: String? = getString(android.R.string.cancel),
     confirm: String? = null,
     secure: Boolean = false,
     onConfirm: ((Dialog) -> Unit)? = null,
@@ -57,7 +57,7 @@ internal fun Activity.showCgmSettingsDialog(
     if (confirm != null && onConfirm != null) {
         action(confirm, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY)) { onConfirm(dialog) }
     }
-    action(cancel, foreground) { dialog.dismiss() }
+    cancel?.let { action(it, foreground) { dialog.dismiss() } }
     dialog.setContentView(CgmEdgeFadeScrollView(this).apply {
         setBackgroundColor(Color.BLACK)
         isFillViewport = true

@@ -140,7 +140,11 @@ internal class DexcomShareUploadClient(
                     subscriptionId = entry.optString("SubscriptionId").takeIf(::validUuid),
                     name = entry.optString("ContactName").ifBlank { "Follower" },
                     email = (entry.opt("EmailAddress") as? String)?.takeIf(String::isNotBlank),
-                    accepted = subscriber?.let(::validUuid),
+                    accepted = when {
+                        subscriber == ZERO_UUID -> false
+                        subscriber != null && validUuid(subscriber) -> true
+                        else -> null
+                    },
                     enabled = entry.opt("IsEnabled") as? Boolean,
                     sharing = DexcomShareDataSharing.entries.find { it.permission == entry.optInt("Permissions", -1) },
                     alerts =

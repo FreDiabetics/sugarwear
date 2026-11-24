@@ -58,7 +58,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                     .pagePadding(this)
                 setBackgroundColor(Color.BLACK)
             }
-        root.addView(WearSettingsUi.pageHeader(this, "Share & Follow", white))
+        root.addView(WearSettingsUi.pageHeader(this, "Follower Funktion", white))
 
         root.addView(
             card(palette).apply {
@@ -82,15 +82,6 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             },
             spacing(0),
         )
-
-        val heading =
-            LinearLayout(this).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                orientation = LinearLayout.HORIZONTAL
-            }
-        heading.addView(label("Dexcom Share", white, true, 15f), LinearLayout.LayoutParams(0, -2, 1f))
-        heading.addView(label(if (status.enabled) "Aktiviert" else "Deaktiviert", gray, false, 12f))
-        root.addView(heading, spacing(0))
 
         val uploadFresh =
             status.enabled &&
@@ -184,7 +175,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         }
         showCgmSettingsDialog(
             "Dexcom Share aktivieren?",
-            message = "Die Uhr pr�ft die Zuordnung bei Dexcom und �bertr�gt Glukosewerte. Eine neue Zuordnung kann einen bisherigen Share-Uploader abl�sen.",
+            message = "Die Uhr prüft die Zuordnung bei Dexcom und überträgt Glukosewerte. Eine neue Zuordnung kann einen bisherigen Share-Uploader ablösen.",
             confirm = "Aktivieren",
         ) { dialog ->
             settings.setupWatch(status.revision)
@@ -198,8 +189,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             val available = !ui.updating && !ui.connecting
             ui.followers.forEach { follower ->
                 addView(
-                    detailRow(follower.name, followerStatus(follower), white, gray) { followerDialog(follower) }
-                        .apply { isEnabled = available && !ui.followersLoading },
+                    followerRow(follower, white, gray, palette.settingsArgb(CgmAppearanceRole.MENU_PRIMARY)),
                 )
                 addView(separator())
             }
@@ -220,9 +210,30 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             }
         }
 
+    private fun followerRow(follower: DexcomShareFollower, white: Int, gray: Int, accent: Int) =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(48)
+            val status = followerStatus(follower)
+            addView(
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(label(follower.name, white, true, 14f))
+                    addView(label(status, gray, false, 12f))
+                },
+                LinearLayout.LayoutParams(0, -2, 1f),
+            )
+            addView(label("Details \u203A", accent, true, 12f).apply { setPadding(dp(8), 0, 0, 0) })
+            isFocusable = true
+            contentDescription = "${follower.name}, $status. Follower-Details öffnen."
+            setOnClickListener { followerDialog(follower) }
+        }
+
     private fun followerStatus(follower: DexcomShareFollower): String =
         when {
-            follower.accepted == false -> "Ausstehend"
+            follower.accepted == false -> "Einladung ausstehend"
+            follower.accepted == null -> "Einladungsstatus unbekannt"
             follower.enabled == true -> "Aktiv"
             follower.enabled == false -> "Pausiert"
             else -> "Unbekannt"
@@ -240,9 +251,14 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
         fun info(text: String) = fields.addView(label(text, menuSecondary, false, 13f))
         follower.email?.let { info(it) }
         info(followerStatus(follower))
-        heading("Geteilte Daten")
+        when (follower.accepted) {
+            false -> info("Dexcom meldet diese Einladung als noch nicht angenommen.")
+            null -> info("Dexcom meldet nicht, ob die Einladung angenommen wurde.")
+            true -> Unit
+        }
+        heading("Geteilte Daten (Anzeige)")
         info(follower.sharing?.label ?: "Freigabe von Dexcom unbekannt")
-        heading("Benachrichtigungen")
+        heading("Benachrichtigungen (Anzeige)")
         DexcomShareFollowerAlert.entries.forEach { alert ->
             val value =
                 when (follower.alerts[alert]) {
@@ -252,8 +268,8 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
                 }
             fields.addView(detailRow(alert.label, value, menuText, menuSecondary))
         }
-        info("Bestehende Grafikfreigaben und Pausen verwaltest du in der Dexcom-App. Benachrichtigungen stellen Follower in Dexcom Follow ein.")
-        showCgmSettingsDialog(follower.name, fields, cancel = "Schlie�en", confirm = "Entfernen") { detail ->
+        info("Grafikfreigabe und Pause änderst du in der Dexcom-App. Benachrichtigungen stellt der Follower in Dexcom Follow ein.")
+        showCgmSettingsDialog(follower.name, fields, cancel = null, confirm = "Follower entfernen") { detail ->
             detail.dismiss()
             showCgmSettingsDialog(
                 "Follower entfernen?",
@@ -417,7 +433,7 @@ class CgmShareSettingsActivity : CgmSettingsComposeActivity() {
             }
         }
         fields.addView(regionPicker)
-        val dialog = showCgmSettingsDialog("Dexcom Share", fields, confirm = "Speichern und pr�fen", secure = true) { dialog ->
+        val dialog = showCgmSettingsDialog("Dexcom Share", fields, confirm = "Speichern und prüfen", secure = true) { dialog ->
                 val user = account.text.toString().trim()
                 val secret = password?.text?.toString() ?: selectedPassword
                 if (user.isBlank() || secret.isNullOrBlank()) {

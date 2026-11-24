@@ -53,8 +53,25 @@ class CgmPairingProgressTest {
         assertFalse(progress.message.contains("Kopplungscode"))
         assertFalse(progress.message.contains("Internal detail"))
         assertTrue(progress.animate)
-        assertEquals("Weitere Sensoren erkannt: 2", cgmOtherSensorsLabel(state.otherSensorCount))
-        assertEquals(null, cgmOtherSensorsLabel(0))
+    }
+
+    @Test fun `overview pairing exposes only search authentication connecting and pairing request`() {
+        val state = CgmPersistedState(collectorEnabled = true, activeAttemptId = 7L)
+        val phases = mapOf(
+            CgmProtocolState.SCANNING to "Suche Sensor",
+            CgmProtocolState.SENSOR_FOUND to "Suche Sensor",
+            CgmProtocolState.CONNECTING to "Suche Sensor",
+            CgmProtocolState.AUTHENTICATING to "Authentifiziere",
+            CgmProtocolState.AUTHENTICATED to "Verbinde",
+            CgmProtocolState.REQUESTING_GLUCOSE to "Verbinde",
+            CgmProtocolState.RECEIVING_GLUCOSE to "Verbinde",
+            CgmProtocolState.BONDING to "Kopplungsanfrage",
+        )
+        phases.forEach { (phase, expected) ->
+            assertEquals(expected, cgmPairingProgress(state.copy(protocolState = phase), 1_000L, overviewPairing = true).message)
+        }
+        val failure = state.copy(lastError = CgmCollectorError("G7-PAIRING-TIMEOUT", false, 2_000L, "Verbindung beendet"))
+        assertEquals(CgmPairingProgress("Verbindung beendet", false), cgmPairingProgress(failure, 1_000L, overviewPairing = true))
     }
 
     @Test fun `paused setup and terminal timeout do not animate but explicit preparation does`() {
