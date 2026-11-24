@@ -170,28 +170,36 @@ class CgmLifecyclePolicyTest {
         assertEquals(known, ensureCgmPairingAttempt(known, 24L * 60 * 60_000L))
     }
 
-    @Test fun `authenticated bonded session without first glucose is not an abandoned setup`() {
+    @Test fun `authenticated bonded session without first glucose remains an incomplete setup`() {
         val paired =
             CgmPersistedState(
                 collectorEnabled = true,
                 sensor = CgmSensor("sensor", deviceAddress = "AA:BB:CC:DD:EE:FF"),
                 authenticationState = app.sugarlicious.sensor.protocol.CgmAuthenticationState.AUTHENTICATED,
+                pairingStartedAtEpochMs = 500L,
                 pairingDeadlineEpochMs = 1_000L,
             )
-        assertEquals(paired, ensureCgmPairingAttempt(paired, 2_000L))
-        assertFalse(ensureCgmPairingAttempt(paired.copy(authenticationState = app.sugarlicious.sensor.protocol.CgmAuthenticationState.REQUIRED), 2_000L).collectorEnabled)
+        val expired = ensureCgmPairingAttempt(paired, 2_000L)
+        assertFalse(expired.collectorEnabled)
+        assertEquals("G7-PAIRING-TIMEOUT", expired.lastError?.code)
     }
 
-    @Test fun `runtime restart retains authenticated session authority before its first valid value`() {
+    @Test fun `runtime restart keeps the original pairing budget until the first valid value`() {
         val paired =
             CgmPersistedState(
                 collectorEnabled = true,
                 sensor = CgmSensor("sensor", deviceAddress = "AA:BB:CC:DD:EE:FF"),
                 authenticationState = app.sugarlicious.sensor.protocol.CgmAuthenticationState.AUTHENTICATED,
+                pairingAttemptId = "pairing",
+                pairingStartedAtEpochMs = 1_000L,
+                pairingDeadlineEpochMs = 1_000L + CGM_INITIAL_PAIRING_SCAN_TIMEOUT_MS,
             )
         val reset = resetCgmRuntimeForRestart(paired)
-        assertEquals(paired.authenticationState, reset.authenticationState)
-        assertTrue(ensureCgmPairingAttempt(reset, 24L * 60 * 60_000L).collectorEnabled)
+        assertEquals(app.sugarlicious.sensor.protocol.CgmAuthenticationState.UNKNOWN, reset.authenticationState)
+        val resumed = ensureCgmPairingAttempt(reset, 2_000L)
+        assertTrue(resumed.collectorEnabled)
+        assertEquals(paired.pairingAttemptId, resumed.pairingAttemptId)
+        assertEquals(paired.pairingDeadlineEpochMs, resumed.pairingDeadlineEpochMs)
     }
 
     @Test fun `collector repairs missing or expired follow up but preserves future alarm`() {

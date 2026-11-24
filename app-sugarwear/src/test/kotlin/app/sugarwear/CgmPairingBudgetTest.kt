@@ -1,7 +1,10 @@
 package app.sugarwear
 
+import app.sugarlicious.model.DataSourceId
 import app.sugarlicious.sensor.protocol.CgmAuthenticationState
 import app.sugarlicious.sensor.protocol.CgmPersistedState
+import app.sugarlicious.sensor.protocol.CgmReading
+import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import app.sugarlicious.sensor.protocol.CgmSensor
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -35,9 +38,27 @@ class CgmPairingBudgetTest {
             assertFalse(started)
         }
 
-    @Test fun `already authenticated session is not timed out by an old setup deadline`() =
+    @Test fun `authentication without a validated live value remains inside the setup deadline`() =
         runBlocking {
-            val paired = setup.copy(sensor = CgmSensor("setup", deviceAddress = "AA:BB:CC:DD:EE:01"), authenticationState = CgmAuthenticationState.AUTHENTICATED)
+            val authenticated =
+                setup.copy(
+                    sensor = CgmSensor("setup", deviceAddress = "AA:BB:CC:DD:EE:01"),
+                    authenticationState = CgmAuthenticationState.AUTHENTICATED,
+                )
+            var received = false
+            val result =
+                runCatching {
+                    withinCgmInitialPairingBudget(authenticated, 2_000L) {
+                        received = true
+                    }
+                }
+            assertTrue(result.exceptionOrNull() is TimeoutCancellationException)
+            assertFalse(received)
+        }
+
+    @Test fun `validated live session is not timed out by an old setup deadline`() =
+        runBlocking {
+            val paired = establishedSession()
             var received = false
             withinCgmInitialPairingBudget(paired, 2_000L) {
                 delay(30L)
@@ -56,7 +77,29 @@ class CgmPairingBudgetTest {
         assertFalse(committed)
         val error = result.exceptionOrNull() as CgmBleException
         assertTrue(error.errorCode == CGM_PAIRING_TIMEOUT_ERROR_CODE && !error.recoverable)
-        val paired = setup.copy(sensor = CgmSensor("setup", deviceAddress = "AA:BB:CC:DD:EE:01"), authenticationState = CgmAuthenticationState.AUTHENTICATED)
-        requireCgmInitialPairingBudget(paired, 2_000L)
+        val authenticated =
+            setup.copy(
+                sensor = CgmSensor("setup", deviceAddress = "AA:BB:CC:DD:EE:01"),
+                authenticationState = CgmAuthenticationState.AUTHENTICATED,
+            )
+        assertTrue(runCatching { requireCgmInitialPairingBudget(authenticated, 2_000L) }.exceptionOrNull() is CgmBleException)
+        requireCgmInitialPairingBudget(establishedSession(), 2_000L)
     }
+
+    private fun establishedSession(): CgmPersistedState =
+        setup.copy(
+            sensor = CgmSensor("setup", "setup", deviceAddress = "AA:BB:CC:DD:EE:01"),
+            authenticationState = CgmAuthenticationState.AUTHENTICATED,
+            lastReading =
+                CgmReading(
+                    id = "live",
+                    source = DataSourceId.DEXCOM_G7_WATCH,
+                    sensorId = "setup",
+                    sessionId = "setup",
+                    glucoseMgDl = 123.0,
+                    timestampEpochMs = 1_500L,
+                    receivedAtEpochMs = 1_500L,
+                    status = CgmReadingStatus.VALID,
+                ),
+        )
 }

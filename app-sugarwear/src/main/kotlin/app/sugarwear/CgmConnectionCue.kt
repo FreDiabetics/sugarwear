@@ -20,9 +20,10 @@ internal object CgmConnectionCue {
         val transition = CgmCollectorUiTransitionStore.read(context)
         transition ?: return
         if (transition.action !in setOf(CgmUiSensorAction.RESUME, CgmUiSensorAction.PAIR) || !state.collectorEnabled || !cgmResumeMatchesSession(state, transition)) return
-        if (isTerminalCgmPairingFailure(state, transition.startedAt, System.currentTimeMillis())) return
-        if (state.protocolState != app.sugarlicious.sensor.protocol.CgmProtocolState.AUTHENTICATED) return
-        if (!CgmCollectorUiTransitionStore.confirmConnection(context, transition, System.currentTimeMillis())) return
+        val now = System.currentTimeMillis()
+        if (isTerminalCgmPairingFailure(state, transition.startedAt, now)) return
+        if (!cgmHasValidatedTransitionLiveValue(state, transition, now)) return
+        if (!CgmCollectorUiTransitionStore.confirmConnection(context, transition, now)) return
         val key = "${transition.action}:${transition.startedAt}:${transition.sensorId}:${transition.sessionId}"
         if (claim(context, key)) android.os.Handler(android.os.Looper.getMainLooper()).post { playConnectionBeep(context) }
     }

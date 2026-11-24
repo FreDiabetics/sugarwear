@@ -1,9 +1,12 @@
 package app.sugarwear
 
 import androidx.test.core.app.ApplicationProvider
+import app.sugarlicious.model.DataSourceId
 import app.sugarlicious.sensor.protocol.CgmCollectorError
 import app.sugarlicious.sensor.protocol.CgmPersistedState
 import app.sugarlicious.sensor.protocol.CgmProtocolState
+import app.sugarlicious.sensor.protocol.CgmReading
+import app.sugarlicious.sensor.protocol.CgmReadingStatus
 import app.sugarlicious.sensor.protocol.CgmSensor
 import org.junit.Assert.*
 import org.junit.Before
@@ -31,9 +34,13 @@ class CgmConnectionCueTest {
         CgmSensorStateStore(context).save(state)
     }
 
-    @Test fun `deliberate connection is confirmed and claimed without an overview subscriber`() {
+    @Test fun `deliberate connection is confirmed only after a validated live value`() {
         CgmCollectorUiTransitionStore.record(context, CgmUiSensorAction.RESUME)
+        val transition = CgmCollectorUiTransitionStore.read(context)!!
         CgmConnectionCue.confirmed(context, state)
+        assertNull(CgmCollectorUiTransitionStore.read(context)!!.connectedAt)
+        assertNull(preferences.getString("claimed", null))
+        CgmConnectionCue.confirmed(context, liveState(transition.startedAt + 1L))
         val confirmed = CgmCollectorUiTransitionStore.read(context)!!
         assertNotNull(confirmed.connectedAt)
         assertNotNull(preferences.getString("claimed", null))
@@ -61,10 +68,26 @@ class CgmConnectionCueTest {
 
     @Test fun `first pairing confirms once but a different session cannot claim its cue`() {
         CgmCollectorUiTransitionStore.record(context, CgmUiSensorAction.PAIR)
-        CgmConnectionCue.confirmed(context, state.copy(sensor = CgmSensor("different", "session")))
+        val transition = CgmCollectorUiTransitionStore.read(context)!!
+        CgmConnectionCue.confirmed(context, liveState(transition.startedAt + 1L).copy(sensor = CgmSensor("different", "session")))
         assertNull(preferences.getString("claimed", null))
-        CgmConnectionCue.confirmed(context, state)
+        CgmConnectionCue.confirmed(context, liveState(transition.startedAt + 1L))
         assertNotNull(CgmCollectorUiTransitionStore.read(context)!!.connectedAt)
         assertNotNull(preferences.getString("claimed", null))
     }
+
+    private fun liveState(at: Long): CgmPersistedState =
+        state.copy(
+            lastReading =
+                CgmReading(
+                    id = "live",
+                    source = DataSourceId.DEXCOM_G7_WATCH,
+                    sensorId = "sensor",
+                    sessionId = "session",
+                    glucoseMgDl = 123.0,
+                    timestampEpochMs = at,
+                    receivedAtEpochMs = at,
+                    status = CgmReadingStatus.VALID,
+                ),
+        )
 }

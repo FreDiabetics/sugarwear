@@ -66,9 +66,12 @@ internal fun needsCgmFollowUpRepair(collectorEnabled: Boolean, pendingReconnectE
 
 internal fun hasEstablishedCgmSensorSession(state: CgmPersistedState): Boolean {
     val sensor = state.sensor ?: return false
-    if (!sensor.deviceAddress.isNullOrBlank() && state.authenticationState == app.sugarlicious.sensor.protocol.CgmAuthenticationState.AUTHENTICATED) return true
     val reading = state.lastReading ?: return false
-    return reading.status == CgmReadingStatus.VALID && reading.sensorId == sensor.sensorId && reading.sessionId == (sensor.sessionId ?: sensor.sensorId)
+    return reading.status == CgmReadingStatus.VALID &&
+        !reading.displayOnly &&
+        reading.origin == CgmReadingOrigin.LIVE &&
+        reading.sensorId == sensor.sensorId &&
+        reading.sessionId == (sensor.sessionId ?: sensor.sensorId)
 }
 
 internal fun ensureCgmPairingAttempt(state: CgmPersistedState, nowEpochMs: Long): CgmPersistedState {

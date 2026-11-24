@@ -505,9 +505,9 @@ class CgmCollectorService : Service() {
                                         } else {
                                             current.authenticationState
                                         },
-                                    pairingAttemptId = if (protocolState == CgmProtocolState.AUTHENTICATED || protocolState == CgmProtocolState.REQUESTING_GLUCOSE) null else current.pairingAttemptId,
-                                    pairingStartedAtEpochMs = if (protocolState == CgmProtocolState.AUTHENTICATED || protocolState == CgmProtocolState.REQUESTING_GLUCOSE) null else current.pairingStartedAtEpochMs,
-                                    pairingDeadlineEpochMs = if (protocolState == CgmProtocolState.AUTHENTICATED || protocolState == CgmProtocolState.REQUESTING_GLUCOSE) null else current.pairingDeadlineEpochMs,
+                                    pairingAttemptId = current.pairingAttemptId,
+                                    pairingStartedAtEpochMs = current.pairingStartedAtEpochMs,
+                                    pairingDeadlineEpochMs = current.pairingDeadlineEpochMs,
                                     lastError = if (protocolState == CgmProtocolState.AUTHENTICATED || protocolState == CgmProtocolState.REQUESTING_GLUCOSE) null else current.lastError,
                                     scanStartedAtEpochMs =
                                         if (protocolState == CgmProtocolState.SCANNING) now else current.scanStartedAtEpochMs,
@@ -522,7 +522,7 @@ class CgmCollectorService : Service() {
                                         if (protocolState == CgmProtocolState.SCANNING) now else current.lastScanAtEpochMs,
                                     health = health,
                                 )
-                            if (persist(next) && protocolState == CgmProtocolState.AUTHENTICATED) CgmConnectionCue.confirmed(this@CgmCollectorService, next)
+                            persist(next)
                             updateAttemptCycleForProtocolState(attemptId, protocolState, now)
                             recordAttemptProtocolState(attemptId, protocolState, collectionSensor.sensorId)
                             scope.launch {
@@ -629,15 +629,17 @@ class CgmCollectorService : Service() {
                                             // Publish only after both the measurement and sensor state are
                                             // visible. A first reading must not refresh Vigil with UNKNOWN
                                             // or the preceding sensor-error state while backfill is running.
-                                            persist(
+                                            val published =
                                                 current.copy(
                                                     sensor = sensorForCgmLivePublication(collectionSensor, current.sensor, live.sensorState),
                                                     lastReading = provisional,
                                                     sessionState = app.sugarlicious.sensor.protocol.CgmSessionState.ACTIVE,
                                                     protocolState = CgmProtocolState.BACKFILL,
                                                     lastSuccessfulConnectionEpochMs = System.currentTimeMillis(),
-                                                ),
-                                            )
+                                                )
+                                            if (persist(published)) {
+                                                CgmConnectionCue.confirmed(this@CgmCollectorService, published)
+                                            }
                                         }
                                     }
                                 } finally {

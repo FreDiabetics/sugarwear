@@ -26,7 +26,11 @@ internal fun cgmResumeMatchesSession(state: CgmPersistedState, transition: CgmUi
         state.sensor?.sensorId == transition.sensorId &&
         (transition.sessionId == null || state.sensor?.sessionId == transition.sessionId)
 
-internal fun cgmHasResumedLiveValue(state: CgmPersistedState, transition: CgmUiSensorTransition, now: Long): Boolean {
+internal fun cgmHasValidatedTransitionLiveValue(
+    state: CgmPersistedState,
+    transition: CgmUiSensorTransition,
+    now: Long,
+): Boolean {
     val reading = state.lastReading ?: return false
     return cgmResumeMatchesSession(state, transition) &&
         cgmReadingBelongsToSession(state, reading) &&
@@ -36,9 +40,12 @@ internal fun cgmHasResumedLiveValue(state: CgmPersistedState, transition: CgmUiS
         reading.timestampEpochMs > transition.startedAt &&
         reading.receivedAtEpochMs >= transition.startedAt &&
         reading.timestampEpochMs <= now &&
-        now - reading.timestampEpochMs < CGM_SIGNAL_LOSS_AFTER_MS &&
-        (transition.connectedAt ?: state.lastSuccessfulConnectionEpochMs ?: 0L) >= transition.startedAt
+        now - reading.timestampEpochMs < CGM_SIGNAL_LOSS_AFTER_MS
 }
+
+internal fun cgmHasResumedLiveValue(state: CgmPersistedState, transition: CgmUiSensorTransition, now: Long): Boolean =
+    cgmHasValidatedTransitionLiveValue(state, transition, now) &&
+        (transition.connectedAt ?: state.lastSuccessfulConnectionEpochMs ?: 0L) >= transition.startedAt
 
 /** Single UI projection. Alarm visibility never participates in sensor status selection. */
 internal fun cgmOverviewPresentation(
