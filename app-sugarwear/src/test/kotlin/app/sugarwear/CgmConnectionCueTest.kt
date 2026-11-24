@@ -40,7 +40,8 @@ class CgmConnectionCueTest {
         CgmConnectionCue.confirmed(context, state)
         assertNull(CgmCollectorUiTransitionStore.read(context)!!.connectedAt)
         assertNull(preferences.getString("claimed", null))
-        CgmConnectionCue.confirmed(context, liveState(transition.startedAt + 1L))
+        val liveAt = System.currentTimeMillis().coerceAtLeast(transition.startedAt + 1L)
+        CgmConnectionCue.confirmed(context, liveState(liveAt))
         val confirmed = CgmCollectorUiTransitionStore.read(context)!!
         assertNotNull(confirmed.connectedAt)
         assertNotNull(preferences.getString("claimed", null))
@@ -69,9 +70,10 @@ class CgmConnectionCueTest {
     @Test fun `first pairing confirms once but a different session cannot claim its cue`() {
         CgmCollectorUiTransitionStore.record(context, CgmUiSensorAction.PAIR)
         val transition = CgmCollectorUiTransitionStore.read(context)!!
-        CgmConnectionCue.confirmed(context, liveState(transition.startedAt + 1L).copy(sensor = CgmSensor("different", "session")))
+        val liveAt = System.currentTimeMillis().coerceAtLeast(transition.startedAt + 1L)
+        CgmConnectionCue.confirmed(context, liveState(liveAt).copy(sensor = CgmSensor("different", "session")))
         assertNull(preferences.getString("claimed", null))
-        CgmConnectionCue.confirmed(context, liveState(transition.startedAt + 1L))
+        CgmConnectionCue.confirmed(context, liveState(liveAt))
         assertNotNull(CgmCollectorUiTransitionStore.read(context)!!.connectedAt)
         assertNotNull(preferences.getString("claimed", null))
     }
