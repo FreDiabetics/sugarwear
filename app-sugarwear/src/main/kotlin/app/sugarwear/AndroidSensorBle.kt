@@ -452,20 +452,21 @@ internal class CgmHardwareCollector(
             credentials.sharedKey?.takeIf {
                 credentials.sharedKeyAddress == null || credentials.sharedKeyAddress.equals(sensor.deviceAddress, true)
             }
-        val initialBondState =
-            sensor.deviceAddress?.let { address ->
+        fun currentBondState(address: String?): Int? =
+            address?.let {
                 runCatching {
-                    context
-                        .getSystemService(BluetoothManager::class.java)
-                        .adapter
-                        .getRemoteDevice(address)
-                        .bondState
+                    val adapter = context.getSystemService(BluetoothManager::class.java).adapter
+                    val device = adapter.getRemoteDevice(it)
+                    readableCgmBondState({ adapter.state }, { device.bondState })
                 }.getOrNull()
             }
+
+        val initialBondState = currentBondState(sensor.deviceAddress)
         val pairingRecoveryRequired = shouldResumeCgmPairing(sharedKey, initialBondState)
         sharedKey = usableCgmSharedKey(sharedKey, initialBondState)
         var bondReconnectAttempts = 0
         var preexistingBondRepairAttempted = false
+        var absentBondRecoveryAttempted = false
         var gatt133Retries = 0
         var noCallbackRetries = 0
         var discoveryRequired = pairingRecoveryRequired || !shouldUseDirectReconnect(reconnectStrategy, sensor.deviceAddress)
@@ -513,17 +514,9 @@ internal class CgmHardwareCollector(
                 sharedKey = null
             }
 
+            val bondStateBeforeAttempt = currentBondState(sensor.deviceAddress)
+            sharedKey = usableCgmSharedKey(sharedKey, bondStateBeforeAttempt)
             val startedWithoutSharedKey = sharedKey == null
-            val bondStateBeforeAttempt =
-                sensor.deviceAddress?.let { address ->
-                    runCatching {
-                        context
-                            .getSystemService(BluetoothManager::class.java)
-                            .adapter
-                            .getRemoteDevice(address)
-                            .bondState
-                    }.getOrNull()
-                }
             var lastProtocolState = CgmProtocolState.IDLE
 
             // An application key can already have been emitted immediately before Android starts
@@ -588,6 +581,32 @@ internal class CgmHardwareCollector(
                     "G7Pairing",
                     "BLE attempt failed code=${error.errorCode} state=$lastProtocolState recoverable=${error.recoverable}",
                 )
+                val observedBondState = currentBondState(sensor.deviceAddress)
+                if (
+                    shouldRetryAbsentCgmBond(
+                        initialAddress = initialSensor.deviceAddress,
+                        candidateAddress = sensor.deviceAddress,
+                        bondState = observedBondState,
+                        errorCode = error.errorCode,
+                        recoveryAlreadyAttempted = absentBondRecoveryAttempted,
+                    )
+                ) {
+                    absentBondRecoveryAttempted = true
+                    // A fresh setup (including reinstall) has no recorded address. Retry only
+                    // the peer that just rejected authentication; do not persist its identity
+                    // or remove any platform bond as part of this recovery.
+                    val hadSessionKey = sharedKey != null || !initialSensor.deviceAddress.isNullOrBlank()
+                    sharedKey = null
+                    if (hadSessionKey) onSessionKeyReset()
+                    discoveryRequired = !initialSensor.deviceAddress.isNullOrBlank()
+                    fallbackUsed = false
+                    bondReconnectAttempts = 0
+                    gatt133Retries = 0
+                    noCallbackRetries = 0
+                    onState(CgmProtocolState.RECOVERING)
+                    delay(BOND_RECONNECT_DELAY_MS)
+                    continue
+                }
                 if (
                     shouldRepairPreexistingCgmBondAfterAuthFailure(
                         initialAddress = initialSensor.deviceAddress,
@@ -618,12 +637,20 @@ internal class CgmHardwareCollector(
                         CgmBondRemovalStatus.FAILED -> {
                             throw CgmBleException(
                                 "G7-AUTH-212",
-                                "Vorhandene Bluetooth-Kopplung konnte nicht erneuert werden. Bitte den Sensor in den Bluetooth-Einstellungen der Uhr entkoppeln und erneut verbinden.",
+                                cgmBondRepairFailureMessage(currentBondState(sensor.deviceAddress)),
                                 false,
                                 error,
                             )
                         }
                     }
+                }
+                if (error.errorCode == "G7-AUTH-211") {
+                    throw CgmBleException(
+                        error.errorCode,
+                        cgmAuthenticationRejectionMessage(currentBondState(sensor.deviceAddress)),
+                        false,
+                        error,
+                    )
                 }
                 if (error.errorCode == "G7-AUTH-MISMATCH" && initialSensor.deviceAddress.isNullOrBlank() && scanner is SensorScanner) {
                     sensor.deviceAddress?.let(scanner::rejectCandidate)
@@ -698,7 +725,7 @@ internal class CgmHardwareCollector(
                         -> {
                             throw CgmBleException(
                                 "G7-AUTH-210",
-                                "Vorhandene Bluetooth-Kopplung konnte nicht erneuert werden. Bitte den Sensor in den Bluetooth-Einstellungen der Uhr entkoppeln und erneut verbinden.",
+                                cgmBondRepairFailureMessage(currentBondState(sensor.deviceAddress)),
                                 false,
                                 timeout,
                             )
@@ -1098,7 +1125,7 @@ internal class CgmGattConnection(
         ) {
             throw CgmBleException(
                 "G7-AUTH-211",
-                "Gespeicherte Verbindung ist ungültig; Sensor in Bluetooth entfernen und neu einrichten",
+                "Sensor hat die Authentifizierung abgelehnt",
                 false,
             )
         }

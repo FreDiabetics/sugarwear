@@ -552,7 +552,16 @@ class CgmCollectorService : Service() {
                                 }
                             }
                         },
-                        onSessionKeyReset = credentials::clearSessionKey,
+                        onSessionKeyReset = {
+                            synchronized(CgmSensorStateStore.lifecycleLock) {
+                                cycleContext.ensureActive()
+                                if (token != cycleToken || generation != store.collectorGeneration() || !store.read().collectorEnabled) {
+                                    throw CancellationException("Collector association changed")
+                                }
+                                requireCgmInitialPairingBudget(store.read(), System.currentTimeMillis())
+                                credentials.clearSessionKey()
+                            }
+                        },
                         scanTimeoutMsOverride = boundedScanTimeout,
                         reconnectStrategy =
                             effectiveCgmReconnectStrategy(
