@@ -90,7 +90,7 @@ class DexcomShareInvitationTest {
                         "ListPublisherAccountSubscriptions" ->
                             DexcomShareHttpResponse(
                                 200,
-                                """[{"ContactId":"$contact","ContactName":"Kontakt","SubscriberId":"$subscription","IsEnabled":true,"Permissions":0}]""",
+                                """[{"ContactId":"$contact","ContactName":"Kontakt","SubscriberId":"$session","SubscriptionId":"$subscription","IsEnabled":true,"Permissions":0}]""",
                             )
                         "DeleteContact" -> {
                             assertTrue(uri.rawQuery.endsWith("contactId=$contact"))
@@ -100,12 +100,26 @@ class DexcomShareInvitationTest {
                     }
                 }
             val follower = client.listFollowers(config).single()
+            assertEquals(subscription, follower.subscriptionId)
             assertEquals("Kontakt", follower.name)
             assertEquals(true, follower.enabled)
             assertEquals(true, follower.accepted)
             assertEquals(DexcomShareDataSharing.CURRENT_VALUE, follower.sharing)
             assertTrue(follower.alerts.isEmpty())
             client.removeFollower(config, follower.contactId)
+        }
+
+    @Test fun `missing and invalid subscription identifiers never fall back to contact or subscriber`() =
+        runBlocking {
+            for (id in listOf(null, "invalid", "00000000-0000-0000-0000-000000000000")) {
+                val entry = JSONObject().put("ContactId", contact).put("SubscriberId", session).put("SubscriptionId", id)
+                val client =
+                    client { op, _, _ ->
+                        assertEquals("ListPublisherAccountSubscriptions", op)
+                        DexcomShareHttpResponse(200, "[$entry]")
+                    }
+                assertEquals(null, client.listFollowers(config).single().subscriptionId)
+            }
         }
 
     @Test fun `an existing name never authorizes sending to an unknown address`() =

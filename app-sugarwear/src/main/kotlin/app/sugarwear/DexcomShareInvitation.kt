@@ -62,6 +62,7 @@ internal enum class DexcomShareFollowerAlert(
 
 internal data class DexcomShareFollower(
     val contactId: String,
+    val subscriptionId: String?,
     val name: String,
     val email: String?,
     val accepted: Boolean?,

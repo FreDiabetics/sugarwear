@@ -137,6 +137,7 @@ internal class DexcomShareUploadClient(
                 val subscriber = entry.opt("SubscriberId") as? String
                 DexcomShareFollower(
                     contactId = id,
+                    subscriptionId = entry.optString("SubscriptionId").takeIf(::validUuid),
                     name = entry.optString("ContactName").ifBlank { "Follower" },
                     email = (entry.opt("EmailAddress") as? String)?.takeIf(String::isNotBlank),
                     accepted = subscriber?.let(::validUuid),

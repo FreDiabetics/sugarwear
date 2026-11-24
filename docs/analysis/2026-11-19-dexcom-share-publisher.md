@@ -47,3 +47,40 @@ The required Share **receiver/upload serial is not the G7 four-digit pairing cod
 ## User-facing labeling
 
 An authentic Dexcom login is labeled `Konto bestätigt`, HTTP-upload acknowledgment `Upload bestätigt`. Neither is labeled `Follow erreichbar` until verified by an actual follower. Do not rely on unofficial Share upload for emergency monitoring.
+
+## Existing followers on G7 (2026-11-24)
+
+The Android G7 2.15.0 reference package contains separate choices for the reading alone or the reading with its graph, a named confirmation question for pausing an individual follower, a Continue Sharing action, and separate acknowledgement messages for pause and continuation. This is static UI evidence. It does not establish when the backend commits the change. The [G7 user guide](https://s3.us-west-2.amazonaws.com/dexcompdf/G7/AW-00046-06_REV005_UG_G7_OUS_en-SA_MGDL.pdf) also distinguishes a publisher pause from a follower who stopped following.
+
+The older G7 1.6.1 reference package names an internal SDK operation `updateFollowerPermission` and distinguishes a subscription paused by its publisher from one paused by its subscriber. Neither a method name nor the invitation payload establishes the HTTP method, path, parameters or acknowledgement for editing an existing subscription. The [public Dexcom API](https://developer.dexcom.com/docs/dexcomv3/endpoint-overview) lists no follower-management endpoint. SugarWear can read the returned permissions from its existing publisher subscription list. An authenticated edit contract and per-subscription readback are still needed before offering the three write actions on the watch.
+
+### Read-only check on the connected phone
+
+The installed G7 app reported version 1.6.1.4537. Its follower details offered a choice between the current reading alone and the reading with the trend graph. Pause and remove were separate actions. The open pause confirmation offered **Abbrechen** and **Teilen pausieren**. No confirmation was submitted and no live sharing permission was changed.
+
+Call sites in the matching local G7 reference version obtain `getContactInformation().getSubscriptionId()` before invoking the per-follower operations. The internal `IShareMonitor` interface exposes `updateFollowerPermission(UUID, Int)`, `pauseMonitoring(UUID)` and `resumeMonitoring(UUID)` as suspending methods. Global start/stop methods have no follower parameter. These are app-internal Kotlin signatures. Their UUID argument identifies the subscription, distinct from the contact used for removal and the subscriber account. SugarWear now retains the validated subscription ID from the existing list response, leaving it absent when the server omits it or returns an invalid value.
+
+No HTTP contract for these three mutations was established. Neither a local confirmation dialog nor an SDK method name proves the request format, server response, or resulting state in Follow.
+
+### Consented test with one accepted test follower
+
+On the connected G7 1.6.1.4537 phone, switching from reading plus graph to reading alone and back produced the same “Teilen von Daten aktualisiert.” acknowledgement after each selection. Confirming the named pause prompt produced a pause acknowledgement and a paused status card. The card's “Teilen fortsetzen” action produced a continuation acknowledgement and removed the paused card. After closing and reopening the selected follower, the graph option was checked and the pause action was available again. The Follow dashboard was accessible, but receiver-side graph rendering was not independently established. Available app logs exposed no publisher request paths during this test. These observations establish the publisher UI state transitions, not an HTTP success response format.
+
+### Network capture and debugger observation on the second phone
+
+A PCAPdroid capture scoped to the G7 app recorded TCP traffic on port 443 to `shareous1.dexcom.com` around each selected test action. The installed G7 copy exposed Android debugging. Observing its OkHttp responses during a second round of tests showed these paths on the same host:
+
+| Action | Method and path | Observed response |
+| --- | --- | --- |
+| Change trend permission | `POST /follow/v1/subscription/updatePermissions` | HTTP 200, Content-Length 0 |
+| Pause one follower | `POST /follow/v1/subscription/pause` | HTTP 200, Content-Length 0 |
+| Resume one follower | `POST /follow/v1/subscription/resume` | HTTP 200, Content-Length 0 |
+| Reload follower details/list | `POST /follow/v1/patient/readExpandedSubscriptions` | HTTP 200 |
+
+No query parameters were observed for these calls. SugarWear currently authenticates against the older ShareWebServices API. Compatibility of that session with the observed Follow v1 API has not been established. Only the designated test follower was changed. After the test the follower was active and the chart permission was enabled.
+
+A focused repeat with header metadata confirmed `Authorization: Bearer …`, `X-Account-Id`, `X-Security-Schema`, `X-Software-Id` and `X-Trace-Id` on all four paths. Token and identifier values were excluded from the diagnostic output. Request lengths were 479 bytes for the expanded list, 607 bytes for each trend permission change and 564 bytes each for pause and resume. The debugger's object-field view did not reliably show the serialized request bodies. Those lengths establish that the requests carried data. The exact payload format and a way for SugarWear to obtain a valid Follow v1 authorization remain unverified.
+
+### Follow receiver display after the test
+
+On the first smartphone, the official Follow app 1.4.0.1484 initially displayed “Nicht unterstützt” for the sharer. Refreshing reproduced that state briefly. On a later check at 11:08 CET, the same app displayed one sharer, a current-reading field and a populated trend graph. The latest chart sample was timestamped 11:08 CET. No sharing permission or sensor configuration changed during this receiver-side check. The cause of the temporary status and the identity of the uploader were not established.
