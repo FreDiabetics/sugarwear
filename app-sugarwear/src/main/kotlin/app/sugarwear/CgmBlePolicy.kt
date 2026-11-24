@@ -2,6 +2,7 @@ package app.sugarwear
 
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
+import app.sugarlicious.sensor.protocol.CgmProtocolState
 import app.sugarlicious.sensor.protocol.CgmSensor
 import java.util.UUID
 
@@ -40,6 +41,19 @@ internal fun usableCgmSharedKey(sharedKey: ByteArray?, bondState: Int?): ByteArr
 
 internal fun shouldResumeCgmPairing(sharedKey: ByteArray?, bondState: Int?): Boolean =
     sharedKey != null && bondState == BluetoothDevice.BOND_NONE
+
+internal fun shouldRepairPreexistingCgmBond(
+    initialAddress: String?,
+    startedWithoutSharedKey: Boolean,
+    bondStateBeforeAttempt: Int?,
+    lastProtocolState: CgmProtocolState,
+    repairAlreadyAttempted: Boolean,
+): Boolean =
+    !repairAlreadyAttempted &&
+        initialAddress.isNullOrBlank() &&
+        startedWithoutSharedKey &&
+        bondStateBeforeAttempt == BluetoothDevice.BOND_BONDED &&
+        lastProtocolState == CgmProtocolState.REQUESTING_GLUCOSE
 
 internal enum class CgmWriteCallbackDisposition {
     EXPECTED_SUCCESS,

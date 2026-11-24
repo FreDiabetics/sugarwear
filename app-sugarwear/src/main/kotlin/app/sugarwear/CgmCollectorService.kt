@@ -552,6 +552,7 @@ class CgmCollectorService : Service() {
                                 }
                             }
                         },
+                        onSessionKeyReset = credentials::clearSessionKey,
                         scanTimeoutMsOverride = boundedScanTimeout,
                         reconnectStrategy =
                             effectiveCgmReconnectStrategy(

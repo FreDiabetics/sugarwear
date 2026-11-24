@@ -174,7 +174,7 @@ internal fun cgmSensorUnlinkAddresses(context: Context): Set<String> =
         .toSet()
 
 @SuppressLint("MissingPermission")
-private fun removeCgmBond(
+internal fun removeCgmBond(
     context: Context,
     address: String?,
 ): CgmBondRemovalStatus {

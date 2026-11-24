@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothGatt
 import app.sugarlicious.sensor.protocol.CgmCollectorHealth
 import app.sugarlicious.sensor.protocol.CgmFailureClass
 import app.sugarlicious.sensor.protocol.CgmPersistedState
+import app.sugarlicious.sensor.protocol.CgmProtocolState
 import app.sugarlicious.sensor.protocol.CgmSensor
 import app.sugarlicious.sensor.protocol.CollectorCycleClassification
 import app.sugarlicious.sensor.protocol.CollectorCycleTiming
@@ -85,6 +86,63 @@ class CgmBlePolicyTest {
         assertFalse(shouldResumeCgmPairing(key, BluetoothDevice.BOND_BONDING))
         assertFalse(shouldResumeCgmPairing(key, BluetoothDevice.BOND_BONDED))
         assertFalse(shouldResumeCgmPairing(null, BluetoothDevice.BOND_NONE))
+    }
+
+    @Test fun `preexisting bond repair is limited to a fresh setup stuck after glucose request`() {
+        assertTrue(
+            shouldRepairPreexistingCgmBond(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                lastProtocolState = CgmProtocolState.REQUESTING_GLUCOSE,
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBond(
+                initialAddress = "AA:BB:CC:DD:EE:FF",
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                lastProtocolState = CgmProtocolState.REQUESTING_GLUCOSE,
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBond(
+                initialAddress = null,
+                startedWithoutSharedKey = false,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                lastProtocolState = CgmProtocolState.REQUESTING_GLUCOSE,
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBond(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_NONE,
+                lastProtocolState = CgmProtocolState.REQUESTING_GLUCOSE,
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBond(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                lastProtocolState = CgmProtocolState.AUTHENTICATED,
+                repairAlreadyAttempted = false,
+            ),
+        )
+        assertFalse(
+            shouldRepairPreexistingCgmBond(
+                initialAddress = null,
+                startedWithoutSharedKey = true,
+                bondStateBeforeAttempt = BluetoothDevice.BOND_BONDED,
+                lastProtocolState = CgmProtocolState.REQUESTING_GLUCOSE,
+                repairAlreadyAttempted = true,
+            ),
+        )
     }
 
     @Test fun `authenticated address anchors an addressless sensor change`() {

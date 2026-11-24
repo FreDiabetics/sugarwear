@@ -430,6 +430,7 @@ internal class CgmHardwareCollector(
         credentials: StoredCgmCredentials,
         onState: (CgmProtocolState) -> Unit,
         onSharedKey: (String, ByteArray) -> Unit = { _, _ -> },
+        onSessionKeyReset: () -> Unit = {},
         scanTimeoutMsOverride: Long? = null,
         reconnectStrategy: CgmReconnectStrategy = CgmReconnectStrategy.KNOWN_ADDRESS_DIRECT,
         onTelemetry: (CgmBleTelemetry) -> Unit = {},
@@ -464,6 +465,7 @@ internal class CgmHardwareCollector(
         val pairingRecoveryRequired = shouldResumeCgmPairing(sharedKey, initialBondState)
         sharedKey = usableCgmSharedKey(sharedKey, initialBondState)
         var bondReconnectAttempts = 0
+        var preexistingBondRepairAttempted = false
         var gatt133Retries = 0
         var noCallbackRetries = 0
         var discoveryRequired = pairingRecoveryRequired || !shouldUseDirectReconnect(reconnectStrategy, sensor.deviceAddress)
@@ -511,6 +513,19 @@ internal class CgmHardwareCollector(
                 sharedKey = null
             }
 
+            val startedWithoutSharedKey = sharedKey == null
+            val bondStateBeforeAttempt =
+                sensor.deviceAddress?.let { address ->
+                    runCatching {
+                        context
+                            .getSystemService(BluetoothManager::class.java)
+                            .adapter
+                            .getRemoteDevice(address)
+                            .bondState
+                    }.getOrNull()
+                }
+            var lastProtocolState = CgmProtocolState.IDLE
+
             // An application key can already have been emitted immediately before Android starts
             // its asynchronous bond. If that bond was interrupted, replaying the key while the
             // platform still reports BOND_NONE enters the stored-session path and fails before a
@@ -541,7 +556,10 @@ internal class CgmHardwareCollector(
                         connection.collect(
                             CgmAuthenticationSession(credentials.pairingCode, credentials.gKey, sharedKey),
                             packetParser,
-                            onState,
+                            onState = { protocolState ->
+                                lastProtocolState = protocolState
+                                onState(protocolState)
+                            },
                             onSharedKey = {
                                 sharedKey = it
                                 sensor.deviceAddress?.let { address -> onSharedKey(address, it) }
@@ -609,6 +627,43 @@ internal class CgmHardwareCollector(
                 }
             } catch (timeout: TimeoutCancellationException) {
                 connection.close()
+                if (
+                    shouldRepairPreexistingCgmBond(
+                        initialAddress = initialSensor.deviceAddress,
+                        startedWithoutSharedKey = startedWithoutSharedKey,
+                        bondStateBeforeAttempt = bondStateBeforeAttempt,
+                        lastProtocolState = lastProtocolState,
+                        repairAlreadyAttempted = preexistingBondRepairAttempted,
+                    )
+                ) {
+                    preexistingBondRepairAttempted = true
+                    when (removeCgmBond(context, sensor.deviceAddress)) {
+                        CgmBondRemovalStatus.REMOVED -> {
+                            sharedKey = null
+                            onSessionKeyReset()
+                            sensor = initialSensor
+                            discoveryRequired = true
+                            fallbackUsed = false
+                            bondReconnectAttempts = 0
+                            gatt133Retries = 0
+                            noCallbackRetries = 0
+                            onState(CgmProtocolState.RECOVERING)
+                            delay(BOND_RECONNECT_DELAY_MS)
+                            continue
+                        }
+
+                        CgmBondRemovalStatus.NOT_REQUIRED,
+                        CgmBondRemovalStatus.FAILED,
+                        -> {
+                            throw CgmBleException(
+                                "G7-AUTH-210",
+                                "Vorhandene Bluetooth-Kopplung konnte nicht erneuert werden. Bitte den Sensor in den Bluetooth-Einstellungen der Uhr entkoppeln und erneut verbinden.",
+                                false,
+                                timeout,
+                            )
+                        }
+                    }
+                }
                 val error =
                     CgmBleException(
                         CGM_DIRECT_CONNECT_TIMEOUT_ERROR_CODE,
