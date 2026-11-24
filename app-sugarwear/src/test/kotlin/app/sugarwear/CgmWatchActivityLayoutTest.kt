@@ -597,7 +597,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `pairing keeps one reserved height and places its submitted code below progress`() {
+    fun `pairing wraps each step and keeps its actions large and submitted code below progress`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
@@ -620,7 +620,7 @@ class CgmWatchActivityLayoutTest {
                 .getDeclaredField("mutableState")
                 .apply { isAccessible = true }
                 .get(model) as kotlinx.coroutines.flow.MutableStateFlow<CgmPairingUiState>
-        var height: Int? = null
+        val heights = mutableMapOf<CgmPairingScreenStep, Int>()
         for (step in CgmPairingScreenStep.entries) {
             flow.value = CgmPairingUiState(step = step, draft = "0123", startedAt = System.currentTimeMillis())
             CgmWatchActivity::class.java
@@ -629,8 +629,18 @@ class CgmWatchActivityLayoutTest {
                 .invoke(activity)
             measureAndLayout(activity.window.decorView)
             val card = activity.window.decorView.findViewWithTag<ViewGroup>("glucose-tile-pairing")
-            height?.let { assertEquals(it, card.height) }
-            height = card.height
+            heights[step] = card.height
+            assertEquals(ViewGroup.LayoutParams.WRAP_CONTENT, card.layoutParams.height)
+            val lastChild = card.getChildAt(card.childCount - 1)
+            val bottomMargin = (lastChild.layoutParams as LinearLayout.LayoutParams).bottomMargin
+            assertEquals(lastChild.bottom + bottomMargin + card.paddingBottom, card.height)
+            val actions = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmTileActionButton>()
+            assertEquals(if (step == CgmPairingScreenStep.CONNECTED) 0 else 2, actions.size)
+            actions.forEach { button ->
+                assertTrue(button.height >= (48 * activity.resources.displayMetrics.density).roundToInt())
+                assertEquals(card.width - card.paddingLeft - card.paddingRight, button.width)
+                assertTrue(button.bottom <= card.height - card.paddingBottom)
+            }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 val code = card.findViewWithTag<TextView>("connection-sensor-code")
                 assertEquals("0123", code.text.toString())
@@ -644,6 +654,8 @@ class CgmWatchActivityLayoutTest {
                 assertEquals((32 * activity.resources.displayMetrics.density).toInt(), check.layoutParams.width)
             }
         }
+        assertTrue(heights.getValue(CgmPairingScreenStep.CONNECTED) < heights.getValue(CgmPairingScreenStep.ENTER_CODE))
+        assertTrue(heights.getValue(CgmPairingScreenStep.CONNECTED) < heights.getValue(CgmPairingScreenStep.CONNECTING))
     }
 
     @Test
@@ -651,6 +663,13 @@ class CgmWatchActivityLayoutTest {
     fun `inline pairing remains inside its tile on a small round display with large text`() {
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
         `explicit code entry survives recreation without starting collection`()
+    }
+
+    @Test
+    @Config(qualifiers = "w192dp-h192dp-round-night-xhdpi")
+    fun `pairing actions remain full width and accessible with large text`() {
+        org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
+        `pairing wraps each step and keeps its actions large and submitted code below progress`()
     }
 
     @Test

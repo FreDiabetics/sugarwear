@@ -128,7 +128,6 @@ class CgmWatchActivity : ComponentActivity() {
     private lateinit var statusHost: LinearLayout
     private var stopRequested = false
     private var renderedTileMode: CgmGlucoseTileMode? = null
-    private val pairingTileSize = CgmPairingTileSize()
     private lateinit var glucoseHost: LinearLayout
     private lateinit var graphHost: LinearLayout
     private lateinit var graphView: CgmCollectorGraphView
@@ -254,10 +253,7 @@ class CgmWatchActivity : ComponentActivity() {
         val background = palette.argb(CgmAppearanceRole.MENU_BACKGROUND)
         applyCgmSystemChrome(window, background)
         val content =
-            CgmPairingTileLayout(this, pairingTileSize).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                setPadding(12.dp, 12.dp, 12.dp, 16.dp)
+            CgmPairingTileLayout(this).apply {
                 tag = "glucose-tile-pairing"
                 this.background = rounded(palette.argb(CgmAppearanceRole.MENU_SURFACE), Color.TRANSPARENT, WearGlucoseCardStyle.CARD_RADIUS_DP)
             }
@@ -292,7 +288,7 @@ class CgmWatchActivity : ComponentActivity() {
             content.addView(
                 CgmSensorConnectionProgressView(this, palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), palette.argb(if (pairingFailed) CgmAppearanceRole.GLUCOSE_ERROR else CgmAppearanceRole.MENU_PRIMARY), !pairingFailed && step == CgmPairingScreenStep.CONNECTING && progress.animate, 28),
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = 10.dp
+                    topMargin = 4.dp
                     gravity = Gravity.CENTER_HORIZONTAL
                 },
             )
@@ -310,7 +306,7 @@ class CgmWatchActivity : ComponentActivity() {
                     true,
                 ).apply {
                     gravity = Gravity.CENTER
-                    setPadding(4.dp, 9.dp, 4.dp, 6.dp)
+                    setPadding(4.dp, 4.dp, 4.dp, 2.dp)
                 },
             )
             if (step == CgmPairingScreenStep.CONNECTING) {
@@ -324,7 +320,7 @@ class CgmWatchActivity : ComponentActivity() {
                     },
                     LinearLayout.LayoutParams(32.dp, 32.dp).apply {
                         gravity = Gravity.CENTER_HORIZONTAL
-                        bottomMargin = 6.dp
+                        bottomMargin = 2.dp
                     },
                 )
             }
@@ -347,34 +343,26 @@ class CgmWatchActivity : ComponentActivity() {
                         true,
                     ).apply {
                         gravity = Gravity.CENTER
-                        setPadding(4.dp, 10.dp, 4.dp, 0)
+                        setPadding(4.dp, 4.dp, 4.dp, 0)
                     },
                 )
                 content.addView(
-                    pill("Erneut versuchen") {
+                    pairingPill("Erneut versuchen") {
                         pairingModel.retry()
                         refreshScreen()
-                    },
-                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        topMargin = 5.dp
-                        gravity = Gravity.CENTER_HORIZONTAL
                     },
                 )
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 content.addView(
-                    pill("Sensorcode korrigieren") {
+                    pairingPill("Sensorcode korrigieren") {
                         companionBondAccess.cancel()
                         pairingModel.correctCode()
                         refreshScreen()
                     },
-                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        topMargin = 6.dp
-                        gravity = Gravity.CENTER_HORIZONTAL
-                    },
                 )
                 content.addView(
-                    pill("Zurück") {
+                    pairingPill("Zurück") {
                         if (pairingAccessPending) {
                             pairingModel.cancelPendingAccess()
                             companionBondAccess.cancel()
@@ -382,10 +370,6 @@ class CgmWatchActivity : ComponentActivity() {
                         } else {
                             performSensorUnlink(closePairing = true)
                         }
-                    },
-                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        topMargin = 6.dp
-                        gravity = Gravity.CENTER_HORIZONTAL
                     },
                 )
             }
@@ -396,9 +380,9 @@ class CgmWatchActivity : ComponentActivity() {
                     setColorFilter(palette.argb(CgmAppearanceRole.MENU_TEXT_PRIMARY), PorterDuff.Mode.SRC_IN)
                     contentDescription = "Sensor verbinden"
                 },
-                LinearLayout.LayoutParams(42.dp, 42.dp).apply {
+                LinearLayout.LayoutParams(32.dp, 32.dp).apply {
                     gravity = Gravity.CENTER_HORIZONTAL
-                    topMargin = 6.dp
+                    topMargin = 3.dp
                 },
             )
             content.addView(
@@ -408,7 +392,7 @@ class CgmWatchActivity : ComponentActivity() {
                     palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
                 ).apply {
                     gravity = Gravity.CENTER
-                    setPadding(0, 4.dp, 0, 3.dp)
+                    setPadding(0, 2.dp, 0, 1.dp)
                     maxLines = 1
                 },
             )
@@ -455,27 +439,23 @@ class CgmWatchActivity : ComponentActivity() {
                 }
             content.addView(code, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 44.dp).apply { gravity = Gravity.CENTER_HORIZONTAL })
             content.addView(
-                pill("Verbinden") {
+                pairingPill("Verbinden") {
                     val entered = code.text?.toString().orEmpty()
                     if (!canStartCgmPairing(pairingStep, pairingStartInFlight, entered)) {
-                        if (pairingStartInFlight) return@pill
+                        if (pairingStartInFlight) return@pairingPill
                         code.error = "Bitte genau vier Ziffern eingeben"
-                        return@pill
+                        return@pairingPill
                     }
                     code.isEnabled = false
                     pairingModel.start(entered)
                     refreshScreen()
-                },
-                LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    topMargin = 7.dp
-                    gravity = Gravity.CENTER_HORIZONTAL
                 },
             )
         }
 
         if (step == CgmPairingScreenStep.ENTER_CODE) {
             content.addView(
-                pill("Zurück") {
+                pairingPill("Zurück") {
                     pairingModel.close()
                     refreshScreen()
                 },
@@ -1254,6 +1234,14 @@ class CgmWatchActivity : ComponentActivity() {
                     gravity = Gravity.CENTER_HORIZONTAL
                     topMargin = 6.dp
                 }
+            setOnClickListener { action() }
+        }
+
+    private fun pairingPill(textValue: String, action: () -> Unit) =
+        CgmTileActionButton(this).apply {
+            text = textValue
+            usePairingSize()
+            layoutParams = CgmPairingTileLayout.actionLayoutParams(this@CgmWatchActivity)
             setOnClickListener { action() }
         }
 
