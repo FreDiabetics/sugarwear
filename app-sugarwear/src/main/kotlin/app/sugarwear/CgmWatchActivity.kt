@@ -341,6 +341,14 @@ class CgmWatchActivity : ComponentActivity() {
             (pairingCodeDraft.takeIf { it.length == 4 } ?: overviewState.snapshot?.pairingCode)?.let { code ->
                 content.addView(connectionCodeLabel(code, palette))
             }
+            if (pairingFailed) {
+                content.addView(
+                    pairingPill("Erneut versuchen") {
+                        pairingModel.retry()
+                        refreshScreen()
+                    }.apply { isEnabled = !pairingModel.state.value.unlinkInFlight && !pairingStartInFlight },
+                )
+            }
             content.addView(
                 pairingPill("Abbrechen") {
                     if (pairingAccessPending) {

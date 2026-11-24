@@ -599,7 +599,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `pairing keeps one tile height and sizes actions to their text`() {
+    fun `pairing keeps one tile height and restores uniform pill geometry`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
@@ -642,13 +642,19 @@ class CgmWatchActivityLayoutTest {
                 CgmPairingScreenStep.CONNECTED -> 0
             }, actions.size)
             if (actions.isNotEmpty()) {
-                val widestText = actions.maxOf { it.pairingInkBounds().width() }
-                val tallestText = actions.maxOf { it.pairingInkBounds().height() }
+                val contentWidth = card.width - card.paddingLeft - card.paddingRight
+                val alarmWidth = (contentWidth * CgmAlarmDesignTokens.ACTION_WIDTH / CgmAlarmDesignTokens.SIZE).toInt()
+                val expectedWidth = (contentWidth * CgmPairingActionTokens.WIDTH_FRACTION).toInt()
+                val expectedHeight = (alarmWidth * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
                 assertEquals(1, actions.map { it.width to it.height }.distinct().size)
+                assertEquals(1, actions.map { it.textSize }.distinct().size)
                 actions.forEach { button ->
-                    assertTrue(button.width > widestText)
-                    assertEquals(button.width - widestText, button.height - tallestText)
+                    assertEquals(expectedWidth, button.width)
+                    assertEquals(expectedHeight, button.height)
                     assertTrue(button.bottom <= card.height - card.paddingBottom)
+                    assertEquals(android.graphics.Color.WHITE, button.currentTextColor)
+                    assertTrue(button.typeface.isBold)
+                    assertEquals(CgmAlarmDesignTokens.BUTTON, (button.background as android.graphics.drawable.GradientDrawable).color!!.defaultColor)
                 }
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
@@ -684,7 +690,11 @@ class CgmWatchActivityLayoutTest {
         val errorContent = errorTile.getChildAt(0) as ViewGroup
         val errorIcon = (0 until errorContent.childCount).map { errorContent.getChildAt(it) }.filterIsInstance<ImageView>().single()
         assertEquals((30 * activity.resources.displayMetrics.density).toInt(), errorIcon.layoutParams.width)
-        assertNotNull(findText(errorTile, "Abbrechen"))
+        val retry = findText(errorTile, "Erneut versuchen") as CgmTileActionButton
+        val cancel = findText(errorTile, "Abbrechen") as CgmTileActionButton
+        assertEquals(cancel.width, retry.width)
+        assertEquals(cancel.height, retry.height)
+        assertEquals(cancel.textSize, retry.textSize, 0.01f)
         assertEquals(1, heights.values.distinct().size)
     }
 
@@ -697,9 +707,9 @@ class CgmWatchActivityLayoutTest {
 
     @Test
     @Config(qualifiers = "w192dp-h192dp-round-night-xhdpi")
-    fun `pairing actions keep equal insets with large text`() {
+    fun `pairing actions keep uniform pill geometry with large text`() {
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
-        `pairing keeps one tile height and sizes actions to their text`()
+        `pairing keeps one tile height and restores uniform pill geometry`()
     }
 
     @Test
