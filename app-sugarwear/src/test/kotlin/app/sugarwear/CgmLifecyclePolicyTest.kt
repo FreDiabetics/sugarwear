@@ -103,7 +103,12 @@ class CgmLifecyclePolicyTest {
     }
 
     @Test fun `pairing survives restoration but expires without renewing its original budget`() {
-        val initial = CgmPersistedState(sensor = CgmSensor("sensor"), collectorEnabled = true)
+        val initial =
+            CgmPersistedState(
+                sensor = CgmSensor("sensor"),
+                collectorEnabled = true,
+                otherSensorCount = 3,
+            )
         val started = startCgmPairingAttempt(initial, 1_000L)
         val restored = ensureCgmPairingAttempt(started, 20_000L)
         val expired = ensureCgmPairingAttempt(started, 1_000L + CGM_INITIAL_PAIRING_SCAN_TIMEOUT_MS)
