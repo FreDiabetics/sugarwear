@@ -66,6 +66,7 @@ internal fun needsCgmFollowUpRepair(collectorEnabled: Boolean, pendingReconnectE
 
 internal fun hasEstablishedCgmSensorSession(state: CgmPersistedState): Boolean {
     val sensor = state.sensor ?: return false
+    if (sensor.deviceAddress.isNullOrBlank()) return false
     val reading = state.lastReading ?: return false
     return reading.status == CgmReadingStatus.VALID &&
         !reading.displayOnly &&
