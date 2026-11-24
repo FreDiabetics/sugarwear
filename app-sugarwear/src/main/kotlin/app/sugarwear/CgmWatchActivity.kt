@@ -789,7 +789,14 @@ class CgmWatchActivity : ComponentActivity() {
             } else if (noActiveSensor) {
                 tile.addView(
                     pill("Sensor verbinden") {
-                        pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
+                        if (persisted.sensor != null && overviewState.snapshot?.credentialsPresent == true) {
+                            pairingModel.open(CgmPairingScreenStep.CONNECTING, System.currentTimeMillis())
+                            sensorStatusModel.resumeCollector()
+                        } else if (persisted.sensor != null || overviewState.snapshot?.credentialsPresent == true) {
+                            pairingModel.correctCode()
+                        } else {
+                            pairingModel.open(CgmPairingScreenStep.ENTER_CODE)
+                        }
                         refreshScreen()
                     },
                 )
@@ -1030,7 +1037,7 @@ class CgmWatchActivity : ComponentActivity() {
             val state = snapshot.persisted
             val lastReading = state.lastReading
             val effectiveNow = maxOf(overviewState.now, lastReading?.timestampEpochMs ?: 0L)
-            val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent, effectiveNow)
+            val pillState = deriveCgmStatusPillState(state, snapshot.credentialsPresent, effectiveNow, snapshot.lastValidReading)
 
             statusHost.removeAllViews()
             val warning =

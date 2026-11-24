@@ -209,7 +209,7 @@ class CgmCollectorTileService : TileService() {
             }
         val persistedState = CgmSensorStateStore(this).read()
         val credentialsPresent = CgmCredentialStore(this).read() != null
-        val pillState = deriveCgmStatusPillState(persistedState, credentialsPresent)
+        val pillState = deriveCgmStatusPillState(persistedState, credentialsPresent, lastValidReading = reading)
         val colorStore = CgmGraphColorStore(this)
         val appearanceStore = CgmAppearanceStore(this)
         val palette = appearanceStore.tileGlucosePalette()

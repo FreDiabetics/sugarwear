@@ -146,6 +146,7 @@ class CgmWatchActivityLayoutTest {
         val store = CgmSensorStateStore(context)
         val before = store.read().copy(collectorEnabled = false)
         store.save(before)
+        CgmCollectorUiTransitionStore.record(context, CgmUiSensorAction.PAUSE)
         val activity =
             Robolectric
                 .buildActivity(CgmWatchActivity::class.java)

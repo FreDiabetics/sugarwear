@@ -57,7 +57,7 @@ internal fun cgmOverviewPresentation(
     bluetoothPermission: Boolean = true,
     lastValidReading: CgmReading? = null,
 ): CgmOverviewPresentation {
-    val status = deriveCgmStatusPillState(state, credentialsPresent, now)
+    val status = deriveCgmStatusPillState(state, credentialsPresent, now, lastValidReading)
     if (status == CgmStatusPillState.NO_ACTIVE_SENSOR) return CgmOverviewPresentation(CgmOverviewMode.NO_SENSOR)
     val reading = state.lastReading?.takeIf { cgmReadingBelongsToSession(state, it) && it.status == CgmReadingStatus.VALID && !it.displayOnly && it.glucoseMgDl.isFinite() && it.timestampEpochMs <= now }
     val pause =
