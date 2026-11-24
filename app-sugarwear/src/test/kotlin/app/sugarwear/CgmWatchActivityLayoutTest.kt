@@ -597,7 +597,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
-    fun `pairing wraps each step and keeps its actions large and submitted code below progress`() {
+    fun `pairing wraps each step and matches alarm action geometry`() {
         val context =
             androidx.test.core.app.ApplicationProvider
                 .getApplicationContext<android.content.Context>()
@@ -637,18 +637,22 @@ class CgmWatchActivityLayoutTest {
             val actions = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmTileActionButton>()
             assertEquals(if (step == CgmPairingScreenStep.CONNECTED) 0 else 2, actions.size)
             actions.forEach { button ->
-                val scale = button.width / 280f
-                val referenceHeight = (85f * scale).roundToInt()
-                val touchHeight = kotlin.math.ceil(48 * activity.resources.displayMetrics.density).toInt()
-                assertEquals(maxOf(referenceHeight, touchHeight), button.height)
-                assertEquals(card.width - card.paddingLeft - card.paddingRight, button.width)
+                val contentWidth = card.width - card.paddingLeft - card.paddingRight
+                val expectedWidth =
+                    (contentWidth * CgmAlarmDesignTokens.ACTION_WIDTH / CgmAlarmDesignTokens.SIZE).toInt()
+                val scale = expectedWidth / CgmAlarmDesignTokens.ACTION_WIDTH
+                val referenceHeight =
+                    (expectedWidth * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
+                assertEquals(expectedWidth, button.width)
+                assertEquals(referenceHeight, button.height)
                 assertTrue(button.bottom <= card.height - card.paddingBottom)
                 assertEquals(android.graphics.Color.WHITE, button.currentTextColor)
                 assertTrue(button.typeface.isBold)
                 assertEquals(CgmAlarmDesignTokens.BUTTON, (button.background as android.graphics.drawable.GradientDrawable).color!!.defaultColor)
                 assertEquals(0, button.paddingLeft)
                 assertEquals(0, button.paddingRight)
-                val referenceTextSize = 34f * scale * activity.resources.configuration.fontScale
+                val referenceTextSize =
+                    CgmAlarmDesignTokens.ACTION_TEXT_SIZE * scale * activity.resources.configuration.fontScale
                 val referencePaint = android.graphics.Paint(button.paint).apply { textSize = referenceTextSize }
                 val referenceTextWidth = referencePaint.measureText(button.text.toString())
                 val available = (button.width - 2).coerceAtLeast(1)
@@ -681,9 +685,9 @@ class CgmWatchActivityLayoutTest {
 
     @Test
     @Config(qualifiers = "w192dp-h192dp-round-night-xhdpi")
-    fun `pairing actions remain full width and accessible with large text`() {
+    fun `pairing actions keep alarm geometry with large text`() {
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
-        `pairing wraps each step and keeps its actions large and submitted code below progress`()
+        `pairing wraps each step and matches alarm action geometry`()
     }
 
     @Test

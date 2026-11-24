@@ -23,7 +23,7 @@ internal class CgmPairingTileLayout(
         private const val ACTION_GAP_DP = 4
 
         fun actionLayoutParams(context: Context) =
-            LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 topMargin = (ACTION_GAP_DP * context.resources.displayMetrics.density).toInt()
             }

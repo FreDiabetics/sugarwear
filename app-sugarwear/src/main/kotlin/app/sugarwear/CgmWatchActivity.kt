@@ -1240,7 +1240,6 @@ class CgmWatchActivity : ComponentActivity() {
     private fun pairingPill(textValue: String, action: () -> Unit) =
         CgmTileActionButton(this).apply {
             text = textValue
-            usePairingSize()
             layoutParams = CgmPairingTileLayout.actionLayoutParams(this@CgmWatchActivity)
             setOnClickListener { action() }
         }
