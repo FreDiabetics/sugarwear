@@ -104,3 +104,29 @@ internal fun cgmDiscoveryScanTimeoutMs(
         fallbackUsed -> CGM_FALLBACK_SCAN_TIMEOUT_MS
         else -> cgmScanTimeoutMs(sensor)
     }
+
+/** Retry only the exact recorded peer after a protocol rejection and confirmed absent OS bond. */
+internal fun shouldRetryAbsentCgmBond(
+    initialAddress: String?,
+    candidateAddress: String?,
+    bondState: Int?,
+    errorCode: String,
+    recoveryAlreadyAttempted: Boolean,
+): Boolean =
+    !recoveryAlreadyAttempted &&
+        !initialAddress.isNullOrBlank() &&
+        initialAddress.equals(candidateAddress, ignoreCase = true) &&
+        bondState == BluetoothDevice.BOND_NONE &&
+        errorCode == "G7-AUTH-211"
+
+internal fun cgmBondRepairFailureMessage(bondState: Int?): String =
+    when (bondState) {
+        BluetoothDevice.BOND_BONDED ->
+            "Bluetooth-Kopplung konnte nicht erneuert werden. Falls der Sensor in den Bluetooth-Einstellungen angezeigt wird, dort entkoppeln und erneut verbinden."
+        BluetoothDevice.BOND_NONE ->
+            "Keine Bluetooth-Kopplung vorhanden. Sensor erneut verbinden."
+        BluetoothDevice.BOND_BONDING ->
+            "Bluetooth-Kopplung läuft noch. Bitte erneut verbinden, sobald sie beendet ist."
+        else ->
+            "Bluetooth-Kopplungsstatus nicht ermittelbar. Bluetooth prüfen und erneut verbinden."
+    }
