@@ -19,6 +19,9 @@ import kotlin.math.roundToInt
 
 internal object CgmAlarmDesignTokens {
     const val SIZE = 450f
+    const val ACTION_WIDTH = 280f
+    const val ACTION_HEIGHT = 85f
+    const val ACTION_TEXT_SIZE = 34f
     val HIGH = 0xFFFCC93B.toInt()
     val LOW = 0xFFF73D45.toInt()
     val SECONDARY = 0xFF848484.toInt()
@@ -278,7 +281,7 @@ internal class CgmAlarmFullBleedView(
                     tag = "alarm-acknowledge"
                     setOnClickListener { onAcknowledge() }
                 }
-            place(button, 85f, 405f, 280f, 85f, 34f)
+            place(button, 85f, 405f, CgmAlarmDesignTokens.ACTION_WIDTH, CgmAlarmDesignTokens.ACTION_HEIGHT, CgmAlarmDesignTokens.ACTION_TEXT_SIZE)
         }
     }
 

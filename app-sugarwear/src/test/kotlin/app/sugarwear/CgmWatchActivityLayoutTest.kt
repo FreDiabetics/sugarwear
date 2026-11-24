@@ -637,9 +637,23 @@ class CgmWatchActivityLayoutTest {
             val actions = (0 until card.childCount).map { card.getChildAt(it) }.filterIsInstance<CgmTileActionButton>()
             assertEquals(if (step == CgmPairingScreenStep.CONNECTED) 0 else 2, actions.size)
             actions.forEach { button ->
-                assertTrue(button.height >= (48 * activity.resources.displayMetrics.density).roundToInt())
+                val scale = button.width / 280f
+                val referenceHeight = (85f * scale).roundToInt()
+                val touchHeight = kotlin.math.ceil(48 * activity.resources.displayMetrics.density).toInt()
+                assertEquals(maxOf(referenceHeight, touchHeight), button.height)
                 assertEquals(card.width - card.paddingLeft - card.paddingRight, button.width)
                 assertTrue(button.bottom <= card.height - card.paddingBottom)
+                assertEquals(android.graphics.Color.WHITE, button.currentTextColor)
+                assertTrue(button.typeface.isBold)
+                assertEquals(CgmAlarmDesignTokens.BUTTON, (button.background as android.graphics.drawable.GradientDrawable).color!!.defaultColor)
+                assertEquals(0, button.paddingLeft)
+                assertEquals(0, button.paddingRight)
+                val referenceTextSize = 34f * scale * activity.resources.configuration.fontScale
+                val referencePaint = android.graphics.Paint(button.paint).apply { textSize = referenceTextSize }
+                val referenceTextWidth = referencePaint.measureText(button.text.toString())
+                val available = (button.width - 2).coerceAtLeast(1)
+                val expectedTextSize = if (referenceTextWidth > available) referenceTextSize * available / referenceTextWidth else referenceTextSize
+                assertEquals(expectedTextSize, button.textSize, 0.01f)
             }
             if (step == CgmPairingScreenStep.CONNECTING) {
                 val code = card.findViewWithTag<TextView>("connection-sensor-code")

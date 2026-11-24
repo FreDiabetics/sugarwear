@@ -7,6 +7,8 @@ import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.Button
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 internal fun Button.applyCgmTileActionStyle() {
     isAllCaps = false
@@ -41,19 +43,15 @@ internal class CgmTileActionButton(
 
     fun usePairingSize() {
         pairingSize = true
-        minHeight = PAIRING_MIN_HEIGHT_DP.dp
-        minimumHeight = PAIRING_MIN_HEIGHT_DP.dp
-        setPadding(PAIRING_HORIZONTAL_PADDING_DP.dp, PAIRING_VERTICAL_PADDING_DP.dp, PAIRING_HORIZONTAL_PADDING_DP.dp, PAIRING_VERTICAL_PADDING_DP.dp)
-        setSingleLine(false)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, PAIRING_TEXT_SP)
+        setSingleLine(true)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val available = MeasureSpec.getSize(widthMeasureSpec)
         if (pairingSize) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            measurePairingAction(available)
             return
         }
-        val available = MeasureSpec.getSize(widthMeasureSpec)
         val width = if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.EXACTLY) available else (available * 280f / 450f).toInt()
         val height = (width * 85f / 280f).toInt()
         val desiredText = width * 34f / 280f * resources.configuration.fontScale
@@ -63,12 +61,23 @@ internal class CgmTileActionButton(
         super.onMeasure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
     }
 
-    private val Int.dp get() = kotlin.math.ceil(this * resources.displayMetrics.density).toInt()
+    private fun measurePairingAction(width: Int) {
+        val scale = width / CgmAlarmDesignTokens.ACTION_WIDTH
+        val referenceHeight = (CgmAlarmDesignTokens.ACTION_HEIGHT * scale).roundToInt()
+        val touchHeight = ceil(PAIRING_MIN_HEIGHT_DP * resources.displayMetrics.density).toInt()
+        val height = maxOf(referenceHeight, touchHeight)
+        val textSize = CgmAlarmDesignTokens.ACTION_TEXT_SIZE * scale * resources.configuration.fontScale
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize)
+        val measured = paint.measureText(text.toString())
+        val available = (width - 2).coerceAtLeast(1)
+        if (measured > available) setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize * available / measured)
+        super.onMeasure(
+            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),
+        )
+    }
 
     private companion object {
         const val PAIRING_MIN_HEIGHT_DP = 48
-        const val PAIRING_HORIZONTAL_PADDING_DP = 8
-        const val PAIRING_VERTICAL_PADDING_DP = 4
-        const val PAIRING_TEXT_SP = 15f
     }
 }
