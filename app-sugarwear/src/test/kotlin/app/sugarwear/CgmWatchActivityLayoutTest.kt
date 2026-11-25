@@ -599,6 +599,7 @@ class CgmWatchActivityLayoutTest {
     }
 
     @Test
+    @Config(qualifiers = "w224dp-h224dp-round-night-xhdpi")
     fun `pairing keeps one tile height and restores uniform pill geometry`() {
         val context =
             androidx.test.core.app.ApplicationProvider
@@ -644,7 +645,7 @@ class CgmWatchActivityLayoutTest {
             if (actions.isNotEmpty()) {
                 val contentWidth = card.width - card.paddingLeft - card.paddingRight
                 val alarmWidth = (contentWidth * CgmAlarmDesignTokens.ACTION_WIDTH / CgmAlarmDesignTokens.SIZE).toInt()
-                val expectedWidth = (contentWidth * CgmPairingActionTokens.WIDTH_FRACTION).toInt()
+                val expectedWidth = (contentWidth * 0.82f).toInt()
                 val expectedHeight = (alarmWidth * CgmAlarmDesignTokens.ACTION_HEIGHT / CgmAlarmDesignTokens.ACTION_WIDTH).toInt()
                 assertEquals(1, actions.map { it.width to it.height }.distinct().size)
                 assertEquals(1, actions.map { it.textSize }.distinct().size)
@@ -664,8 +665,12 @@ class CgmWatchActivityLayoutTest {
                 val code = card.findViewWithTag<TextView>("connection-sensor-code")
                 assertTrue(status.bottom <= progress.top)
                 assertTrue(progress.bottom <= description.top)
+                val gap = (10 * activity.resources.displayMetrics.density).toInt()
+                assertEquals(gap, status.paddingBottom)
+                assertEquals(gap, description.paddingTop)
                 assertTrue(description.bottom <= code.top)
                 assertEquals("0123", code.text.toString())
+                assertEquals(android.graphics.Color.WHITE, code.currentTextColor)
                 assertTrue(findText(card, "Abbrechen") is CgmTileActionButton)
                 assertNull(findText(card, "Code ändern"))
                 assertNull(findText(card, "Zurück"))

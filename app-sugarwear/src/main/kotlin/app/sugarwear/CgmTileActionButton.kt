@@ -31,10 +31,10 @@ internal fun Button.applyCgmTileActionStyle() {
 
 /** The same 280 by 85 artboard button used by the native alarm's OK action. */
 internal object CgmPairingActionTokens {
-    const val WIDTH_FRACTION = 0.74f
+    const val WIDTH_FRACTION = 0.82f
     const val TEXT_SIZE = 36f
     const val TEXT_WIDTH_FRACTION = 0.90f
-    const val REFERENCE_TEXT = "Erneut versuchen"
+    const val REFERENCE_TEXT = "Verbinden"
 }
 
 internal class CgmTileActionButton(

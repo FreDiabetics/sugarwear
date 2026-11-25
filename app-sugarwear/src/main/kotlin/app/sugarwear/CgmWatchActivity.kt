@@ -291,7 +291,7 @@ class CgmWatchActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
                 if (step == CgmPairingScreenStep.CONNECTING) {
                     tag = "pairing-progress-status"
-                    setPadding(0, 0, 0, 6.dp)
+                    setPadding(0, 0, 0, PAIRING_PROGRESS_GAP_DP.dp)
                 }
             },
         )
@@ -334,12 +334,12 @@ class CgmWatchActivity : ComponentActivity() {
                         12f,
                         palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY),
                     ).apply {
-                        setPadding(4.dp, 6.dp, 4.dp, 0)
+                        setPadding(4.dp, PAIRING_PROGRESS_GAP_DP.dp, 4.dp, 0)
                     },
                 )
             }
             (pairingCodeDraft.takeIf { it.length == 4 } ?: overviewState.snapshot?.pairingCode)?.let { code ->
-                content.addView(connectionCodeLabel(code, palette))
+                content.addView(connectionCodeLabel(code, Color.WHITE))
             }
             if (pairingFailed) {
                 content.addView(
@@ -567,8 +567,8 @@ class CgmWatchActivity : ComponentActivity() {
         }
     }
 
-    private fun connectionCodeLabel(code: String, palette: CgmAppearancePalette) =
-        label(code, 24f, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY), true).apply {
+    private fun connectionCodeLabel(code: String, color: Int) =
+        label(code, 24f, color, true).apply {
             gravity = Gravity.CENTER
             tag = "connection-sensor-code"
             setPadding(0, 6.dp, 0, 6.dp)
@@ -739,7 +739,7 @@ class CgmWatchActivity : ComponentActivity() {
                         )
                     }
                 overviewState.snapshot?.pairingCode?.let { code ->
-                    inlineProgress.addView(connectionCodeLabel(code, palette))
+                    inlineProgress.addView(connectionCodeLabel(code, palette.argb(CgmAppearanceRole.MENU_TEXT_SECONDARY)))
                 }
                 tile.addView(
                     inlineProgress,
@@ -1394,6 +1394,7 @@ class CgmWatchActivity : ComponentActivity() {
     private val Int.dp: Int get() = (this * resources.displayMetrics.density).toInt()
 
     companion object {
+        private const val PAIRING_PROGRESS_GAP_DP = 10
         internal const val EXTRA_SENSOR_UNLINKED = "g7.sensor_unlinked"
         internal const val EXTRA_OPEN_PAIRING = "g7.open_pairing"
         const val PERMISSION_REQUEST = 7
